@@ -1,66 +1,92 @@
-# first time only
+# Git Workflow
 
-### clone the repo
+## First time only
 
-### switch to your branch (it's already created)
-`git checkout <your-42-login>`
+1. Clone the repo.
+2. Switch to your personal branch (it's already created):
 
-### you can now start your work
+```bash
+   git checkout <42-login>
+```
 
+3. You can now start your work.
 
+---
 
-# daily workflow cycle
+## Daily workflow
 
-## update your branch with the latest main
-### switch to you personal branch
-`git checkout <42-login>`
+### 1. Update your branch with the latest `main`
 
-### fetch latest changes from github
-`git fetch origin`
+```bash
+git checkout <42-login>
+git fetch origin
+git merge origin/main
+```
 
-### merge the latest main into your personal branch
-`git merge origin/main`
+### 2. Work and commit progress
 
-## work and commit progress
-### add any files that should never be commited to .gitignore (such as .env)
+1. Add any files that should never be committed to `.gitignore` (such as `.env`).
+2. Stage your changes:
 
-### stage them
-`git add .`
+```bash
+   git add .
+```
 
-### inspect untracker/modified files
-`git status`
+3. Inspect untracked/modified files:
 
-### commit with a descriptive message
-`git commit -m "feature: details"`
+```bash
+   git status
+```
 
-## push to github and open a pull request
-### sync main one last time to make sure there are no new updates before pushing
-`git fetch origin`
-`git merge origin/main`
+4. Commit with a descriptive message:
 
-### push your personal branch to github
-`git push origin <42-login>`
+```bash
+   git commit -m "feature: details"
+```
 
-* Go to the **GitHub Repository** page in your browser.
-* Click **"Compare &amp; pull request"**.
-* Set the **Base branch** to `main` and the **Compare branch** to `42-login`.
-* Assign at least 1 reviewer (tech leads, aayache/yhajbi).
-* Once approved, perform a "Squash and Merge" (or standard merge) into `main`.
+### 3. Push to GitHub and open a pull request
 
-## post-merge reset for your next task
-### switch to main and pull the newly merged code
-`git checkout main`
-`git pull origin main`
+1. Sync `main` one last time to make sure there are no new updates:
 
-### switch back to your personal branch and merge updated main into it
-`git checkout <42-login>`
-`git merge main`
+```bash
+   git fetch origin
+   git merge origin/main
+```
 
+2. Push your personal branch:
 
+```bash
+   git push origin <42-login>
+```
 
-# mandatory rules of operations
-* `main` is strictly *protected* - nobody pushes directly to it. every new addition should pass through the pull request system.
-* never commit sensitive files or build dependencies - always check git status before commiting to ensure `.env, ...` are not staged.
-* sync daily - run `git merge origin/main` on your personal branch every time you start coding. leaving your branch out of sync for days increases the risk of severe merge conflicts.
-* never force push (`git push -f`) - especially on main or any shared branches (probably won't be any shared branch).
-* if the pull request has merge conflicts, resolve them either on the github code editor or on your personal branch, push again and wait for review.
+3. On the **GitHub Repository** page:
+   - Click **Compare & pull request**.
+   - Set **Base** to `main` and **Compare** to `<42-login>`.
+   - Assign at least 1 reviewer (tech leads: aayache / yhajbi).
+   - Once approved, do a **Squash and Merge** (or a standard merge) into `main`.
+
+### 4. Post-merge reset for your next task
+
+1. Switch to `main` and pull the newly merged code:
+
+```bash
+   git checkout main
+   git pull origin main
+```
+
+2. Switch back to your branch and merge the updated `main` into it:
+
+```bash
+   git checkout <42-login>
+   git merge main
+```
+
+---
+
+## Mandatory rules
+
+- **`main` is protected.** Nobody pushes directly to it; every addition goes through a pull request.
+- **Never commit sensitive files or build dependencies.** Always run `git status` before committing to make sure `.env` and similar files are not staged.
+- **Sync daily.** Run `git merge origin/main` on your branch every time you start coding. Leaving it out of sync for days increases the risk of severe merge conflicts.
+- **Never force push** (`git push -f`), especially on `main` or any shared branch.
+- **Merge conflicts in a PR?** Resolve them in the GitHub editor or on your personal branch, push again, and wait for review.
