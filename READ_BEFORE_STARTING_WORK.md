@@ -1,6 +1,6 @@
 # Git Workflow
 
-## First time only
+## Starting
 
 1. Clone the repo.
 2. Switch to your personal branch (it's already created):
