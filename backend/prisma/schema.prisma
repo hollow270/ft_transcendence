@@ -1,0 +1,494 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  DELETED
+}
+
+enum ArtifactType {
+  FILE
+  URL
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum SubmissionSource {
+  WEB
+  API
+}
+
+enum ScanStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ScanReason {
+  INITIAL
+  MANUAL_RESCAN
+  STALE_RESCAN
+  API_REQUEST
+}
+
+enum Verdict {
+  UNKNOWN
+  HARMLESS
+  SUSPICIOUS
+  MALICIOUS
+}
+
+enum CommentStatus {
+  ACTIVE
+  HIDDEN
+  DELETED
+}
+
+enum ReportReason {
+  SPAM
+  ABUSIVE
+  DANGEROUS_MISINFORMATION
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  REJECTED
+}
+
+enum ModerationActionType {
+  HIDE_COMMENT
+  RESTORE_COMMENT
+  DELETE_COMMENT
+  BAN_COMMENTING
+  UNBAN_COMMENTING
+}
+
+enum NotificationType {
+  SCAN_COMPLETED
+  COMMENT_REPLY
+  COMMENT_MODERATED
+  RESOURCE_CREATED
+  RESOURCE_UPDATED
+  RESOURCE_DELETED
+  SYSTEM
+}
+
+// 1. Registered accounts and authorization.
+model User {
+  id                 String             @id @default(uuid()) @db.Uuid
+  username           String             @unique @db.VarChar(50)
+  email              String             @unique @db.VarChar(255)
+  passwordHash       String             @map("password_hash")
+  role               UserRole           @default(USER)
+  status             UserStatus         @default(ACTIVE)
+  commentBannedUntil DateTime?          @map("comment_banned_until")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  deletedAt          DateTime?          @map("deleted_at")
+
+  twoFactor              UserTwoFactor?
+  sessions               UserSession[]
+  submissions            Submission[]
+  comments               Comment[]
+  communityVotes         CommunityVote[]
+  commentReports         CommentReport[]      @relation("CommentReportReporter")
+  reviewedCommentReports CommentReport[]      @relation("CommentReportReviewer")
+  moderationActions      ModerationAction[]   @relation("ModerationActionModerator")
+  moderationTargets      ModerationAction[]   @relation("ModerationActionTargetUser")
+  notifications          Notification[]       @relation("NotificationRecipient")
+  notificationActions    Notification[]       @relation("NotificationActor")
+  apiKeys                ApiKey[]
+  apiRequestLogs         ApiRequestLog[]
+  llmUsageLogs           LlmUsageLog[]
+  auditLogs              AuditLog[]
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+// 2. Optional two-factor authentication configuration.
+model UserTwoFactor {
+  userId          String   @id @db.Uuid @map("user_id")
+  secretEncrypted String   @map("secret_encrypted")
+  enabled         Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_2fa")
+}
+
+// 3. Login sessions and real-time "users online now" tracking.
+model UserSession {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid @map("user_id")
+  tokenHash  String    @unique @map("token_hash")
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lastSeenAt])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+// 4. Central object shared by files and URLs.
+model Artifact {
+  id          String       @id @default(uuid()) @db.Uuid
+  type        ArtifactType
+  firstSeenAt DateTime     @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime     @default(now()) @map("last_seen_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  file           FileArtifact?
+  url            UrlArtifact?
+  submissions    Submission[]
+  scans          Scan[]
+  comments       Comment[]
+  communityVotes CommunityVote[]
+  notifications  Notification[]
+  apiRequestLogs ApiRequestLog[]
+  llmUsageLogs   LlmUsageLog[]
+
+  @@index([type])
+  @@index([lastSeenAt])
+  @@map("artifacts")
+}
+
+// 5. File-specific identity and metadata.
+model FileArtifact {
+  artifactId String  @id @db.Uuid @map("artifact_id")
+  sha256     String  @unique @db.VarChar(64)
+  sha1       String? @db.VarChar(40)
+  md5        String? @db.VarChar(32)
+  size       BigInt
+  mimeType   String  @db.VarChar(255) @map("mime_type")
+
+  artifact Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+
+  @@index([sha1])
+  @@index([md5])
+  @@map("file_artifacts")
+}
+
+// 6. URL-specific identity and normalized URL information.
+model UrlArtifact {
+  artifactId    String  @id @db.Uuid @map("artifact_id")
+  normalizedUrl String  @db.Text @map("normalized_url")
+  urlHash       String  @unique @db.VarChar(64) @map("url_hash")
+  domain        String? @db.VarChar(255)
+
+  artifact Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+
+  @@index([domain])
+  @@map("url_artifacts")
+}
+
+// 7. Every time a user (or anonymous visitor) submits a file or URL.
+model Submission {
+  id                   String           @id @default(uuid()) @db.Uuid
+  artifactId           String           @db.Uuid @map("artifact_id")
+  userId               String?          @db.Uuid @map("user_id")
+  visibility           Visibility       @default(PUBLIC)
+  source               SubmissionSource @default(WEB)
+  originalFilename     String?          @map("original_filename")
+  originalUrl          String?          @db.Text @map("original_url")
+  binaryDeleteDeadline DateTime?        @map("binary_delete_deadline")
+  binaryDeletedAt      DateTime?        @map("binary_deleted_at")
+  createdAt            DateTime         @default(now()) @map("created_at")
+
+  artifact Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  scans    Scan[]
+
+  @@index([artifactId, createdAt])
+  @@index([userId, createdAt])
+  @@index([visibility])
+  @@map("submissions")
+}
+
+// 8. One analysis or re-analysis of an artifact.
+model Scan {
+  id             String      @id @default(uuid()) @db.Uuid
+  artifactId     String      @db.Uuid @map("artifact_id")
+  submissionId   String?     @db.Uuid @map("submission_id")
+  status         ScanStatus  @default(QUEUED)
+  reason         ScanReason  @default(INITIAL)
+  visibility     Visibility  @default(PUBLIC)
+  overallVerdict Verdict     @default(UNKNOWN) @map("overall_verdict")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  startedAt      DateTime?   @map("started_at")
+  completedAt    DateTime?   @map("completed_at")
+  staleAt        DateTime?   @map("stale_at")
+  errorMessage   String?     @db.Text @map("error_message")
+
+  artifact      Artifact           @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  submission    Submission?        @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  engineResults ScanEngineResult[]
+  llmUsageLogs  LlmUsageLog[]
+
+  @@index([artifactId, createdAt])
+  @@index([submissionId])
+  @@index([status])
+  @@index([overallVerdict])
+  @@index([staleAt])
+  @@map("scans")
+}
+
+// 9. Registry of external antivirus/security engines.
+model ScanEngine {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique @db.VarChar(100)
+  provider  String?  @db.VarChar(100)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  results ScanEngineResult[]
+
+  @@index([active])
+  @@map("scan_engines")
+}
+
+// 10. Individual result returned by one engine for one scan.
+model ScanEngineResult {
+  id               String   @id @default(uuid()) @db.Uuid
+  scanId           String   @db.Uuid @map("scan_id")
+  engineId         String   @db.Uuid @map("engine_id")
+  verdict          Verdict  @default(UNKNOWN)
+  detectionName    String?  @map("detection_name")
+  engineVersion    String?  @map("engine_version")
+  signatureVersion String?  @map("signature_version")
+  responseTimeMs   Int?     @map("response_time_ms")
+  rawResult        Json?    @map("raw_result")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  scan   Scan       @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  engine ScanEngine @relation(fields: [engineId], references: [id], onDelete: Restrict)
+
+  @@unique([scanId, engineId])
+  @@index([engineId])
+  @@index([verdict])
+  @@map("scan_engine_results")
+}
+
+// 11. Nested Reddit-style discussion on public artifacts.
+model Comment {
+  id         String        @id @default(uuid()) @db.Uuid
+  artifactId String        @db.Uuid @map("artifact_id")
+  userId     String        @db.Uuid @map("user_id")
+  parentId   String?       @db.Uuid @map("parent_id")
+  body       String        @db.Text
+  status     CommentStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  editedAt   DateTime?     @map("edited_at")
+  deletedAt  DateTime?     @map("deleted_at")
+
+  artifact          Artifact           @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent            Comment?           @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies           Comment[]          @relation("CommentReplies")
+  reports           CommentReport[]
+  moderationActions ModerationAction[]
+  notifications     Notification[]
+
+  @@index([artifactId, createdAt])
+  @@index([userId])
+  @@index([parentId])
+  @@index([status])
+  @@map("comments")
+}
+
+// 12. One active community verdict per user per artifact.
+model CommunityVote {
+  artifactId String   @db.Uuid @map("artifact_id")
+  userId     String   @db.Uuid @map("user_id")
+  verdict    Verdict
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  artifact Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([artifactId, userId])
+  @@index([verdict])
+  @@map("community_votes")
+}
+
+// 13. User reports submitted against comments.
+model CommentReport {
+  id           String       @id @default(uuid()) @db.Uuid
+  commentId    String       @db.Uuid @map("comment_id")
+  reporterId   String       @db.Uuid @map("reporter_id")
+  reason       ReportReason
+  details      String?      @db.Text
+  status       ReportStatus @default(OPEN)
+  reviewedById String?      @db.Uuid @map("reviewed_by_id")
+  reviewedAt   DateTime?    @map("reviewed_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  comment    Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reporter   User    @relation("CommentReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewedBy User?   @relation("CommentReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([commentId, reporterId])
+  @@index([status, createdAt])
+  @@index([reviewedById])
+  @@map("comment_reports")
+}
+
+// 14. Audit trail for moderator actions.
+model ModerationAction {
+  id           String               @id @default(uuid()) @db.Uuid
+  moderatorId  String               @db.Uuid @map("moderator_id")
+  targetUserId String?              @db.Uuid @map("target_user_id")
+  commentId    String?              @db.Uuid @map("comment_id")
+  action       ModerationActionType
+  reason       String?              @db.Text
+  createdAt    DateTime             @default(now()) @map("created_at")
+
+  moderator  User     @relation("ModerationActionModerator", fields: [moderatorId], references: [id], onDelete: Restrict)
+  targetUser User?    @relation("ModerationActionTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  comment    Comment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+
+  @@index([moderatorId, createdAt])
+  @@index([targetUserId])
+  @@index([commentId])
+  @@map("moderation_actions")
+}
+
+// 15. In-app notifications for scans, replies and moderation.
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @db.Uuid @map("user_id")
+  actorUserId String?          @db.Uuid @map("actor_user_id")
+  type        NotificationType
+  artifactId  String?          @db.Uuid @map("artifact_id")
+  commentId   String?          @db.Uuid @map("comment_id")
+  entityType  String?          @db.VarChar(50) @map("entity_type")
+  entityId    String?          @map("entity_id")
+  message     String?
+  metadata    Json?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  readAt      DateTime?        @map("read_at")
+
+  user     User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor    User?     @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  artifact Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  comment  Comment?  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@index([artifactId])
+  @@index([commentId])
+  @@map("notifications")
+}
+
+// 16. Hashed API credentials used by the public API.
+model ApiKey {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @db.Uuid @map("user_id")
+  name               String    @db.VarChar(100)
+  keyPrefix          String    @db.VarChar(20) @map("key_prefix")
+  keyHash            String    @unique @map("key_hash")
+  rateLimitPerMinute Int       @default(60) @map("rate_limit_per_minute")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  lastUsedAt         DateTime? @map("last_used_at")
+  revokedAt          DateTime? @map("revoked_at")
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestLogs ApiRequestLog[]
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// 17. Request history used for API analytics and rate-limit monitoring.
+model ApiRequestLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  apiKeyId   String?  @db.Uuid @map("api_key_id")
+  userId     String?  @db.Uuid @map("user_id")
+  artifactId String?  @db.Uuid @map("artifact_id")
+  method     String   @db.VarChar(10)
+  route      String
+  statusCode Int      @map("status_code")
+  durationMs Int?     @map("duration_ms")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  apiKey   ApiKey?   @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  artifact Artifact? @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+
+  @@index([apiKeyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([route, createdAt])
+  @@map("api_request_logs")
+}
+
+// 18. LLM usage metrics only. Prompts and responses are intentionally not stored.
+model LlmUsageLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid @map("user_id")
+  artifactId   String?  @db.Uuid @map("artifact_id")
+  scanId       String?  @db.Uuid @map("scan_id")
+  provider     String   @db.VarChar(100)
+  model        String   @db.VarChar(100)
+  inputTokens  Int      @default(0) @map("input_tokens")
+  outputTokens Int      @default(0) @map("output_tokens")
+  latencyMs    Int?     @map("latency_ms")
+  successful   Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artifact Artifact? @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  scan     Scan?     @relation(fields: [scanId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([artifactId])
+  @@index([scanId])
+  @@map("llm_usage_logs")
+}
+
+// 19. Security/admin audit history.
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String?  @db.Uuid @map("actor_user_id")
+  action      String   @db.VarChar(100)
+  targetType  String?  @db.VarChar(50) @map("target_type")
+  targetId    String?  @map("target_id")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}
