@@ -9,22 +9,18 @@ import type {
   VoteSummary,
 } from './types';
 
-const verdictClasses: Record<string, string> = {
-  HARMLESS: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-  SUSPICIOUS: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-  MALICIOUS: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
-  UNKNOWN: 'border-slate-600 bg-slate-800 text-slate-300',
+const verdictText: Record<string, string> = {
+  HARMLESS: 'text-emerald-700',
+  SUSPICIOUS: 'text-amber-700',
+  MALICIOUS: 'text-red-700',
+  UNKNOWN: 'text-slate-500',
 };
 
-function VerdictBadge({ verdict }: { verdict?: string | null }) {
-  const value = verdict ?? 'UNKNOWN';
+function Verdict({ value }: { value?: string | null }) {
+  const verdict = value ?? 'UNKNOWN';
   return (
-    <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold tracking-wide ${
-        verdictClasses[value] ?? verdictClasses.UNKNOWN
-      }`}
-    >
-      {value}
+    <span className={`font-semibold ${verdictText[verdict] ?? verdictText.UNKNOWN}`}>
+      {verdict}
     </span>
   );
 }
@@ -36,7 +32,7 @@ function formatDate(value?: string | null) {
 
 function shortHash(value?: string | null) {
   if (!value) return '—';
-  return value.length > 24 ? `${value.slice(0, 18)}…${value.slice(-6)}` : value;
+  return value.length > 34 ? `${value.slice(0, 24)}…${value.slice(-8)}` : value;
 }
 
 export default function App() {
@@ -127,6 +123,15 @@ export default function App() {
     [notifications],
   );
 
+  const detections = useMemo(() => {
+    const results = artifact?.latestScan?.engineResults ?? [];
+    return {
+      malicious: results.filter((result) => result.verdict === 'MALICIOUS').length,
+      suspicious: results.filter((result) => result.verdict === 'SUSPICIOUS').length,
+      total: results.length,
+    };
+  }, [artifact]);
+
   async function handleAuth(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -136,7 +141,7 @@ export default function App() {
     try {
       if (authMode === 'register') {
         await api.register(authForm);
-        setInfo('Account created. Sign in to continue.');
+        setInfo('Account created. You can sign in now.');
         setAuthMode('login');
       } else {
         const result = await api.login({
@@ -146,7 +151,7 @@ export default function App() {
         localStorage.setItem('session_token', result.token);
         setToken(result.token);
         setUser(result.user);
-        setInfo(`Welcome back, ${result.user.username}.`);
+        setInfo(`Signed in as ${result.user.username}.`);
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Authentication failed');
@@ -169,6 +174,7 @@ export default function App() {
 
   async function upload(event: FormEvent) {
     event.preventDefault();
+
     if (!file) {
       setError('Choose a file first.');
       return;
@@ -191,8 +197,8 @@ export default function App() {
       setLastSubmissionVisibility(result.submission.visibility);
       setInfo(
         result.reusedScan
-          ? 'Existing fresh scan reused.'
-          : 'New scan completed and stored.',
+          ? 'A fresh existing result was reused.'
+          : 'Scan completed.',
       );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Upload failed');
@@ -236,12 +242,12 @@ export default function App() {
     }
   }
 
-  async function vote(verdict: 'HARMLESS' | 'SUSPICIOUS' | 'MALICIOUS') {
+  async function vote(value: 'HARMLESS' | 'SUSPICIOUS' | 'MALICIOUS') {
     if (!artifactId || !token) return;
     setError(null);
 
     try {
-      await api.vote(artifactId, verdict, token);
+      await api.vote(artifactId, value, token);
       setVotes(await api.votes(artifactId));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Vote failed');
@@ -257,80 +263,75 @@ export default function App() {
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
     } catch {
-      // Notification acknowledgement should not interrupt the main UI.
+      // Reading a notification should not block the rest of the interface.
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">
-              ft_transcendence
-            </p>
-            <h1 className="text-xl font-bold text-white">Artifact Scanner</h1>
+    <div className="min-h-screen bg-[#f6f8fa] text-[#24292f]">
+      <header className="border-b border-[#d0d7de] bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-4">
+            <a href="/" className="font-semibold tracking-tight text-[#24292f]">
+              transcendence
+            </a>
+            <span className="hidden text-sm text-[#57606a] sm:inline">scanner</span>
           </div>
 
           <div className="flex items-center gap-3 text-sm">
             {user ? (
               <>
-                <div className="hidden text-right sm:block">
-                  <p className="font-semibold text-white">{user.username}</p>
-                  <p className="text-xs text-slate-400">
-                    {user.role} · {unreadCount} unread
-                  </p>
-                </div>
-                <button className="btn-secondary" onClick={logout}>
+                <span className="hidden text-[#57606a] sm:inline">
+                  {user.username} · {user.role}
+                  {unreadCount > 0 ? ` · ${unreadCount} unread` : ''}
+                </span>
+                <button className="link-button" onClick={logout}>
                   Sign out
                 </button>
               </>
             ) : (
-              <span className="rounded-full border border-slate-800 px-3 py-1.5 text-xs text-slate-400">
-                Anonymous mode
-              </span>
+              <span className="text-[#57606a]">Anonymous</span>
             )}
           </div>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-8">
-        <div className="space-y-6">
-          <section className="panel overflow-hidden">
-            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-              <div>
-                <span className="inline-flex rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300">
-                  FILE ANALYSIS
-                </span>
-                <h2 className="mt-4 max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                  Scan once. Reuse trusted artifact history.
-                </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-                  Files are identified by SHA-256. Fresh results can be reused for
-                  seven days, while registered users can keep submissions private
-                  or request a manual rescan.
-                </p>
-              </div>
+      <main className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0">
+          <section>
+            <div className="border-b border-[#d0d7de] pb-3">
+              <h1 className="text-xl font-semibold">Analyze a file</h1>
+              <p className="mt-1 text-sm text-[#57606a]">
+                Files are identified by SHA-256. Results remain reusable for seven days.
+              </p>
+            </div>
 
-              <form className="space-y-4" onSubmit={upload}>
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-300">
-                    File
+            <form onSubmit={upload} className="py-6">
+              <label className="block border border-dashed border-[#8c959f] bg-white px-6 py-10 text-center">
+                <input
+                  type="file"
+                  className="sr-only"
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                />
+                <div className="mx-auto max-w-md">
+                  <p className="text-sm font-medium">
+                    {file ? file.name : 'Drop a file here or choose a file'}
+                  </p>
+                  <p className="mt-1 text-xs text-[#6e7781]">
+                    Maximum upload size: 25 MB
+                  </p>
+                  <span className="mt-4 inline-flex border border-[#8c959f] bg-[#f6f8fa] px-3 py-1.5 text-sm font-medium">
+                    Choose file
                   </span>
-                  <input
-                    className="field file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-500 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-slate-950"
-                    type="file"
-                    onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                  />
-                </label>
+                </div>
+              </label>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <label>
-                    <span className="mb-2 block text-sm font-medium text-slate-300">
-                      Visibility
-                    </span>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-5 text-sm">
+                  <label className="flex items-center gap-2">
+                    <span className="text-[#57606a]">Visibility</span>
                     <select
-                      className="field"
+                      className="control w-auto"
                       value={visibility}
                       onChange={(event) =>
                         setVisibility(event.target.value as 'PUBLIC' | 'PRIVATE')
@@ -343,32 +344,29 @@ export default function App() {
                     </select>
                   </label>
 
-                  <label className="flex items-end">
-                    <span className="flex h-[42px] w-full items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={forceRescan}
-                        onChange={(event) => setForceRescan(event.target.checked)}
-                        className="h-4 w-4 accent-cyan-500"
-                      />
-                      Force rescan
-                    </span>
+                  <label className="flex items-center gap-2 text-[#57606a]">
+                    <input
+                      type="checkbox"
+                      checked={forceRescan}
+                      onChange={(event) => setForceRescan(event.target.checked)}
+                    />
+                    Force rescan
                   </label>
                 </div>
 
-                <button className="btn-primary w-full" disabled={uploadBusy}>
-                  {uploadBusy ? 'Scanning…' : 'Upload and scan'}
+                <button className="primary-button" disabled={uploadBusy || !file}>
+                  {uploadBusy ? 'Scanning…' : 'Scan file'}
                 </button>
-              </form>
-            </div>
+              </div>
+            </form>
           </section>
 
           {(error || info) && (
             <div
-              className={`rounded-xl border px-4 py-3 text-sm ${
+              className={`mb-6 border px-4 py-3 text-sm ${
                 error
-                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-200'
-                  : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
+                  ? 'border-red-300 bg-red-50 text-red-800'
+                  : 'border-[#b6d7a8] bg-[#f0f8ed] text-[#386641]'
               }`}
             >
               {error ?? info}
@@ -376,111 +374,126 @@ export default function App() {
           )}
 
           {artifact ? (
-            <section className="panel">
+            <section className="border-t border-[#d0d7de] pt-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Artifact
-                  </p>
-                  <h2 className="mt-1 text-xl font-bold text-white">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold">
                     {artifact.file?.mimeType ?? artifact.type}
                   </h2>
-                  <p className="mt-1 font-mono text-xs text-slate-500">
+                  <p className="mt-1 break-all font-mono text-xs text-[#6e7781]">
                     {artifact.id}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="text-right text-sm">
+                  <div>
+                    Verdict: <Verdict value={artifact.latestScan?.overallVerdict} />
+                  </div>
                   {reusedScan !== null && (
-                    <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-400">
-                      {reusedScan ? 'Cached result' : 'New scan'}
-                    </span>
+                    <div className="mt-1 text-xs text-[#6e7781]">
+                      {reusedScan ? 'cached result' : 'new scan'}
+                    </div>
                   )}
-                  <VerdictBadge verdict={artifact.latestScan?.overallVerdict} />
                 </div>
               </div>
 
               {artifact.file && (
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <dl className="mt-6 grid border-y border-[#d0d7de] bg-white sm:grid-cols-[130px_1fr]">
                   {[
-                    ['SHA-256', shortHash(artifact.file.sha256)],
-                    ['SHA-1', shortHash(artifact.file.sha1)],
+                    ['SHA-256', artifact.file.sha256],
+                    ['SHA-1', artifact.file.sha1 ?? '—'],
                     ['MD5', artifact.file.md5 ?? '—'],
                     ['Size', `${artifact.file.size} bytes`],
                   ].map(([label, value]) => (
-                    <div
-                      key={label}
-                      className="rounded-xl border border-slate-800 bg-slate-950/70 p-3"
-                    >
-                      <p className="text-xs uppercase tracking-wide text-slate-500">
+                    <div className="contents" key={label}>
+                      <dt className="border-b border-[#d8dee4] bg-[#f6f8fa] px-3 py-2 text-xs font-medium text-[#57606a] last:border-b-0">
                         {label}
-                      </p>
-                      <p className="mt-1 break-all font-mono text-sm text-slate-200">
-                        {value}
-                      </p>
+                      </dt>
+                      <dd className="border-b border-[#d8dee4] px-3 py-2 font-mono text-xs break-all last:border-b-0">
+                        {label.startsWith('SHA') ? shortHash(value) : value}
+                      </dd>
                     </div>
                   ))}
-                </div>
+                </dl>
               )}
 
-              <div className="mt-6">
-                <h3 className="font-semibold text-white">Scan engines</h3>
-                <div className="mt-3 overflow-hidden rounded-xl border border-slate-800">
-                  <div className="grid grid-cols-[1fr_auto] bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <span>Engine / detection</span>
-                    <span>Verdict</span>
-                  </div>
-                  {artifact.latestScan?.engineResults?.length ? (
-                    artifact.latestScan.engineResults.map((result) => (
-                      <div
-                        key={result.engine}
-                        className="grid grid-cols-[1fr_auto] items-center gap-4 border-t border-slate-800 px-4 py-3"
-                      >
-                        <div>
-                          <p className="text-sm font-medium text-slate-200">
-                            {result.engine}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {result.detectionName ?? 'No named detection'}
-                          </p>
-                        </div>
-                        <VerdictBadge verdict={result.verdict} />
-                      </div>
-                    ))
-                  ) : (
-                    <p className="border-t border-slate-800 px-4 py-4 text-sm text-slate-500">
-                      No engine results.
+              <div className="mt-7">
+                <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#d0d7de] pb-3">
+                  <div>
+                    <h3 className="font-semibold">Detection</h3>
+                    <p className="mt-1 text-sm text-[#57606a]">
+                      {detections.total
+                        ? `${detections.malicious} malicious, ${detections.suspicious} suspicious out of ${detections.total} engines`
+                        : 'No engine results'}
                     </p>
+                  </div>
+                  {artifact.latestScan && (
+                    <div className="text-xs text-[#6e7781]">
+                      Updated {formatDate(artifact.latestScan.completedAt)}
+                    </div>
                   )}
                 </div>
 
+                <div className="overflow-x-auto bg-white">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-[#d0d7de] text-xs text-[#57606a]">
+                        <th className="px-3 py-2 font-medium">Engine</th>
+                        <th className="px-3 py-2 font-medium">Result</th>
+                        <th className="px-3 py-2 font-medium">Detection</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {artifact.latestScan?.engineResults?.length ? (
+                        artifact.latestScan.engineResults.map((result) => (
+                          <tr
+                            key={result.engine}
+                            className="border-b border-[#eaeef2] last:border-b-0"
+                          >
+                            <td className="px-3 py-3 font-medium">{result.engine}</td>
+                            <td className="px-3 py-3">
+                              <Verdict value={result.verdict} />
+                            </td>
+                            <td className="px-3 py-3 text-[#57606a]">
+                              {result.detectionName ?? '—'}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="px-3 py-4 text-[#57606a]" colSpan={3}>
+                            No engine results.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
                 {artifact.latestScan && (
-                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[#6e7781]">
                     <span>Reason: {artifact.latestScan.reason}</span>
-                    <span>Completed: {formatDate(artifact.latestScan.completedAt)}</span>
                     <span>Fresh until: {formatDate(artifact.latestScan.staleAt)}</span>
                   </div>
                 )}
               </div>
             </section>
           ) : (
-            <section className="panel border-dashed text-center">
-              <p className="text-sm text-slate-500">
-                Upload a file to see its artifact, scan and engine results here.
-              </p>
-            </section>
+            <div className="border-t border-[#d0d7de] py-10 text-center text-sm text-[#6e7781]">
+              Scan a file to view its hashes and engine results.
+            </div>
           )}
 
           {artifact && isPublic && (
-            <section className="panel">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <section className="mt-10 border-t border-[#d0d7de] pt-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#d0d7de] pb-3">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Community</h2>
-                  <p className="text-sm text-slate-500">
-                    Discuss the public artifact and add one community verdict.
+                  <h2 className="font-semibold">Community</h2>
+                  <p className="mt-1 text-sm text-[#57606a]">
+                    Comments and community verdict for this public artifact.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex gap-1 text-xs">
                   {(
                     [
                       ['HARMLESS', 'Harmless'],
@@ -493,66 +506,70 @@ export default function App() {
                       type="button"
                       disabled={!user}
                       onClick={() => vote(value)}
-                      className="btn-secondary px-3 py-2 text-xs"
+                      className="secondary-button px-2.5 py-1.5"
                     >
-                      {label}{' '}
-                      <span className="ml-1 text-slate-500">
-                        {votes?.counts[value] ?? 0}
-                      </span>
+                      {label} {votes?.counts[value] ?? 0}
                     </button>
                   ))}
                 </div>
               </div>
 
               {user ? (
-                <form className="mt-5 space-y-2" onSubmit={submitComment}>
+                <form className="border-b border-[#d0d7de] py-4" onSubmit={submitComment}>
                   {replyTo && (
-                    <div className="flex items-center justify-between rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-400">
+                    <div className="mb-2 flex items-center justify-between bg-[#f6f8fa] px-3 py-2 text-xs text-[#57606a]">
                       <span>Replying to {replyTo.user.username}</span>
-                      <button type="button" onClick={() => setReplyTo(null)}>
+                      <button type="button" className="link-button" onClick={() => setReplyTo(null)}>
                         Cancel
                       </button>
                     </div>
                   )}
                   <textarea
-                    className="field min-h-24 resize-y"
-                    placeholder="Add useful context about this artifact…"
+                    className="control min-h-24 resize-y"
+                    placeholder="Add a comment…"
                     value={commentBody}
                     maxLength={4000}
                     onChange={(event) => setCommentBody(event.target.value)}
                   />
-                  <button className="btn-primary">Post comment</button>
+                  <div className="mt-2 flex justify-end">
+                    <button className="primary-button">Comment</button>
+                  </div>
                 </form>
               ) : (
-                <p className="mt-5 rounded-xl bg-slate-950 p-3 text-sm text-slate-500">
+                <div className="border-b border-[#d0d7de] py-4 text-sm text-[#57606a]">
                   Sign in to comment or vote.
-                </p>
+                </div>
               )}
 
-              <div className="mt-6 space-y-3">
+              <div>
                 {comments.length ? (
                   comments.map((comment) => (
                     <article
                       key={comment.id}
-                      className={`rounded-xl border border-slate-800 bg-slate-950/60 p-4 ${
-                        comment.parentId ? 'ml-6 sm:ml-10' : ''
+                      className={`border-b border-[#eaeef2] py-4 ${
+                        comment.parentId ? 'ml-6 border-l-2 border-l-[#d0d7de] pl-4 sm:ml-10' : ''
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-slate-200">
-                          {comment.user.username}
-                        </p>
-                        <p className="text-xs text-slate-600">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <div className="text-sm">
+                          <span className="font-semibold">{comment.user.username}</span>
+                          {comment.user.role && comment.user.role !== 'USER' && (
+                            <span className="ml-2 text-xs text-[#6e7781]">
+                              {comment.user.role}
+                            </span>
+                          )}
+                        </div>
+                        <time className="text-xs text-[#8c959f]">
                           {formatDate(comment.createdAt)}
-                        </p>
+                        </time>
                       </div>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
                         {comment.body}
                       </p>
                       {user && (
                         <button
                           type="button"
-                          className="mt-2 text-xs font-semibold text-cyan-400 hover:text-cyan-300"
+                          className="link-button mt-2 text-xs"
                           onClick={() => setReplyTo(comment)}
                         >
                           Reply
@@ -561,37 +578,37 @@ export default function App() {
                     </article>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500">No comments yet.</p>
+                  <p className="py-6 text-sm text-[#6e7781]">No comments yet.</p>
                 )}
               </div>
             </section>
           )}
         </div>
 
-        <aside className="space-y-6">
+        <aside className="space-y-8">
           {!user && (
-            <section className="panel">
-              <div className="flex rounded-xl bg-slate-950 p-1">
+            <section className="border border-[#d0d7de] bg-white">
+              <div className="flex border-b border-[#d0d7de]">
                 {(['login', 'register'] as const).map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     onClick={() => setAuthMode(mode)}
-                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition ${
+                    className={`flex-1 px-3 py-2.5 text-sm ${
                       authMode === mode
-                        ? 'bg-slate-800 text-white'
-                        : 'text-slate-500 hover:text-slate-300'
+                        ? 'border-b-2 border-b-[#0969da] font-semibold text-[#24292f]'
+                        : 'text-[#57606a]'
                     }`}
                   >
-                    {mode}
+                    {mode === 'login' ? 'Sign in' : 'Register'}
                   </button>
                 ))}
               </div>
 
-              <form className="mt-4 space-y-3" onSubmit={handleAuth}>
+              <form className="space-y-3 p-4" onSubmit={handleAuth}>
                 {authMode === 'register' && (
                   <input
-                    className="field"
+                    className="control"
                     placeholder="Username"
                     value={authForm.username}
                     onChange={(event) =>
@@ -603,7 +620,7 @@ export default function App() {
                   />
                 )}
                 <input
-                  className="field"
+                  className="control"
                   type="email"
                   placeholder="Email"
                   value={authForm.email}
@@ -615,7 +632,7 @@ export default function App() {
                   }
                 />
                 <input
-                  className="field"
+                  className="control"
                   type="password"
                   placeholder="Password"
                   value={authForm.password}
@@ -626,7 +643,7 @@ export default function App() {
                     }))
                   }
                 />
-                <button className="btn-primary w-full" disabled={authBusy}>
+                <button className="primary-button w-full" disabled={authBusy}>
                   {authBusy
                     ? 'Please wait…'
                     : authMode === 'login'
@@ -638,57 +655,49 @@ export default function App() {
           )}
 
           {user && (
-            <section className="panel">
-              <div className="flex items-center justify-between">
-                <h2 className="font-bold text-white">Notifications</h2>
+            <section>
+              <div className="flex items-center justify-between border-b border-[#d0d7de] pb-2">
+                <h2 className="text-sm font-semibold">Notifications</h2>
                 {unreadCount > 0 && (
-                  <span className="rounded-full bg-cyan-500 px-2 py-0.5 text-xs font-bold text-slate-950">
-                    {unreadCount}
+                  <span className="text-xs font-medium text-[#0969da]">
+                    {unreadCount} unread
                   </span>
                 )}
               </div>
 
-              <div className="mt-4 space-y-2">
+              <div>
                 {notifications.length ? (
                   notifications.slice(0, 8).map((notification) => (
                     <button
                       key={notification.id}
                       onClick={() => markRead(notification)}
-                      className={`w-full rounded-xl border p-3 text-left transition ${
-                        notification.readAt
-                          ? 'border-slate-800 bg-slate-950/40'
-                          : 'border-cyan-500/20 bg-cyan-500/5'
+                      className={`block w-full border-b border-[#eaeef2] py-3 text-left ${
+                        notification.readAt ? 'opacity-70' : ''
                       }`}
                     >
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      <div className="text-xs font-medium text-[#57606a]">
                         {notification.type.replace(/_/g, ' ')}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-300">
+                      </div>
+                      <div className="mt-1 text-sm">
                         {notification.message ?? 'New notification'}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">
+                      </div>
+                      <div className="mt-1 text-xs text-[#8c959f]">
                         {formatDate(notification.createdAt)}
-                      </p>
+                      </div>
                     </button>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500">No notifications yet.</p>
+                  <p className="py-4 text-sm text-[#6e7781]">No notifications.</p>
                 )}
               </div>
             </section>
           )}
 
-          <section className="panel">
-            <h2 className="font-bold text-white">Current backend slice</h2>
-            <ul className="mt-3 space-y-2 text-sm text-slate-400">
-              <li>✓ Authentication and sessions</li>
-              <li>✓ SHA-256 artifact deduplication</li>
-              <li>✓ Public / private submissions</li>
-              <li>✓ 7-day scan reuse + manual rescan</li>
-              <li>✓ Engine result storage</li>
-              <li>✓ Real-time notifications</li>
-              <li>✓ Comments and community votes</li>
-            </ul>
+          <section className="border-t border-[#d0d7de] pt-4 text-xs leading-5 text-[#6e7781]">
+            <p>
+              Public submissions can appear in community features. Private submissions
+              require an account and are excluded from public discussion.
+            </p>
           </section>
         </aside>
       </main>
