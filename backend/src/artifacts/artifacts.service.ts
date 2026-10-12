@@ -372,7 +372,7 @@ export class ArtifactsService {
       },
     });
 
-    const containsEicar = file.buffer
+    const containsEicar = input.file.buffer
       .toString('utf8')
       .includes('EICAR-STANDARD-ANTIVIRUS-TEST-FILE');
 
