@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import {
   ArtifactType,
-  NotificationType,
   Prisma,
   ScanReason,
   ScanStatus,
@@ -13,6 +12,7 @@ import {
   Visibility,
 } from '@prisma/client';
 import { createHash } from 'crypto';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 
 type UploadedFile = {
@@ -24,7 +24,10 @@ type UploadedFile = {
 
 @Injectable()
 export class ArtifactsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async submitFile(
     file: UploadedFile | undefined,
@@ -413,16 +416,11 @@ export class ArtifactsService {
     });
 
     if (input.userId) {
-      await this.prisma.notification.create({
-        data: {
-          userId: input.userId,
-          type: NotificationType.SCAN_COMPLETED,
-          artifactId: input.artifactId,
-          entityType: 'scan',
-          entityId: completedScan.id,
-          message: 'Your file scan is complete.',
-        },
-      });
+      await this.notifications.createScanCompleted(
+        input.userId,
+        input.artifactId,
+        completedScan.id,
+      );
     }
 
     return completedScan;
