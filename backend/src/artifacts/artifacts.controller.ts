@@ -31,6 +31,7 @@ export class ArtifactsController {
   async uploadFile(
     @UploadedFile() file: any,
     @Body('visibility') visibility: string | undefined,
+    @Body('forceRescan') forceRescan: string | undefined,
     @Headers('authorization') authorization?: string,
   ) {
     const user =
@@ -40,6 +41,7 @@ export class ArtifactsController {
       file,
       user?.id ?? null,
       visibility,
+      forceRescan,
     );
   }
 
