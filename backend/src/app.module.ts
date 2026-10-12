@@ -7,6 +7,9 @@ import { SessionAuthGuard } from './auth/auth.guard';
 import { AuthService } from './auth/auth.service';
 import { CommunityController } from './community/community.controller';
 import { CommunityService } from './community/community.service';
+import { NotificationsController } from './notifications/notifications.controller';
+import { NotificationsGateway } from './notifications/notifications.gateway';
+import { NotificationsService } from './notifications/notifications.service';
 import { PrismaService } from './prisma.service';
 
 @Module({
@@ -15,6 +18,7 @@ import { PrismaService } from './prisma.service';
     AuthController,
     ArtifactsController,
     CommunityController,
+    NotificationsController,
   ],
   providers: [
     PrismaService,
@@ -22,6 +26,8 @@ import { PrismaService } from './prisma.service';
     SessionAuthGuard,
     ArtifactsService,
     CommunityService,
+    NotificationsGateway,
+    NotificationsService,
   ],
 })
 export class AppModule {}
