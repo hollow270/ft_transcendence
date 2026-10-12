@@ -107,7 +107,7 @@ export default function App() {
       ]);
     });
 
-    return () => socket.disconnect();
+    return () => {\n      socket.disconnect();\n    };
   }, [token, user]);
 
   useEffect(() => {
@@ -659,7 +659,7 @@ export default function App() {
                       }`}
                     >
                       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                        {notification.type.replaceAll('_', ' ')}
+                        {notification.type.replace(/_/g, ' ')}
                       </p>
                       <p className="mt-1 text-sm text-slate-300">
                         {notification.message ?? 'New notification'}
