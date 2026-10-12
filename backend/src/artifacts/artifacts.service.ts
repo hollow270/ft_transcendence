@@ -151,7 +151,9 @@ export class ArtifactsService {
             ? [
                 {
                   submission: {
-                    userId,
+                    is: {
+                      userId,
+                    },
                   },
                 },
               ]
@@ -288,7 +290,9 @@ export class ArtifactsService {
                   ? [
                       {
                         submission: {
-                          userId,
+                          is: {
+                            userId,
+                          },
                         },
                       },
                     ]
