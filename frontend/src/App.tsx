@@ -10,10 +10,10 @@ import type {
 } from './types';
 
 const verdictText: Record<string, string> = {
-  HARMLESS: 'text-emerald-700',
-  SUSPICIOUS: 'text-amber-700',
-  MALICIOUS: 'text-red-700',
-  UNKNOWN: 'text-slate-500',
+  HARMLESS: 'text-emerald-400',
+  SUSPICIOUS: 'text-amber-400',
+  MALICIOUS: 'text-red-400',
+  UNKNOWN: 'text-slate-400',
 };
 
 function Verdict({ value }: { value?: string | null }) {
@@ -30,9 +30,86 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleString();
 }
 
-function shortHash(value?: string | null) {
-  if (!value) return '—';
-  return value.length > 34 ? `${value.slice(0, 24)}…${value.slice(-8)}` : value;
+function BrandMark({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 160 160"
+      role="img"
+      aria-label="GO VIRUS logo"
+    >
+      <defs>
+        <linearGradient id="brand-a" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#22d3ee" />
+          <stop offset="55%" stopColor="#38bdf8" />
+          <stop offset="100%" stopColor="#84cc16" />
+        </linearGradient>
+        <linearGradient id="brand-b" x1="1" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#a3e635" />
+          <stop offset="100%" stopColor="#22d3ee" />
+        </linearGradient>
+      </defs>
+
+      <circle cx="80" cy="80" r="62" fill="none" stroke="#17365f" strokeWidth="6" />
+      <circle cx="80" cy="80" r="50" fill="none" stroke="#155e75" strokeWidth="2" />
+      <circle cx="80" cy="80" r="37" fill="none" stroke="#164e63" strokeWidth="2" />
+
+      <path
+        d="M34 54 L55 54 L80 90 L106 54 L128 54 L80 126 Z"
+        fill="none"
+        stroke="url(#brand-a)"
+        strokeWidth="10"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M48 42 L80 82 L122 32"
+        fill="none"
+        stroke="url(#brand-b)"
+        strokeWidth="10"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      <g fill="#22d3ee">
+        <circle cx="26" cy="74" r="4" />
+        <circle cx="132" cy="72" r="4" />
+        <circle cx="52" cy="22" r="3" />
+        <circle cx="108" cy="136" r="3" />
+      </g>
+      <g fill="#84cc16">
+        <circle cx="43" cy="121" r="4" />
+        <circle cx="120" cy="42" r="4" />
+      </g>
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </svg>
+  );
+}
+
+function FileScanIcon() {
+  return (
+    <svg
+      viewBox="0 0 120 120"
+      className="mx-auto h-28 w-28 text-slate-300"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+    >
+      <path d="M34 16h35l18 18v70H34z" />
+      <path d="M69 16v20h18" />
+      <path d="M18 59h84" stroke="#38bdf8" strokeWidth="4" />
+      <path d="M50 82c0-10 20-10 20 0 0 5-4 8-4 13" />
+      <path d="M44 82c0-18 32-18 32 0 0 9-7 13-7 22" />
+      <path d="M55 94c0-5 10-5 10 0" />
+    </svg>
+  );
 }
 
 export default function App() {
@@ -40,7 +117,7 @@ export default function App() {
     localStorage.getItem('session_token'),
   );
   const [user, setUser] = useState<User | null>(null);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
   const [authForm, setAuthForm] = useState({
     username: '',
     email: '',
@@ -134,6 +211,8 @@ export default function App() {
 
   async function handleAuth(event: FormEvent) {
     event.preventDefault();
+    if (!authMode) return;
+
     setError(null);
     setInfo(null);
     setAuthBusy(true);
@@ -151,6 +230,7 @@ export default function App() {
         localStorage.setItem('session_token', result.token);
         setToken(result.token);
         setUser(result.user);
+        setAuthMode(null);
         setInfo(`Signed in as ${result.user.username}.`);
       }
     } catch (caught) {
@@ -195,11 +275,7 @@ export default function App() {
       setArtifact(fullArtifact);
       setReusedScan(result.reusedScan);
       setLastSubmissionVisibility(result.submission.visibility);
-      setInfo(
-        result.reusedScan
-          ? 'A fresh existing result was reused.'
-          : 'Scan completed.',
-      );
+      setInfo(result.reusedScan ? 'Fresh existing result reused.' : 'Scan completed.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Upload failed');
     } finally {
@@ -223,8 +299,6 @@ export default function App() {
     const body = commentBody.trim();
     if (!body) return;
 
-    setError(null);
-
     try {
       await api.createComment(
         artifactId,
@@ -244,7 +318,6 @@ export default function App() {
 
   async function vote(value: 'HARMLESS' | 'SUSPICIOUS' | 'MALICIOUS') {
     if (!artifactId || !token) return;
-    setError(null);
 
     try {
       await api.vote(artifactId, value, token);
@@ -263,88 +336,159 @@ export default function App() {
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
     } catch {
-      // Reading a notification should not block the rest of the interface.
+      // Keep the rest of the page usable if this request fails.
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f8fa] text-[#24292f]">
-      <header className="border-b border-[#d0d7de] bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-4">
-            <a href="/" className="font-semibold tracking-tight text-[#24292f]">
-              transcendence
-            </a>
-            <span className="hidden text-sm text-[#57606a] sm:inline">scanner</span>
+    <div className="min-h-screen bg-[#0b1020] text-slate-100">
+      <header className="border-b border-[#243455] bg-[#17223b]">
+        <div className="flex h-16 items-center gap-4 px-4 lg:px-6">
+          <div className="flex shrink-0 items-center gap-2">
+            <BrandMark className="h-11 w-11" />
+            <span className="hidden text-lg font-bold tracking-wide sm:block">
+              <span className="text-cyan-300">GO</span>{' '}
+              <span className="text-lime-300">VIRUS</span>
+            </span>
           </div>
 
-          <div className="flex items-center gap-3 text-sm">
+          <div className="mx-auto flex max-w-4xl flex-1 items-center rounded-md border border-[#34486e] bg-[#111a30] px-4 text-slate-400">
+            <SearchIcon />
+            <input
+              className="w-full bg-transparent px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-500"
+              placeholder="URL, IP address, domain or file hash"
+              aria-label="Search"
+            />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 sm:gap-4">
             {user ? (
               <>
-                <span className="hidden text-[#57606a] sm:inline">
-                  {user.username} · {user.role}
-                  {unreadCount > 0 ? ` · ${unreadCount} unread` : ''}
-                </span>
-                <button className="link-button" onClick={logout}>
-                  Sign out
+                <button
+                  type="button"
+                  className="hidden text-sm text-slate-300 hover:text-white sm:block"
+                >
+                  {user.username}
+                  {unreadCount ? ` (${unreadCount})` : ''}
                 </button>
+                <button className="nav-link" onClick={logout}>Sign out</button>
               </>
             ) : (
-              <span className="text-[#57606a]">Anonymous</span>
+              <>
+                <button className="nav-link" onClick={() => setAuthMode('login')}>
+                  Sign in
+                </button>
+                <button className="signup-button" onClick={() => setAuthMode('register')}>
+                  Sign up
+                </button>
+              </>
             )}
           </div>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0">
-          <section>
-            <div className="border-b border-[#d0d7de] pb-3">
-              <h1 className="text-xl font-semibold">Analyze a file</h1>
-              <p className="mt-1 text-sm text-[#57606a]">
-                Files are identified by SHA-256. Results remain reusable for seven days.
-              </p>
+      {authMode && !user && (
+        <div className="fixed inset-0 z-40 flex items-start justify-end bg-black/45 p-4 pt-20" onClick={() => setAuthMode(null)}>
+          <section
+            className="w-full max-w-sm border border-[#304568] bg-[#111a2d] p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                {authMode === 'login' ? 'Sign in' : 'Create account'}
+              </h2>
+              <button className="text-slate-400 hover:text-white" onClick={() => setAuthMode(null)}>
+                ×
+              </button>
             </div>
-
-            <form onSubmit={upload} className="py-6">
-              <label className="block border border-dashed border-[#8c959f] bg-white px-6 py-10 text-center">
+            <form className="space-y-3" onSubmit={handleAuth}>
+              {authMode === 'register' && (
                 <input
-                  type="file"
-                  className="sr-only"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  className="dark-control"
+                  placeholder="Username"
+                  value={authForm.username}
+                  onChange={(event) =>
+                    setAuthForm((current) => ({ ...current, username: event.target.value }))
+                  }
                 />
-                <div className="mx-auto max-w-md">
-                  <p className="text-sm font-medium">
-                    {file ? file.name : 'Drop a file here or choose a file'}
-                  </p>
-                  <p className="mt-1 text-xs text-[#6e7781]">
-                    Maximum upload size: 25 MB
-                  </p>
-                  <span className="mt-4 inline-flex border border-[#8c959f] bg-[#f6f8fa] px-3 py-1.5 text-sm font-medium">
-                    Choose file
-                  </span>
-                </div>
-              </label>
+              )}
+              <input
+                className="dark-control"
+                type="email"
+                placeholder="Email"
+                value={authForm.email}
+                onChange={(event) =>
+                  setAuthForm((current) => ({ ...current, email: event.target.value }))
+                }
+              />
+              <input
+                className="dark-control"
+                type="password"
+                placeholder="Password"
+                value={authForm.password}
+                onChange={(event) =>
+                  setAuthForm((current) => ({ ...current, password: event.target.value }))
+                }
+              />
+              <button className="scan-button w-full" disabled={authBusy}>
+                {authBusy ? 'Please wait…' : authMode === 'login' ? 'Sign in' : 'Sign up'}
+              </button>
+            </form>
+          </section>
+        </div>
+      )}
 
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-5 text-sm">
+      <main>
+        <section className="hero-grid relative overflow-hidden border-b border-[#1d2b48]">
+          <div className="mx-auto max-w-5xl px-4 pb-14 pt-10 text-center sm:pt-12">
+            <BrandMark className="mx-auto h-40 w-40 sm:h-48 sm:w-48" />
+
+            <h1 className="mt-1 text-5xl font-bold tracking-[0.08em] sm:text-6xl">
+              <span className="text-slate-100">GO </span>
+              <span className="bg-gradient-to-r from-cyan-300 via-cyan-400 to-lime-300 bg-clip-text text-transparent">
+                VIRUS
+              </span>
+            </h1>
+
+            <p className="mx-auto mt-5 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+              Analyse suspicious files to detect malware and other security threats,
+              and share results with the security community.
+            </p>
+
+            <div className="mx-auto mt-10 max-w-3xl">
+              <div className="border-b border-[#445473] pb-3 text-sm font-semibold tracking-wide text-[#8eb7ff]">
+                FILE
+              </div>
+
+              <form onSubmit={upload} className="pt-8">
+                <label className="mx-auto block w-fit cursor-pointer">
+                  <input
+                    type="file"
+                    className="sr-only"
+                    onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  />
+                  <FileScanIcon />
+                  <span className="choose-button mt-3">
+                    {file ? file.name : 'Choose file'}
+                  </span>
+                </label>
+
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-5 text-xs text-slate-400">
                   <label className="flex items-center gap-2">
-                    <span className="text-[#57606a]">Visibility</span>
+                    <span>Visibility</span>
                     <select
-                      className="control w-auto"
+                      className="dark-select"
                       value={visibility}
                       onChange={(event) =>
                         setVisibility(event.target.value as 'PUBLIC' | 'PRIVATE')
                       }
                     >
                       <option value="PUBLIC">Public</option>
-                      <option value="PRIVATE" disabled={!user}>
-                        Private
-                      </option>
+                      <option value="PRIVATE" disabled={!user}>Private</option>
                     </select>
                   </label>
 
-                  <label className="flex items-center gap-2 text-[#57606a]">
+                  <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={forceRescan}
@@ -352,354 +496,237 @@ export default function App() {
                     />
                     Force rescan
                   </label>
+
+                  <button className="scan-button" disabled={!file || uploadBusy}>
+                    {uploadBusy ? 'Scanning…' : 'Scan file'}
+                  </button>
                 </div>
+              </form>
 
-                <button className="primary-button" disabled={uploadBusy || !file}>
-                  {uploadBusy ? 'Scanning…' : 'Scan file'}
-                </button>
-              </div>
-            </form>
-          </section>
-
-          {(error || info) && (
-            <div
-              className={`mb-6 border px-4 py-3 text-sm ${
-                error
-                  ? 'border-red-300 bg-red-50 text-red-800'
-                  : 'border-[#b6d7a8] bg-[#f0f8ed] text-[#386641]'
-              }`}
-            >
-              {error ?? info}
+              <p className="mx-auto mt-8 max-w-3xl text-xs leading-5 text-slate-400">
+                By submitting data above, you agree to our Terms of Service and Privacy Notice,
+                and to sharing public submissions with the security community. Do not submit
+                personal or confidential information.
+              </p>
             </div>
-          )}
 
-          {artifact ? (
-            <section className="border-t border-[#d0d7de] pt-6">
+            {(error || info) && (
+              <div
+                className={`mx-auto mt-5 max-w-3xl border px-4 py-3 text-sm ${
+                  error
+                    ? 'border-red-500/40 bg-red-950/30 text-red-300'
+                    : 'border-cyan-500/30 bg-cyan-950/20 text-cyan-200'
+                }`}
+              >
+                {error ?? info}
+              </div>
+            )}
+
+            <div className="mx-auto mt-10 max-w-3xl border border-[#223657] bg-[#121d34] px-4 py-3 text-xs text-slate-300">
+              Want to automate submissions? <span className="text-[#69a7ff]">Check out our API</span>,
+              or access your <span className="text-[#69a7ff]">API key</span>.
+            </div>
+          </div>
+        </section>
+
+        {artifact && (
+          <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+            <div className="border-b border-[#263753] pb-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="min-w-0">
+                <div>
                   <h2 className="text-lg font-semibold">
                     {artifact.file?.mimeType ?? artifact.type}
                   </h2>
-                  <p className="mt-1 break-all font-mono text-xs text-[#6e7781]">
+                  <p className="mt-1 break-all font-mono text-xs text-slate-500">
                     {artifact.id}
                   </p>
                 </div>
-                <div className="text-right text-sm">
-                  <div>
-                    Verdict: <Verdict value={artifact.latestScan?.overallVerdict} />
-                  </div>
+                <div className="text-sm">
+                  Verdict: <Verdict value={artifact.latestScan?.overallVerdict} />
                   {reusedScan !== null && (
-                    <div className="mt-1 text-xs text-[#6e7781]">
+                    <span className="ml-3 text-xs text-slate-500">
                       {reusedScan ? 'cached result' : 'new scan'}
-                    </div>
+                    </span>
                   )}
                 </div>
               </div>
-
-              {artifact.file && (
-                <dl className="mt-6 grid border-y border-[#d0d7de] bg-white sm:grid-cols-[130px_1fr]">
-                  {[
-                    ['SHA-256', artifact.file.sha256],
-                    ['SHA-1', artifact.file.sha1 ?? '—'],
-                    ['MD5', artifact.file.md5 ?? '—'],
-                    ['Size', `${artifact.file.size} bytes`],
-                  ].map(([label, value]) => (
-                    <div className="contents" key={label}>
-                      <dt className="border-b border-[#d8dee4] bg-[#f6f8fa] px-3 py-2 text-xs font-medium text-[#57606a] last:border-b-0">
-                        {label}
-                      </dt>
-                      <dd className="border-b border-[#d8dee4] px-3 py-2 font-mono text-xs break-all last:border-b-0">
-                        {label.startsWith('SHA') ? shortHash(value) : value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-
-              <div className="mt-7">
-                <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#d0d7de] pb-3">
-                  <div>
-                    <h3 className="font-semibold">Detection</h3>
-                    <p className="mt-1 text-sm text-[#57606a]">
-                      {detections.total
-                        ? `${detections.malicious} malicious, ${detections.suspicious} suspicious out of ${detections.total} engines`
-                        : 'No engine results'}
-                    </p>
-                  </div>
-                  {artifact.latestScan && (
-                    <div className="text-xs text-[#6e7781]">
-                      Updated {formatDate(artifact.latestScan.completedAt)}
-                    </div>
-                  )}
-                </div>
-
-                <div className="overflow-x-auto bg-white">
-                  <table className="w-full border-collapse text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-[#d0d7de] text-xs text-[#57606a]">
-                        <th className="px-3 py-2 font-medium">Engine</th>
-                        <th className="px-3 py-2 font-medium">Result</th>
-                        <th className="px-3 py-2 font-medium">Detection</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {artifact.latestScan?.engineResults?.length ? (
-                        artifact.latestScan.engineResults.map((result) => (
-                          <tr
-                            key={result.engine}
-                            className="border-b border-[#eaeef2] last:border-b-0"
-                          >
-                            <td className="px-3 py-3 font-medium">{result.engine}</td>
-                            <td className="px-3 py-3">
-                              <Verdict value={result.verdict} />
-                            </td>
-                            <td className="px-3 py-3 text-[#57606a]">
-                              {result.detectionName ?? '—'}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td className="px-3 py-4 text-[#57606a]" colSpan={3}>
-                            No engine results.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {artifact.latestScan && (
-                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[#6e7781]">
-                    <span>Reason: {artifact.latestScan.reason}</span>
-                    <span>Fresh until: {formatDate(artifact.latestScan.staleAt)}</span>
-                  </div>
-                )}
-              </div>
-            </section>
-          ) : (
-            <div className="border-t border-[#d0d7de] py-10 text-center text-sm text-[#6e7781]">
-              Scan a file to view its hashes and engine results.
             </div>
-          )}
 
-          {artifact && isPublic && (
-            <section className="mt-10 border-t border-[#d0d7de] pt-6">
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#d0d7de] pb-3">
+            {artifact.file && (
+              <div className="mt-5 grid gap-x-6 gap-y-2 border border-[#263753] bg-[#11192b] p-4 text-sm sm:grid-cols-[110px_1fr]">
+                <div className="text-slate-500">SHA-256</div>
+                <div className="break-all font-mono text-xs">{artifact.file.sha256}</div>
+                <div className="text-slate-500">SHA-1</div>
+                <div className="break-all font-mono text-xs">{artifact.file.sha1 ?? '—'}</div>
+                <div className="text-slate-500">MD5</div>
+                <div className="break-all font-mono text-xs">{artifact.file.md5 ?? '—'}</div>
+                <div className="text-slate-500">Size</div>
+                <div>{artifact.file.size} bytes</div>
+              </div>
+            )}
+
+            <div className="mt-8">
+              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#263753] pb-3">
                 <div>
-                  <h2 className="font-semibold">Community</h2>
-                  <p className="mt-1 text-sm text-[#57606a]">
-                    Comments and community verdict for this public artifact.
+                  <h3 className="font-semibold">Detection</h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {detections.total
+                      ? `${detections.malicious} malicious, ${detections.suspicious} suspicious out of ${detections.total} engines`
+                      : 'No engine results'}
                   </p>
                 </div>
-
-                <div className="flex gap-1 text-xs">
-                  {(
-                    [
-                      ['HARMLESS', 'Harmless'],
-                      ['SUSPICIOUS', 'Suspicious'],
-                      ['MALICIOUS', 'Malicious'],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      disabled={!user}
-                      onClick={() => vote(value)}
-                      className="secondary-button px-2.5 py-1.5"
-                    >
-                      {label} {votes?.counts[value] ?? 0}
-                    </button>
-                  ))}
+                <div className="text-xs text-slate-500">
+                  {formatDate(artifact.latestScan?.completedAt)}
                 </div>
               </div>
 
-              {user ? (
-                <form className="border-b border-[#d0d7de] py-4" onSubmit={submitComment}>
-                  {replyTo && (
-                    <div className="mb-2 flex items-center justify-between bg-[#f6f8fa] px-3 py-2 text-xs text-[#57606a]">
-                      <span>Replying to {replyTo.user.username}</span>
-                      <button type="button" className="link-button" onClick={() => setReplyTo(null)}>
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                  <textarea
-                    className="control min-h-24 resize-y"
-                    placeholder="Add a comment…"
-                    value={commentBody}
-                    maxLength={4000}
-                    onChange={(event) => setCommentBody(event.target.value)}
-                  />
-                  <div className="mt-2 flex justify-end">
-                    <button className="primary-button">Comment</button>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-[#263753] text-xs text-slate-500">
+                      <th className="px-3 py-3 font-medium">Engine</th>
+                      <th className="px-3 py-3 font-medium">Result</th>
+                      <th className="px-3 py-3 font-medium">Detection</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {artifact.latestScan?.engineResults?.length ? (
+                      artifact.latestScan.engineResults.map((result) => (
+                        <tr key={result.engine} className="border-b border-[#1d2b45]">
+                          <td className="px-3 py-3">{result.engine}</td>
+                          <td className="px-3 py-3"><Verdict value={result.verdict} /></td>
+                          <td className="px-3 py-3 text-slate-400">
+                            {result.detectionName ?? '—'}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="px-3 py-4 text-slate-500" colSpan={3}>
+                          No engine results.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {isPublic && (
+              <section className="mt-10 border-t border-[#263753] pt-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#263753] pb-3">
+                  <div>
+                    <h3 className="font-semibold">Community</h3>
+                    <p className="mt-1 text-sm text-slate-500">Public discussion and verdicts.</p>
                   </div>
-                </form>
-              ) : (
-                <div className="border-b border-[#d0d7de] py-4 text-sm text-[#57606a]">
-                  Sign in to comment or vote.
+
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {(
+                      [
+                        ['HARMLESS', 'Harmless'],
+                        ['SUSPICIOUS', 'Suspicious'],
+                        ['MALICIOUS', 'Malicious'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        disabled={!user}
+                        onClick={() => vote(value)}
+                        className="community-button"
+                      >
+                        {label} {votes?.counts[value] ?? 0}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              )}
 
-              <div>
-                {comments.length ? (
-                  comments.map((comment) => (
-                    <article
-                      key={comment.id}
-                      className={`border-b border-[#eaeef2] py-4 ${
-                        comment.parentId ? 'ml-6 border-l-2 border-l-[#d0d7de] pl-4 sm:ml-10' : ''
-                      }`}
-                    >
-                      <div className="flex items-baseline justify-between gap-3">
-                        <div className="text-sm">
-                          <span className="font-semibold">{comment.user.username}</span>
-                          {comment.user.role && comment.user.role !== 'USER' && (
-                            <span className="ml-2 text-xs text-[#6e7781]">
-                              {comment.user.role}
-                            </span>
-                          )}
-                        </div>
-                        <time className="text-xs text-[#8c959f]">
-                          {formatDate(comment.createdAt)}
-                        </time>
-                      </div>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
-                        {comment.body}
-                      </p>
-                      {user && (
-                        <button
-                          type="button"
-                          className="link-button mt-2 text-xs"
-                          onClick={() => setReplyTo(comment)}
-                        >
-                          Reply
+                {user ? (
+                  <form className="border-b border-[#263753] py-4" onSubmit={submitComment}>
+                    {replyTo && (
+                      <div className="mb-2 flex items-center justify-between bg-[#11192b] px-3 py-2 text-xs text-slate-400">
+                        <span>Replying to {replyTo.user.username}</span>
+                        <button type="button" className="text-[#69a7ff]" onClick={() => setReplyTo(null)}>
+                          Cancel
                         </button>
-                      )}
-                    </article>
-                  ))
+                      </div>
+                    )}
+                    <textarea
+                      className="dark-control min-h-24 resize-y"
+                      placeholder="Add a comment…"
+                      value={commentBody}
+                      maxLength={4000}
+                      onChange={(event) => setCommentBody(event.target.value)}
+                    />
+                    <div className="mt-2 flex justify-end">
+                      <button className="scan-button">Comment</button>
+                    </div>
+                  </form>
                 ) : (
-                  <p className="py-6 text-sm text-[#6e7781]">No comments yet.</p>
+                  <div className="border-b border-[#263753] py-4 text-sm text-slate-500">
+                    Sign in to comment or vote.
+                  </div>
                 )}
-              </div>
-            </section>
-          )}
-        </div>
 
-        <aside className="space-y-8">
-          {!user && (
-            <section className="border border-[#d0d7de] bg-white">
-              <div className="flex border-b border-[#d0d7de]">
-                {(['login', 'register'] as const).map((mode) => (
+                <div>
+                  {comments.length ? (
+                    comments.map((comment) => (
+                      <article
+                        key={comment.id}
+                        className={`border-b border-[#1d2b45] py-4 ${
+                          comment.parentId ? 'ml-6 border-l-2 border-l-[#263753] pl-4 sm:ml-10' : ''
+                        }`}
+                      >
+                        <div className="flex justify-between gap-3">
+                          <span className="text-sm font-semibold">{comment.user.username}</span>
+                          <span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                          {comment.body}
+                        </p>
+                        {user && (
+                          <button
+                            type="button"
+                            className="mt-2 text-xs text-[#69a7ff]"
+                            onClick={() => setReplyTo(comment)}
+                          >
+                            Reply
+                          </button>
+                        )}
+                      </article>
+                    ))
+                  ) : (
+                    <p className="py-6 text-sm text-slate-500">No comments yet.</p>
+                  )}
+                </div>
+              </section>
+            )}
+          </section>
+        )}
+
+        {user && notifications.length > 0 && (
+          <section className="mx-auto max-w-6xl px-4 pb-8 sm:px-6">
+            <div className="border-t border-[#263753] pt-5">
+              <h3 className="text-sm font-semibold">Notifications</h3>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {notifications.slice(0, 4).map((notification) => (
                   <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setAuthMode(mode)}
-                    className={`flex-1 px-3 py-2.5 text-sm ${
-                      authMode === mode
-                        ? 'border-b-2 border-b-[#0969da] font-semibold text-[#24292f]'
-                        : 'text-[#57606a]'
+                    key={notification.id}
+                    onClick={() => markRead(notification)}
+                    className={`border border-[#263753] bg-[#11192b] p-3 text-left text-sm ${
+                      notification.readAt ? 'opacity-60' : ''
                     }`}
                   >
-                    {mode === 'login' ? 'Sign in' : 'Register'}
+                    <div className="text-xs text-slate-500">
+                      {notification.type.replace(/_/g, ' ')}
+                    </div>
+                    <div className="mt-1">{notification.message ?? 'New notification'}</div>
                   </button>
                 ))}
               </div>
-
-              <form className="space-y-3 p-4" onSubmit={handleAuth}>
-                {authMode === 'register' && (
-                  <input
-                    className="control"
-                    placeholder="Username"
-                    value={authForm.username}
-                    onChange={(event) =>
-                      setAuthForm((current) => ({
-                        ...current,
-                        username: event.target.value,
-                      }))
-                    }
-                  />
-                )}
-                <input
-                  className="control"
-                  type="email"
-                  placeholder="Email"
-                  value={authForm.email}
-                  onChange={(event) =>
-                    setAuthForm((current) => ({
-                      ...current,
-                      email: event.target.value,
-                    }))
-                  }
-                />
-                <input
-                  className="control"
-                  type="password"
-                  placeholder="Password"
-                  value={authForm.password}
-                  onChange={(event) =>
-                    setAuthForm((current) => ({
-                      ...current,
-                      password: event.target.value,
-                    }))
-                  }
-                />
-                <button className="primary-button w-full" disabled={authBusy}>
-                  {authBusy
-                    ? 'Please wait…'
-                    : authMode === 'login'
-                      ? 'Sign in'
-                      : 'Create account'}
-                </button>
-              </form>
-            </section>
-          )}
-
-          {user && (
-            <section>
-              <div className="flex items-center justify-between border-b border-[#d0d7de] pb-2">
-                <h2 className="text-sm font-semibold">Notifications</h2>
-                {unreadCount > 0 && (
-                  <span className="text-xs font-medium text-[#0969da]">
-                    {unreadCount} unread
-                  </span>
-                )}
-              </div>
-
-              <div>
-                {notifications.length ? (
-                  notifications.slice(0, 8).map((notification) => (
-                    <button
-                      key={notification.id}
-                      onClick={() => markRead(notification)}
-                      className={`block w-full border-b border-[#eaeef2] py-3 text-left ${
-                        notification.readAt ? 'opacity-70' : ''
-                      }`}
-                    >
-                      <div className="text-xs font-medium text-[#57606a]">
-                        {notification.type.replace(/_/g, ' ')}
-                      </div>
-                      <div className="mt-1 text-sm">
-                        {notification.message ?? 'New notification'}
-                      </div>
-                      <div className="mt-1 text-xs text-[#8c959f]">
-                        {formatDate(notification.createdAt)}
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <p className="py-4 text-sm text-[#6e7781]">No notifications.</p>
-                )}
-              </div>
-            </section>
-          )}
-
-          <section className="border-t border-[#d0d7de] pt-4 text-xs leading-5 text-[#6e7781]">
-            <p>
-              Public submissions can appear in community features. Private submissions
-              require an account and are excluded from public discussion.
-            </p>
+            </div>
           </section>
-        </aside>
+        )}
       </main>
     </div>
   );
