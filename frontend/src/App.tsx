@@ -107,7 +107,9 @@ export default function App() {
       ]);
     });
 
-    return () => {\n      socket.disconnect();\n    };
+    return () => {
+      socket.disconnect();
+    };
   }, [token, user]);
 
   useEffect(() => {
