@@ -13,7 +13,7 @@ import { AuthService } from '../auth/auth.service';
 })
 export class NotificationsGateway implements OnGatewayConnection {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   constructor(private readonly auth: AuthService) {}
 
