@@ -1,8 +1,14 @@
-import { Controller, Get } from '@nestjs/common';
-import { Pool } from 'pg';
+import {
+  Controller,
+  Get,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { PrismaService } from './prisma.service';
 
 @Controller()
 export class AppController {
+  constructor(private readonly prisma: PrismaService) {}
+
   @Get()
   root() {
     return {
@@ -13,26 +19,18 @@ export class AppController {
 
   @Get('health')
   async health() {
-    const databaseUrl = process.env.DATABASE_URL;
-
-    if (!databaseUrl) {
-      return {
-        status: 'error',
-        database: 'DATABASE_URL is not configured',
-      };
-    }
-
-    const pool = new Pool({ connectionString: databaseUrl });
-
     try {
-      await pool.query('SELECT 1');
+      await this.prisma.$queryRaw`SELECT 1`;
 
       return {
         status: 'ok',
         database: 'connected',
       };
-    } finally {
-      await pool.end();
+    } catch {
+      throw new ServiceUnavailableException({
+        status: 'error',
+        database: 'disconnected',
+      });
     }
   }
 }
