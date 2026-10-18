@@ -6,9 +6,12 @@ Shared development base for the ft_transcendence team.
 
 - NestJS backend
 - PostgreSQL 16
+- Prisma ORM
 - Docker Compose
 
-Prisma and the application database models will be added after this Docker base is validated by the team.
+The database V1 currently contains 19 application tables for users, files/URLs, submissions, scans, community features, moderation, API usage, LLM usage and audit logs.
+
+Database details: `backend/prisma/DATABASE.md`
 
 ## First run
 
@@ -31,12 +34,31 @@ Start everything:
 docker compose up --build
 ```
 
-Then test:
+On startup, the backend automatically runs:
 
-- Backend: http://localhost:3000
-- Health + PostgreSQL connection: http://localhost:3000/health
+```bash
+npx prisma generate
+npx prisma db push
+npm run start:dev
+```
 
-Expected health response:
+This creates/synchronizes the development database tables from `backend/prisma/schema.prisma`.
+
+## Test
+
+Backend:
+
+```text
+http://localhost:3000
+```
+
+Health + PostgreSQL connection:
+
+```text
+http://localhost:3000/health
+```
+
+Expected response:
 
 ```json
 {
@@ -51,13 +73,61 @@ Check containers:
 docker compose ps
 ```
 
-Stop the stack:
+Both `backend` and `postgres` should be healthy.
+
+## Verify database tables
+
+Run:
 
 ```bash
-docker compose down
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\\dt"'
 ```
 
-## Useful commands
+You should see the application tables such as:
+
+```text
+users
+user_2fa
+user_sessions
+artifacts
+file_artifacts
+url_artifacts
+submissions
+scans
+scan_engines
+scan_engine_results
+comments
+community_votes
+comment_reports
+moderation_actions
+notifications
+api_keys
+api_request_logs
+llm_usage_logs
+audit_logs
+```
+
+## Prisma commands
+
+Validate the schema:
+
+```bash
+docker compose exec backend npx prisma validate
+```
+
+Generate the client:
+
+```bash
+docker compose exec backend npx prisma generate
+```
+
+Synchronize the development database:
+
+```bash
+docker compose exec backend npx prisma db push
+```
+
+## Useful Docker commands
 
 Backend logs:
 
@@ -77,6 +147,12 @@ Rebuild:
 docker compose up --build
 ```
 
+Stop:
+
+```bash
+docker compose down
+```
+
 > Do not use `docker compose down -v` unless you intentionally want to delete the local PostgreSQL data volume.
 
 ## Environment
@@ -84,3 +160,9 @@ docker compose up --build
 `.env` is local and must never be committed.
 
 `.env.example` documents the environment variables required by the project.
+
+## Database workflow
+
+For now we use `prisma db push` because the schema is still being designed.
+
+Once Database V1 is frozen, we should switch to versioned Prisma migrations so every schema change is tracked in Git.
