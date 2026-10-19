@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
+import { PageHeader, StatusNotice } from '../components';
 
 export default function LlmPage() {
   const { token, user } = useAuth();
@@ -29,57 +30,82 @@ export default function LlmPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <div className="border-b border-[#263753] pb-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-400">GO VIRUS AI</p>
-        <h1 className="mt-2 text-2xl font-semibold">Cybersecurity assistant</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-          Ask for explanations of cybersecurity concepts. Scan-specific explanations are
-          available directly from an artifact result page.
-        </p>
-      </div>
+    <main className="app-page">
+      <PageHeader
+        title="AI assistant"
+        description="Ask cybersecurity questions. For file-specific explanations, use the AI tab on an artifact report."
+      />
 
       {!user ? (
-        <div className="mt-6 border border-[#263753] bg-[#11192b] p-5 text-sm text-slate-400">
-          Sign in to use the AI assistant.
-        </div>
+        <StatusNotice title="Sign in required">
+          The AI assistant is available to registered users.
+        </StatusNotice>
       ) : (
-        <>
-          <form className="mt-6" onSubmit={submit}>
-            <textarea
-              className="dark-control min-h-32 resize-y"
-              value={prompt}
-              maxLength={4000}
-              placeholder="Example: Explain the difference between a trojan and a worm."
-              onChange={(event) => setPrompt(event.target.value)}
-            />
-            <div className="mt-3 flex items-center justify-between gap-4">
-              <p className="text-xs text-slate-500">
-                GO VIRUS does not persist prompts or generated answers.
-              </p>
-              <button className="scan-button" disabled={busy || !prompt.trim()}>
-                {busy ? 'Generating…' : 'Ask AI'}
-              </button>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <section className="surface">
+            <div className="surface-header">
+              <h2 className="text-sm font-semibold text-slate-200">New question</h2>
             </div>
-          </form>
+            <div className="surface-body">
+              <form onSubmit={submit}>
+                <textarea
+                  className="app-input min-h-36 resize-y"
+                  value={prompt}
+                  maxLength={4000}
+                  placeholder="Ask about a malware concept, scan terminology, or security practice…"
+                  onChange={(event) => setPrompt(event.target.value)}
+                />
 
-          {error && (
-            <div className="mt-5 border border-red-500/30 bg-red-950/20 p-4 text-sm text-red-300">
-              {error}
+                <div className="mt-3 flex items-center justify-between gap-4">
+                  <span className="text-xs text-slate-600">{prompt.length}/4000</span>
+                  <button className="primary-button" disabled={busy || !prompt.trim()}>
+                    {busy ? 'Generating…' : 'Ask'}
+                  </button>
+                </div>
+              </form>
+
+              {error && (
+                <div className="mt-5 rounded-md border border-red-900 bg-red-950/30 p-4 text-sm text-red-300">
+                  {error}
+                </div>
+              )}
+
+              {(answer || busy) && (
+                <div className="mt-6 border-t border-slate-800 pt-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      GO VIRUS assistant
+                    </span>
+                  </div>
+                  <div className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                    {answer || 'Generating response…'}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </section>
 
-          {(answer || busy) && (
-            <section className="mt-6 border border-[#263753] bg-[#11192b] p-5">
-              <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-cyan-400">
-                Response
-              </div>
-              <div className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                {answer || 'Generating…'}
+          <aside className="space-y-5">
+            <section className="surface">
+              <div className="surface-body">
+                <h2 className="text-sm font-semibold text-slate-200">Data handling</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  GO VIRUS does not persist the prompt or generated answer. Usage metrics such as model, token counts, latency and success are logged.
+                </p>
               </div>
             </section>
-          )}
-        </>
+
+            <section className="surface">
+              <div className="surface-body">
+                <h2 className="text-sm font-semibold text-slate-200">Scan explanations</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Open an artifact report and use its AI tab to explain the structured scan evidence for that specific analysis.
+                </p>
+              </div>
+            </section>
+          </aside>
+        </div>
       )}
     </main>
   );
