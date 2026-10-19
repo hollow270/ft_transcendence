@@ -1,50 +1,35 @@
-# ft_transcendence Docker base
+# GO VIRUS / ft_transcendence
 
-Shared development base for the ft_transcendence team.
+GO VIRUS is the current ft_transcendence application: a VirusTotal-inspired security scanner with community and AI-assisted scan explanations.
 
 ## Current stack
 
+- React + Vite + Tailwind CSS frontend
 - NestJS backend
-- PostgreSQL 16
 - Prisma ORM
+- PostgreSQL 16
+- Socket.IO / WebSockets
+- OpenAI-compatible streamed LLM integration
 - Docker Compose
 
-The database V1 currently contains 19 application tables for users, files/URLs, submissions, scans, community features, moderation, API usage, LLM usage and audit logs.
+The database V1 contains 19 application tables for users, 2FA, sessions, file/URL artifacts, submissions, scans, scan engines/results, comments, votes, reports, moderation, notifications, API usage, LLM usage and audit logs.
 
 Database details: `backend/prisma/DATABASE.md`
 
 ## First run
 
-Clone the repository:
-
 ```bash
 git clone https://github.com/kamrene2771/ft_transcendence_docker.git
 cd ft_transcendence_docker
-```
-
-Create your local environment file:
-
-```bash
 cp .env.example .env
-```
-
-Start everything:
-
-```bash
 docker compose up --build
 ```
 
-On startup, the backend automatically runs:
+Frontend:
 
-```bash
-npx prisma generate
-npx prisma db push
-npm run start:dev
+```text
+http://localhost:5173
 ```
-
-This creates/synchronizes the development database tables from `backend/prisma/schema.prisma`.
-
-## Test
 
 Backend:
 
@@ -52,13 +37,13 @@ Backend:
 http://localhost:3000
 ```
 
-Health + PostgreSQL connection:
+Health check:
 
 ```text
 http://localhost:3000/health
 ```
 
-Expected response:
+Expected:
 
 ```json
 {
@@ -67,102 +52,70 @@ Expected response:
 }
 ```
 
-Check containers:
+## AI configuration
+
+The AI module supports:
+
+- authenticated general cybersecurity questions;
+- authenticated explanations of completed scans;
+- Server-Sent Events streaming;
+- authorization checks before private scan evidence is exposed;
+- prompt-injection-resistant scan evidence formatting;
+- LLM usage metrics in `llm_usage_logs`;
+- no storage of user prompts or generated answers.
+
+Set the key only in your local `.env`:
 
 ```bash
-docker compose ps
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4o-mini
 ```
 
-Both `backend` and `postgres` should be healthy.
+`OPENAI_BASE_URL` is optional for a compatible gateway/provider.
 
-## Verify database tables
+Do **not** commit `.env`.
 
-Run:
-
-```bash
-docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\\dt"'
-```
-
-You should see the application tables such as:
+The frontend calls:
 
 ```text
-users
-user_2fa
-user_sessions
-artifacts
-file_artifacts
-url_artifacts
-submissions
-scans
-scan_engines
-scan_engine_results
-comments
-community_votes
-comment_reports
-moderation_actions
-notifications
-api_keys
-api_request_logs
-llm_usage_logs
-audit_logs
+POST /api/ai/ask
+POST /api/ai/scans/explain
 ```
 
-## Prisma commands
+Vite proxies `/api/*` to the NestJS backend, where the routes are exposed as `/ai/*`.
 
-Validate the schema:
+## Prisma development workflow
+
+The backend container currently runs:
+
+```bash
+npx prisma generate
+npx prisma db push
+npm run start:dev
+```
+
+Validate manually:
 
 ```bash
 docker compose exec backend npx prisma validate
 ```
 
-Generate the client:
+Verify tables:
 
 ```bash
-docker compose exec backend npx prisma generate
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\\dt"'
 ```
 
-Synchronize the development database:
+For now, `prisma db push` is used while the schema is still evolving. Once Database V1 is frozen, switch to versioned Prisma migrations.
+
+## Automated smoke test
+
+Run:
 
 ```bash
-docker compose exec backend npx prisma db push
+bash scripts/smoke-test.sh
 ```
 
-## Useful Docker commands
+The test covers Docker startup, PostgreSQL, Prisma, backend health, React build, API proxying, authentication, file upload, SHA-based deduplication, scan reuse, artifact lookup, AI route authorization/context streaming, comments, voting, notifications and privacy rules.
 
-Backend logs:
-
-```bash
-docker compose logs -f backend
-```
-
-PostgreSQL logs:
-
-```bash
-docker compose logs -f postgres
-```
-
-Rebuild:
-
-```bash
-docker compose up --build
-```
-
-Stop:
-
-```bash
-docker compose down
-```
-
-> Do not use `docker compose down -v` unless you intentionally want to delete the local PostgreSQL data volume.
-
-## Environment
-
-`.env` is local and must never be committed.
-
-`.env.example` documents the environment variables required by the project.
-
-## Database workflow
-
-For now we use `prisma db push` because the schema is still being designed.
-
-Once Database V1 is frozen, we should switch to versioned Prisma migrations so every schema change is tracked in Git.
+> `docker compose down -v` deletes the local PostgreSQL development volume. Use it only when you intentionally want a clean database.
