@@ -8,10 +8,10 @@ export type AiStreamPayload =
   | { event: 'complete'; messageId?: string; status: 'COMPLETE' }
   | { event: 'error'; code?: string; message: string };
 
-export type AiChatMessage = {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-};
+export type AiChatMessage =
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: string };
 
 export type AiProviderStreamChunk =
   | { type: 'delta'; text: string }
