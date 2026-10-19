@@ -6,21 +6,23 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  color: #e5edf8;
-  background: #0b1020;
+  color: #e5e7eb;
+  background: #020617;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
 
-html {
-  background: #0b1020;
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  background: #020617;
 }
 
 body {
-  margin: 0;
-  min-width: 320px;
   min-height: 100vh;
-  background: #0b1020;
 }
 
 button,
@@ -38,53 +40,97 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.hero-grid {
-  background:
-    radial-gradient(circle at 50% 18%, rgba(15, 84, 120, 0.30), transparent 30%),
-    radial-gradient(circle at 15% 50%, rgba(8, 57, 92, 0.20), transparent 28%),
-    radial-gradient(circle at 85% 55%, rgba(6, 72, 86, 0.18), transparent 28%),
-    linear-gradient(180deg, #0e1426 0%, #0b1020 100%);
-}
-
-.hero-grid::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.18;
-  background-image:
-    linear-gradient(rgba(77, 116, 164, 0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(77, 116, 164, 0.15) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(circle at center, black, transparent 75%);
-}
-
 @layer components {
-  .nav-link {
-    @apply text-sm text-slate-200 transition hover:text-white;
+  .app-page {
+    @apply mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8;
   }
 
-  .signup-button {
-    @apply rounded-full bg-[#8db7ff] px-4 py-2 text-sm font-semibold text-[#0c1730] transition hover:bg-[#a6c7ff];
+  .surface {
+    @apply rounded-lg border border-slate-800 bg-slate-900;
   }
 
+  .surface-header {
+    @apply border-b border-slate-800 px-5 py-4;
+  }
+
+  .surface-body {
+    @apply p-5;
+  }
+
+  .app-input {
+    @apply w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/10;
+  }
+
+  .app-select {
+    @apply rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none focus:border-slate-500;
+  }
+
+  .primary-button {
+    @apply inline-flex items-center justify-center rounded-md border border-blue-500 bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-50;
+  }
+
+  .secondary-button {
+    @apply inline-flex items-center justify-center rounded-md border border-slate-700 bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-600 hover:bg-slate-800 disabled:opacity-50;
+  }
+
+  .danger-button {
+    @apply inline-flex items-center justify-center rounded-md border border-red-800 bg-red-950/40 px-3.5 py-2 text-sm font-medium text-red-300 transition hover:bg-red-950/70 disabled:opacity-50;
+  }
+
+  .text-link {
+    @apply text-sm font-medium text-blue-400 hover:text-blue-300 hover:underline;
+  }
+
+  .data-table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+
+  .data-table thead {
+    @apply bg-slate-950/60 text-xs text-slate-500;
+  }
+
+  .data-table th {
+    @apply border-b border-slate-800 px-4 py-3 font-medium;
+  }
+
+  .data-table td {
+    @apply border-b border-slate-800 px-4 py-3 text-slate-300;
+  }
+
+  .empty-state {
+    @apply flex min-h-44 flex-col items-center justify-center px-6 py-10 text-center;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium;
+  }
+
+  /* Compatibility aliases for existing feature code while pages are migrated. */
   .dark-control {
-    @apply w-full border border-[#334766] bg-[#0d1527] px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-[#69a7ff] focus:ring-2 focus:ring-[#69a7ff]/15;
+    @apply app-input;
   }
 
   .dark-select {
-    @apply border border-[#334766] bg-[#0d1527] px-2 py-1 text-xs text-slate-200 outline-none;
-  }
-
-  .choose-button {
-    @apply inline-flex min-w-44 items-center justify-center rounded-md border border-[#6da7ff] bg-transparent px-5 py-2.5 text-sm font-medium text-[#8eb7ff] transition hover:bg-[#173052];
+    @apply app-select;
   }
 
   .scan-button {
-    @apply inline-flex items-center justify-center rounded-md bg-[#4d8fe8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5b9bf1] disabled:opacity-40;
+    @apply primary-button;
   }
 
   .community-button {
-    @apply border border-[#334766] bg-[#11192b] px-2.5 py-1.5 text-slate-300 transition hover:border-[#4c6487] hover:text-white disabled:opacity-40;
+    @apply secondary-button;
+  }
+
+  .nav-link {
+    @apply text-sm text-slate-300 hover:text-white;
+  }
+
+  .signup-button {
+    @apply primary-button;
+  }
+
+  .choose-button {
+    @apply secondary-button;
   }
 }
