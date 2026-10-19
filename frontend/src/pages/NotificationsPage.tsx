@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { api } from '../api';
 import { useAuth } from '../auth';
+import { PageHeader, StatusNotice } from '../components';
 import type { Notification } from '../types';
 
 function formatDate(value?: string | null) {
@@ -12,6 +13,7 @@ function formatDate(value?: string | null) {
 export default function NotificationsPage() {
   const { token, user } = useAuth();
   const [items, setItems] = useState<Notification[]>([]);
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,6 +49,10 @@ export default function NotificationsPage() {
     [items],
   );
 
+  const visibleItems = filter === 'unread'
+    ? items.filter((notification) => !notification.readAt)
+    : items;
+
   async function markRead(notification: Notification) {
     if (!token || notification.readAt) return;
 
@@ -56,63 +62,95 @@ export default function NotificationsPage() {
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
     } catch {
-      // Keep the page usable if acknowledgement fails.
+      // Notification acknowledgement should not block the page.
     }
   }
 
   if (!user) {
     return (
-      <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
-        <div className="border border-[#263753] bg-[#11192b] p-6">
-          <h1 className="text-2xl font-semibold">Notifications</h1>
-          <p className="mt-3 text-sm text-slate-400">Sign in to view your notifications.</p>
-        </div>
+      <main className="app-page">
+        <PageHeader title="Notifications" description="Scan, reply, moderation and system events." />
+        <StatusNotice title="Sign in required">
+          Notifications belong to a registered account.
+        </StatusNotice>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <div className="flex items-end justify-between border-b border-[#263753] pb-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Notifications</h1>
-          <p className="mt-1 text-sm text-slate-500">Scan, reply, moderation and system events.</p>
-        </div>
-        <span className="text-sm text-cyan-400">{unread} unread</span>
-      </div>
+    <main className="app-page">
+      <PageHeader
+        title="Notifications"
+        description="Scan, reply, moderation and system events."
+        actions={<span className="text-sm text-slate-500">{unread} unread</span>}
+      />
 
-      {error && (
-        <div className="mt-4 border border-red-500/30 bg-red-950/20 p-4 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-
-      <div className="mt-4">
-        {items.length ? (
-          items.map((notification) => (
+      <section className="surface overflow-hidden">
+        <div className="surface-header flex items-center justify-between gap-4">
+          <div className="flex gap-1 rounded-md bg-slate-950 p-1">
             <button
-              key={notification.id}
-              className={
-                'block w-full border-b border-[#263753] px-2 py-4 text-left ' +
-                (notification.readAt ? 'opacity-60' : '')
-              }
-              onClick={() => void markRead(notification)}
+              className={'rounded px-3 py-1.5 text-sm ' + (filter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-500')}
+              onClick={() => setFilter('all')}
             >
-              <div className="flex flex-wrap justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-cyan-400">
-                  {notification.type.replace(/_/g, ' ')}
-                </span>
-                <span className="text-xs text-slate-600">{formatDate(notification.createdAt)}</span>
-              </div>
-              <p className="mt-2 text-sm text-slate-300">
-                {notification.message ?? 'New notification'}
-              </p>
+              All
             </button>
-          ))
-        ) : (
-          <p className="py-8 text-sm text-slate-500">No notifications yet.</p>
+            <button
+              className={'rounded px-3 py-1.5 text-sm ' + (filter === 'unread' ? 'bg-slate-800 text-white' : 'text-slate-500')}
+              onClick={() => setFilter('unread')}
+            >
+              Unread
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="border-b border-red-900 bg-red-950/30 px-5 py-3 text-sm text-red-300">
+            {error}
+          </div>
         )}
-      </div>
+
+        {visibleItems.length ? (
+          <div>
+            {visibleItems.map((notification) => (
+              <button
+                key={notification.id}
+                className={
+                  'flex w-full gap-4 border-b border-slate-800 px-5 py-4 text-left last:border-b-0 hover:bg-slate-800/30 ' +
+                  (notification.readAt ? 'opacity-65' : '')
+                }
+                onClick={() => void markRead(notification)}
+              >
+                <span
+                  className={
+                    'mt-1 h-2 w-2 shrink-0 rounded-full ' +
+                    (notification.readAt ? 'bg-slate-700' : 'bg-blue-500')
+                  }
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {notification.type.replace(/_/g, ' ')}
+                    </span>
+                    <span className="text-xs text-slate-600">{formatDate(notification.createdAt)}</span>
+                  </span>
+                  <span className="mt-1.5 block text-sm text-slate-300">
+                    {notification.message ?? 'New notification'}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <p className="text-sm font-semibold text-slate-300">
+              {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              New scan and account events will appear here.
+            </p>
+          </div>
+        )}
+      </section>
     </main>
   );
 }
