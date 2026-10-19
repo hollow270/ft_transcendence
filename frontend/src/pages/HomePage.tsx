@@ -1,42 +1,52 @@
-import { FormEvent, useState } from 'react';
+import { DragEvent, FormEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { BrandMark } from '../components';
+import { PageHeader } from '../components';
 
-function FileScanIcon() {
+function FileIcon() {
   return (
-    <svg
-      viewBox="0 0 120 120"
-      className="mx-auto h-28 w-28 text-slate-300"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-    >
-      <path d="M34 16h35l18 18v70H34z" />
-      <path d="M69 16v20h18" />
-      <path d="M18 59h84" stroke="#38bdf8" strokeWidth="4" />
-      <path d="M50 82c0-10 20-10 20 0 0 5-4 8-4 13" />
-      <path d="M44 82c0-18 32-18 32 0 0 9-7 13-7 22" />
-      <path d="M55 94c0-5 10-5 10 0" />
+    <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v5h5" />
     </svg>
   );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 export default function HomePage() {
   const { token, user } = useAuth();
   const navigate = useNavigate();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [forceRescan, setForceRescan] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  function acceptFile(nextFile?: File | null) {
+    if (!nextFile) return;
+    setMessage(null);
+    setFile(nextFile);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragging(false);
+    acceptFile(event.dataTransfer.files?.[0]);
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
 
     if (!file) {
-      setMessage('Choose a file first.');
+      setMessage('Choose a file before starting the scan.');
       return;
     }
 
@@ -64,90 +74,176 @@ export default function HomePage() {
   }
 
   return (
-    <main>
-      <section className="hero-grid relative overflow-hidden border-b border-[#1d2b48]">
-        <div className="mx-auto max-w-5xl px-4 pb-14 pt-10 text-center sm:pt-12">
-          <BrandMark className="mx-auto h-40 w-40 sm:h-48 sm:w-48" />
+    <main className="app-page">
+      <PageHeader
+        title="File analysis"
+        description="Submit a file to identify it by hash, check previous analysis, and create a new scan when required."
+      />
 
-          <h1 className="mt-1 text-5xl font-bold tracking-[0.08em] sm:text-6xl">
-            <span className="text-slate-100">GO </span>
-            <span className="bg-gradient-to-r from-cyan-300 via-cyan-400 to-lime-300 bg-clip-text text-transparent">
-              VIRUS
-            </span>
-          </h1>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="surface">
+          <div className="surface-header">
+            <h2 className="text-sm font-semibold text-slate-200">Submit a file</h2>
+            <p className="mt-1 text-xs text-slate-500">Maximum size: 25 MB</p>
+          </div>
 
-          <p className="mx-auto mt-5 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-            Analyse suspicious files to detect malware and other security threats,
-            and share results with the security community.
-          </p>
+          <form onSubmit={submit} className="surface-body">
+            <input
+              ref={inputRef}
+              type="file"
+              className="sr-only"
+              onChange={(event) => acceptFile(event.target.files?.[0])}
+            />
 
-          <div className="mx-auto mt-10 max-w-3xl">
-            <div className="border-b border-[#445473] pb-3 text-sm font-semibold tracking-wide text-[#8eb7ff]">
-              FILE
+            <div
+              className={
+                'rounded-lg border border-dashed px-6 py-12 text-center transition ' +
+                (dragging
+                  ? 'border-blue-500 bg-blue-500/5'
+                  : 'border-slate-700 bg-slate-950/40')
+              }
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+            >
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400">
+                <FileIcon />
+              </div>
+
+              {file ? (
+                <div className="mt-4">
+                  <p className="break-all text-sm font-medium text-slate-200">{file.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatBytes(file.size)} · {file.type || 'Unknown type'}
+                  </p>
+                  <button
+                    type="button"
+                    className="text-link mt-3"
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    Choose another file
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-slate-200">
+                    Drag and drop a file here
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">or select it from your computer</p>
+                  <button
+                    type="button"
+                    className="secondary-button mt-4"
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    Choose file
+                  </button>
+                </div>
+              )}
             </div>
 
-            <form onSubmit={submit} className="pt-8">
-              <label className="mx-auto block w-fit cursor-pointer">
-                <input
-                  type="file"
-                  className="sr-only"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                />
-                <FileScanIcon />
-                <span className="choose-button mt-3">
-                  {file ? file.name : 'Choose file'}
+            <div className="mt-5 grid gap-4 border-t border-slate-800 pt-5 sm:grid-cols-2">
+              <label>
+                <span className="mb-1.5 block text-xs font-medium text-slate-400">
+                  Visibility
                 </span>
+                <select
+                  className="app-select w-full"
+                  value={visibility}
+                  onChange={(event) =>
+                    setVisibility(event.target.value as 'PUBLIC' | 'PRIVATE')
+                  }
+                >
+                  <option value="PUBLIC">Public</option>
+                  <option value="PRIVATE" disabled={!user}>Private</option>
+                </select>
+                {!user && (
+                  <span className="mt-1.5 block text-xs text-slate-600">
+                    Sign in to create private submissions.
+                  </span>
+                )}
               </label>
 
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-5 text-xs text-slate-400">
-                <label className="flex items-center gap-2">
-                  <span>Visibility</span>
-                  <select
-                    className="dark-select"
-                    value={visibility}
-                    onChange={(event) =>
-                      setVisibility(event.target.value as 'PUBLIC' | 'PRIVATE')
-                    }
-                  >
-                    <option value="PUBLIC">Public</option>
-                    <option value="PRIVATE" disabled={!user}>Private</option>
-                  </select>
-                </label>
-
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={forceRescan}
-                    onChange={(event) => setForceRescan(event.target.checked)}
-                  />
-                  Force rescan
-                </label>
-
-                <button className="scan-button" disabled={!file || busy}>
-                  {busy ? 'Scanning…' : 'Scan file'}
-                </button>
-              </div>
-            </form>
+              <label className="flex items-start gap-3 rounded-md border border-slate-800 bg-slate-950/40 px-3 py-3">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={forceRescan}
+                  onChange={(event) => setForceRescan(event.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm font-medium text-slate-300">Force rescan</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-slate-600">
+                    Ignore a reusable fresh result and create a new scan.
+                  </span>
+                </span>
+              </label>
+            </div>
 
             {message && (
-              <div className="mx-auto mt-5 max-w-3xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+              <div className="mt-4 rounded-md border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
                 {message}
               </div>
             )}
 
-            <p className="mx-auto mt-8 max-w-3xl text-xs leading-5 text-slate-400">
-              Public submissions can appear in community features. Private mode is
-              available to registered users. Uploaded binaries are temporary; scan
-              metadata and results remain available according to the project rules.
-            </p>
-
-            <div className="mx-auto mt-10 max-w-3xl border border-[#223657] bg-[#121d34] px-4 py-3 text-xs text-slate-300">
-              Want to automate submissions? <span className="text-[#69a7ff]">API access</span>{' '}
-              is part of the project roadmap.
+            <div className="mt-5 flex items-center justify-end gap-3">
+              {file && (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setFile(null)}
+                  disabled={busy}
+                >
+                  Clear
+                </button>
+              )}
+              <button className="primary-button min-w-28" disabled={!file || busy}>
+                {busy ? 'Scanning…' : 'Scan file'}
+              </button>
             </div>
-          </div>
-        </div>
-      </section>
+          </form>
+        </section>
+
+        <aside className="space-y-5">
+          <section className="surface">
+            <div className="surface-header">
+              <h2 className="text-sm font-semibold text-slate-200">How it works</h2>
+            </div>
+            <div className="surface-body space-y-4 text-sm">
+              <div>
+                <p className="font-medium text-slate-300">1. Identify the file</p>
+                <p className="mt-1 leading-5 text-slate-500">
+                  GO VIRUS calculates the file hashes and checks whether the artifact already exists.
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-slate-300">2. Check scan freshness</p>
+                <p className="mt-1 leading-5 text-slate-500">
+                  A recent completed result can be reused instead of scanning the same file again.
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-slate-300">3. Store engine results</p>
+                <p className="mt-1 leading-5 text-slate-500">
+                  Each engine result is kept separately so the report shows exactly what was detected.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="surface">
+            <div className="surface-body">
+              <h2 className="text-sm font-semibold text-slate-200">Privacy</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Uploaded binaries are temporary. Public submissions may be visible in community features.
+                Private submissions require an account and are excluded from public discussion.
+              </p>
+            </div>
+          </section>
+        </aside>
+      </div>
     </main>
   );
 }
