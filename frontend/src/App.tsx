@@ -143,8 +143,18 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiAnswer, setAiAnswer] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
   const artifactId = artifact?.id ?? null;
   const isPublic = lastSubmissionVisibility === 'PUBLIC';
+
+  useEffect(() => {
+    setAiAnswer('');
+    setAiError(null);
+  }, [artifactId]);
 
   useEffect(() => {
     if (!token) {
@@ -337,6 +347,48 @@ export default function App() {
       );
     } catch {
       // Keep the rest of the page usable if this request fails.
+    }
+  }
+
+  async function explainCurrentScan() {
+    const scanId = artifact?.latestScan?.id;
+    if (!token || !scanId) return;
+
+    setAiBusy(true);
+    setAiAnswer('');
+    setAiError(null);
+
+    try {
+      await api.explainScan(scanId, token, (text) => {
+        setAiAnswer((current) => current + text);
+      });
+    } catch (caught) {
+      setAiError(
+        caught instanceof Error ? caught.message : 'AI explanation failed.',
+      );
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function askAi(event: FormEvent) {
+    event.preventDefault();
+    if (!token || !aiPrompt.trim()) return;
+
+    setAiBusy(true);
+    setAiAnswer('');
+    setAiError(null);
+
+    try {
+      await api.askAi(aiPrompt.trim(), token, (text) => {
+        setAiAnswer((current) => current + text);
+      });
+    } catch (caught) {
+      setAiError(
+        caught instanceof Error ? caught.message : 'AI request failed.',
+      );
+    } finally {
+      setAiBusy(false);
     }
   }
 
@@ -611,6 +663,70 @@ export default function App() {
                 </table>
               </div>
             </div>
+
+            <section className="mt-8 border-t border-[#263753] pt-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold">AI explanation</h3>
+                  <p className="mt-1 max-w-2xl text-sm text-slate-500">
+                    Ask GO VIRUS AI to explain the completed scan evidence. Prompts
+                    and generated answers are not stored; only usage metrics are logged.
+                  </p>
+                </div>
+
+                {user && artifact.latestScan?.id && (
+                  <button
+                    type="button"
+                    className="scan-button"
+                    disabled={aiBusy}
+                    onClick={explainCurrentScan}
+                  >
+                    {aiBusy ? 'Generating…' : 'Explain this scan'}
+                  </button>
+                )}
+              </div>
+
+              {user ? (
+                <form className="mt-4" onSubmit={askAi}>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      className="dark-control flex-1"
+                      value={aiPrompt}
+                      maxLength={4000}
+                      placeholder="Ask a cybersecurity question…"
+                      onChange={(event) => setAiPrompt(event.target.value)}
+                    />
+                    <button
+                      className="community-button whitespace-nowrap"
+                      disabled={aiBusy || !aiPrompt.trim()}
+                    >
+                      Ask AI
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="mt-4 text-sm text-slate-500">
+                  Sign in to use AI explanations.
+                </div>
+              )}
+
+              {aiError && (
+                <div className="mt-4 border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+                  {aiError}
+                </div>
+              )}
+
+              {(aiAnswer || aiBusy) && (
+                <div className="mt-4 border border-[#263753] bg-[#11192b] p-4">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-cyan-400">
+                    GO VIRUS AI
+                  </div>
+                  <div className="whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                    {aiAnswer || 'Generating explanation…'}
+                  </div>
+                </div>
+              )}
+            </section>
 
             {isPublic && (
               <section className="mt-10 border-t border-[#263753] pt-6">
