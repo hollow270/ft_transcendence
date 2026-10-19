@@ -9,6 +9,12 @@ import type {
 
 const API_BASE = '/api';
 
+type AiStreamPayload =
+  | { event: 'start' }
+  | { event: 'delta'; text: string }
+  | { event: 'complete'; status: 'COMPLETE' }
+  | { event: 'error'; code?: string; message: string };
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -41,6 +47,95 @@ async function request<T>(
   }
 
   return data as T;
+}
+
+async function streamAi(
+  path: string,
+  payload: unknown,
+  token: string,
+  onDelta: (text: string) => void,
+) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    let message = `AI request failed with status ${response.status}`;
+
+    try {
+      const parsed = JSON.parse(body);
+      message = parsed?.message ?? parsed?.error ?? message;
+    } catch {
+      // Keep the generic message when the body is not JSON.
+    }
+
+    throw new Error(Array.isArray(message) ? message.join(', ') : message);
+  }
+
+  if (!response.body) {
+    throw new Error('AI stream is not available in this browser.');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let complete = false;
+
+  const processFrame = (frame: string) => {
+    const dataLines = frame
+      .split('\n')
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trim());
+
+    for (const raw of dataLines) {
+      if (!raw) continue;
+
+      const event = JSON.parse(raw) as AiStreamPayload;
+
+      if (event.event === 'delta') {
+        onDelta(event.text);
+      }
+
+      if (event.event === 'error') {
+        throw new Error(event.message);
+      }
+
+      if (event.event === 'complete') {
+        complete = true;
+      }
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+
+    if (value) {
+      buffer += decoder.decode(value, { stream: !done });
+    }
+
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+
+    for (const frame of frames) {
+      processFrame(frame);
+    }
+
+    if (done) break;
+  }
+
+  if (buffer.trim()) {
+    processFrame(buffer);
+  }
+
+  if (!complete) {
+    throw new Error('AI stream ended before completion.');
+  }
 }
 
 export const api = {
@@ -162,5 +257,21 @@ export const api = {
       { method: 'PATCH' },
       token,
     );
+  },
+
+  askAi(
+    prompt: string,
+    token: string,
+    onDelta: (text: string) => void,
+  ) {
+    return streamAi('/ai/ask', { prompt }, token, onDelta);
+  },
+
+  explainScan(
+    scanId: string,
+    token: string,
+    onDelta: (text: string) => void,
+  ) {
+    return streamAi('/ai/scans/explain', { scanId }, token, onDelta);
   },
 };
