@@ -1,29 +1,25 @@
 import { Module } from '@nestjs/common';
+import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
 import { ArtifactsController } from './artifacts/artifacts.controller';
 import { ArtifactsService } from './artifacts/artifacts.service';
-import { AuthController } from './auth/auth.controller';
-import { SessionAuthGuard } from './auth/auth.guard';
-import { AuthService } from './auth/auth.service';
+import { AuthModule } from './auth/auth.module';
 import { CommunityController } from './community/community.controller';
 import { CommunityService } from './community/community.service';
 import { NotificationsController } from './notifications/notifications.controller';
 import { NotificationsGateway } from './notifications/notifications.gateway';
 import { NotificationsService } from './notifications/notifications.service';
-import { PrismaService } from './prisma.service';
+import { PrismaModule } from './prisma.module';
 
 @Module({
+  imports: [PrismaModule, AuthModule, AiModule],
   controllers: [
     AppController,
-    AuthController,
     ArtifactsController,
     CommunityController,
     NotificationsController,
   ],
   providers: [
-    PrismaService,
-    AuthService,
-    SessionAuthGuard,
     ArtifactsService,
     CommunityService,
     NotificationsGateway,
