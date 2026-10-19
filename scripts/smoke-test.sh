@@ -87,6 +87,10 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 
 echo "first upload ok: $ARTIFACT_ID"
 
+SCAN_ID=$(printf '%s' "$UPLOAD1" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.scan?.id) process.exit(1); process.stdout.write(j.scan.id);});
+')
+
 UPLOAD2=$(curl -fsS -X POST "$BASE_URL/artifacts/files"   -H "Authorization: Bearer $TOKEN"   -F "file=@/tmp/sample.txt;type=text/plain"   -F "visibility=PUBLIC")
 
 printf '%s' "$UPLOAD2" | ARTIFACT_ID="$ARTIFACT_ID" node -e '
@@ -96,6 +100,22 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 curl -fsS "$BASE_URL/artifacts/$ARTIFACT_ID"   -H "Authorization: Bearer $TOKEN"   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.file?.sha256 || !j.latestScan) process.exit(1); console.log("artifact lookup ok");});
 '
+
+AI_EXPLAIN=$(curl -fsS -N -X POST "$BASE_URL/ai/scans/explain"   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d "{\"scanId\":\"$SCAN_ID\"}")
+
+printf '%s' "$AI_EXPLAIN" | grep -q '"event":"start"'
+printf '%s' "$AI_EXPLAIN" | grep -q '"event":"error"'
+echo "AI scan authorization/context/SSE path ok"
+
+AI_UNAUTH_CODE=$(curl -sS -o /tmp/ai-unauth.json -w "%{http_code}"   -X POST "$BASE_URL/ai/ask"   -H "Content-Type: application/json"   -d '{"prompt":"What is a trojan?"}')
+
+if [ "$AI_UNAUTH_CODE" != "401" ]; then
+  echo "AI endpoint should require authentication, got $AI_UNAUTH_CODE"
+  cat /tmp/ai-unauth.json
+  exit 1
+fi
+
+echo "AI auth guard ok"
 
 COMMENT=$(curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/comments"   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d '{"body":"CI smoke-test comment"}')
 
