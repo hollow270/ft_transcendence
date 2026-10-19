@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import {
   NavLink,
   Outlet,
@@ -12,30 +12,26 @@ export function BrandMark({ className = '' }: { className?: string }) {
     <svg className={className} viewBox="0 0 160 160" role="img" aria-label="GO VIRUS logo">
       <defs>
         <linearGradient id="brand-a" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#22d3ee" />
-          <stop offset="55%" stopColor="#38bdf8" />
-          <stop offset="100%" stopColor="#84cc16" />
-        </linearGradient>
-        <linearGradient id="brand-b" x1="1" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#a3e635" />
-          <stop offset="100%" stopColor="#22d3ee" />
+          <stop offset="0%" stopColor="#60a5fa" />
+          <stop offset="100%" stopColor="#34d399" />
         </linearGradient>
       </defs>
-      <circle cx="80" cy="80" r="62" fill="none" stroke="#17365f" strokeWidth="6" />
-      <circle cx="80" cy="80" r="50" fill="none" stroke="#155e75" strokeWidth="2" />
-      <circle cx="80" cy="80" r="37" fill="none" stroke="#164e63" strokeWidth="2" />
-      <path d="M34 54 L55 54 L80 90 L106 54 L128 54 L80 126 Z" fill="none" stroke="url(#brand-a)" strokeWidth="10" strokeLinejoin="round" />
-      <path d="M48 42 L80 82 L122 32" fill="none" stroke="url(#brand-b)" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
-      <g fill="#22d3ee">
-        <circle cx="26" cy="74" r="4" />
-        <circle cx="132" cy="72" r="4" />
-        <circle cx="52" cy="22" r="3" />
-        <circle cx="108" cy="136" r="3" />
-      </g>
-      <g fill="#84cc16">
-        <circle cx="43" cy="121" r="4" />
-        <circle cx="120" cy="42" r="4" />
-      </g>
+      <circle cx="80" cy="80" r="60" fill="none" stroke="#334155" strokeWidth="6" />
+      <path
+        d="M38 56 L58 56 L80 88 L105 56 L126 56 L80 124 Z"
+        fill="none"
+        stroke="url(#brand-a)"
+        strokeWidth="10"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M48 42 L80 82 L121 33"
+        fill="none"
+        stroke="url(#brand-a)"
+        strokeWidth="9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -49,6 +45,68 @@ function SearchIcon() {
   );
 }
 
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+function NavIcon({ name }: { name: string }) {
+  const common = "h-4 w-4";
+  if (name === 'file') {
+    return (
+      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h5" />
+      </svg>
+    );
+  }
+  if (name === 'search') {
+    return <SearchIcon />;
+  }
+  if (name === 'history') {
+    return (
+      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6" /><path d="M4 4v4.6h4.6M12 8v5l3 2" />
+      </svg>
+    );
+  }
+  if (name === 'bell') {
+    return (
+      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+      </svg>
+    );
+  }
+  if (name === 'brain') {
+    return (
+      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M9 4a3 3 0 0 0-5 2.2A3.5 3.5 0 0 0 4 13a3 3 0 0 0 3 5h2M15 4a3 3 0 0 1 5 2.2A3.5 3.5 0 0 1 20 13a3 3 0 0 1-3 5h-2M9 4v16M15 4v16M9 8h6M9 16h6" />
+      </svg>
+    );
+  }
+  if (name === 'key') {
+    return (
+      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8">
+        <circle cx="8" cy="15" r="4" /><path d="m11 12 8-8M15 8l2 2M17 6l2 2" />
+      </svg>
+    );
+  }
+  if (name === 'shield') {
+    return (
+      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="8" />
+    </svg>
+  );
+}
+
 function AuthPanel({ onClose }: { onClose: () => void }) {
   const { mode, setMode, form, setForm, busy, message, submit } = useAuthForm();
   const { user } = useAuth();
@@ -58,9 +116,9 @@ function AuthPanel({ onClose }: { onClose: () => void }) {
   }, [user, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/50 p-4 pt-20" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/45 p-4 pt-16" onClick={onClose}>
       <section
-        className="w-full max-w-sm border border-[#304568] bg-[#111a2d] p-5 shadow-2xl"
+        className="w-full max-w-sm rounded-lg border border-slate-700 bg-slate-900 p-5 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
@@ -68,17 +126,17 @@ function AuthPanel({ onClose }: { onClose: () => void }) {
           <button className="text-slate-400 hover:text-white" onClick={onClose}>×</button>
         </div>
 
-        <div className="mb-4 flex border border-[#2f4363]">
+        <div className="mb-4 grid grid-cols-2 rounded-md bg-slate-950 p-1">
           <button
             type="button"
-            className={'flex-1 px-3 py-2 text-sm ' + (mode === 'login' ? 'bg-[#1d2c47] text-white' : 'text-slate-400')}
+            className={'rounded px-3 py-2 text-sm ' + (mode === 'login' ? 'bg-slate-800 text-white' : 'text-slate-400')}
             onClick={() => setMode('login')}
           >
             Sign in
           </button>
           <button
             type="button"
-            className={'flex-1 px-3 py-2 text-sm ' + (mode === 'register' ? 'bg-[#1d2c47] text-white' : 'text-slate-400')}
+            className={'rounded px-3 py-2 text-sm ' + (mode === 'register' ? 'bg-slate-800 text-white' : 'text-slate-400')}
             onClick={() => setMode('register')}
           >
             Sign up
@@ -88,28 +146,28 @@ function AuthPanel({ onClose }: { onClose: () => void }) {
         <form className="space-y-3" onSubmit={submit}>
           {mode === 'register' && (
             <input
-              className="dark-control"
+              className="app-input"
               placeholder="Username"
               value={form.username}
               onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
             />
           )}
           <input
-            className="dark-control"
+            className="app-input"
             type="email"
             placeholder="Email"
             value={form.email}
             onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
           />
           <input
-            className="dark-control"
+            className="app-input"
             type="password"
             placeholder="Password"
             value={form.password}
             onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
           />
           {message && <p className="text-sm text-slate-400">{message}</p>}
-          <button className="scan-button w-full" disabled={busy}>
+          <button className="primary-button w-full" disabled={busy}>
             {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
@@ -118,15 +176,44 @@ function AuthPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-const navItems = [
-  ['/', 'File'],
-  ['/url', 'URL'],
-  ['/search', 'Search'],
-  ['/history', 'History'],
-  ['/notifications', 'Notifications'],
-  ['/llm', 'AI'],
-  ['/api-keys', 'API keys'],
-] as const;
+type NavItem = {
+  to: string;
+  label: string;
+  icon: string;
+};
+
+const analyzeNav: NavItem[] = [
+  { to: '/', label: 'File analysis', icon: 'file' },
+  { to: '/url', label: 'URL analysis', icon: 'file' },
+  { to: '/search', label: 'Search', icon: 'search' },
+];
+
+const accountNav: NavItem[] = [
+  { to: '/history', label: 'History', icon: 'history' },
+  { to: '/notifications', label: 'Notifications', icon: 'bell' },
+  { to: '/llm', label: 'AI assistant', icon: 'brain' },
+  { to: '/api-keys', label: 'API keys', icon: 'key' },
+  { to: '/profile/security', label: 'Security', icon: 'shield' },
+];
+
+function SidebarLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.to === '/'}
+      onClick={onClick}
+      className={({ isActive }) =>
+        'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition ' +
+        (isActive
+          ? 'bg-slate-800 text-white'
+          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200')
+      }
+    >
+      <NavIcon name={item.icon} />
+      <span>{item.label}</span>
+    </NavLink>
+  );
+}
 
 export function AppShell() {
   const auth = useAuth();
@@ -134,10 +221,12 @@ export function AppShell() {
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [authOpen, setAuthOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     setSearch(new URLSearchParams(location.search).get('q') ?? '');
-  }, [location.search]);
+    setMobileNavOpen(false);
+  }, [location.pathname, location.search]);
 
   function submitSearch(event: FormEvent) {
     event.preventDefault();
@@ -145,103 +234,152 @@ export function AppShell() {
     navigate(query ? '/search?q=' + encodeURIComponent(query) : '/search');
   }
 
-  return (
-    <div className="min-h-screen bg-[#0b1020] text-slate-100">
-      <header className="border-b border-[#243455] bg-[#17223b]">
-        <div className="flex min-h-16 items-center gap-4 px-4 py-2 lg:px-6">
-          <button className="flex shrink-0 items-center gap-2" onClick={() => navigate('/')}>
-            <BrandMark className="h-10 w-10" />
-            <span className="hidden text-lg font-bold tracking-wide sm:block">
-              <span className="text-cyan-300">GO</span>{' '}
-              <span className="text-lime-300">VIRUS</span>
-            </span>
-          </button>
-
-          <form
-            className="mx-auto flex max-w-3xl flex-1 items-center rounded-md border border-[#34486e] bg-[#111a30] px-4 text-slate-400"
-            onSubmit={submitSearch}
-          >
-            <SearchIcon />
-            <input
-              className="w-full bg-transparent px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-500"
-              placeholder="Search by file hash or artifact ID"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </form>
-
-          <div className="flex shrink-0 items-center gap-3">
-            {auth.user ? (
-              <>
-                <span className="hidden text-sm text-slate-300 md:inline">{auth.user.username}</span>
-                <button className="nav-link" onClick={() => void auth.signOut()}>Sign out</button>
-              </>
-            ) : (
-              <>
-                <button className="nav-link" onClick={() => setAuthOpen(true)}>Sign in</button>
-                <button className="signup-button" onClick={() => setAuthOpen(true)}>Sign up</button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <nav className="overflow-x-auto border-t border-[#22314e] bg-[#121b30]">
-          <div className="mx-auto flex min-w-max max-w-7xl items-center gap-1 px-4 lg:px-6">
-            {navItems.map(([to, label]) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === '/'}
-                className={({ isActive }) =>
-                  'border-b-2 px-3 py-2.5 text-sm transition ' +
-                  (isActive
-                    ? 'border-cyan-400 text-white'
-                    : 'border-transparent text-slate-400 hover:text-white')
-                }
-              >
-                {label}
-              </NavLink>
-            ))}
-
-            {(auth.user?.role === 'MODERATOR' || auth.user?.role === 'ADMIN') && (
-              <NavLink
-                to="/moderation"
-                className={({ isActive }) =>
-                  'border-b-2 px-3 py-2.5 text-sm ' +
-                  (isActive ? 'border-cyan-400 text-white' : 'border-transparent text-slate-400')
-                }
-              >
-                Moderation
-              </NavLink>
-            )}
-
-            {auth.user?.role === 'ADMIN' && (
-              <NavLink
-                to="/admin"
-                className={({ isActive }) =>
-                  'border-b-2 px-3 py-2.5 text-sm ' +
-                  (isActive ? 'border-cyan-400 text-white' : 'border-transparent text-slate-400')
-                }
-              >
-                Admin
-              </NavLink>
-            )}
-
-            <NavLink
-              to="/profile/security"
-              className={({ isActive }) =>
-                'border-b-2 px-3 py-2.5 text-sm ' +
-                (isActive ? 'border-cyan-400 text-white' : 'border-transparent text-slate-400')
-              }
-            >
-              Security
-            </NavLink>
-          </div>
+  const sidebar = (
+    <aside className="flex h-full w-60 flex-col border-r border-slate-800 bg-slate-950">
+      <div className="flex-1 overflow-y-auto px-3 py-5">
+        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+          Analyze
+        </p>
+        <nav className="space-y-1">
+          {analyzeNav.map((item) => <SidebarLink key={item.to} item={item} />)}
         </nav>
+
+        <p className="mt-7 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+          Account
+        </p>
+        <nav className="space-y-1">
+          {accountNav.map((item) => <SidebarLink key={item.to} item={item} />)}
+        </nav>
+
+        {(auth.user?.role === 'MODERATOR' || auth.user?.role === 'ADMIN') && (
+          <>
+            <p className="mt-7 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+              Operations
+            </p>
+            <nav className="space-y-1">
+              <SidebarLink item={{ to: '/moderation', label: 'Moderation', icon: 'shield' }} />
+              {auth.user?.role === 'ADMIN' && (
+                <SidebarLink item={{ to: '/admin', label: 'Admin', icon: 'shield' }} />
+              )}
+            </nav>
+          </>
+        )}
+      </div>
+
+      <div className="border-t border-slate-800 px-4 py-4 text-xs text-slate-600">
+        GO VIRUS · Security analysis platform
+      </div>
+    </aside>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-slate-800 bg-slate-900 px-3 sm:px-4">
+        <button
+          className="rounded-md p-2 text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
+          onClick={() => setMobileNavOpen((value) => !value)}
+          aria-label="Toggle navigation"
+        >
+          <MenuIcon />
+        </button>
+
+        <button className="flex shrink-0 items-center gap-2" onClick={() => navigate('/')}>
+          <BrandMark className="h-8 w-8" />
+          <span className="hidden text-sm font-semibold tracking-wide text-slate-100 sm:block">
+            GO VIRUS
+          </span>
+        </button>
+
+        <form
+          className="mx-auto flex h-9 max-w-2xl flex-1 items-center rounded-md border border-slate-700 bg-slate-950 px-3 text-slate-500 focus-within:border-slate-500"
+          onSubmit={submitSearch}
+        >
+          <SearchIcon />
+          <input
+            className="w-full bg-transparent px-2 text-sm text-slate-200 outline-none placeholder:text-slate-600"
+            placeholder="Search hash or artifact ID"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </form>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {auth.user ? (
+            <>
+              <button
+                className="hidden rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 md:block"
+                onClick={() => navigate('/history')}
+              >
+                {auth.user.username}
+              </button>
+              <button className="secondary-button" onClick={() => void auth.signOut()}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="secondary-button" onClick={() => setAuthOpen(true)}>Sign in</button>
+              <button className="primary-button" onClick={() => setAuthOpen(true)}>Create account</button>
+            </>
+          )}
+        </div>
       </header>
 
+      <div className="flex min-h-[calc(100vh-3.5rem)]">
+        <div className="hidden lg:block">{sidebar}</div>
+
+        {mobileNavOpen && (
+          <div className="fixed inset-0 top-14 z-30 flex bg-black/40 lg:hidden" onClick={() => setMobileNavOpen(false)}>
+            <div onClick={(event) => event.stopPropagation()}>{sidebar}</div>
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1 bg-slate-950">
+          <Outlet />
+        </div>
+      </div>
+
       {authOpen && <AuthPanel onClose={() => setAuthOpen(false)} />}
-      <Outlet />
+    </div>
+  );
+}
+
+export function PageHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string;
+  description?: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="mb-6 flex flex-col gap-4 border-b border-slate-800 pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-white">{title}</h1>
+        {description && <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-400">{description}</p>}
+      </div>
+      {actions && <div className="shrink-0">{actions}</div>}
+    </div>
+  );
+}
+
+export function StatusNotice({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900 p-5">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 h-2 w-2 rounded-full bg-amber-400" />
+        <div>
+          <h2 className="text-sm font-semibold text-slate-200">{title}</h2>
+          <div className="mt-1 text-sm leading-6 text-slate-500">{children}</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -256,19 +394,11 @@ export function FeaturePending({
   requirement?: string;
 }) {
   return (
-    <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
-      <div className="border border-[#263753] bg-[#11192b] p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-400">
-          Backend endpoint pending
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold">{title}</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">{description}</p>
-        {requirement && (
-          <div className="mt-5 border-l-2 border-[#4d8fe8] bg-[#0e1628] px-4 py-3 text-sm text-slate-300">
-            {requirement}
-          </div>
-        )}
-      </div>
+    <main className="app-page">
+      <PageHeader title={title} description={description} />
+      <StatusNotice title="This page is not connected to a backend endpoint yet.">
+        {requirement ?? 'The route is part of the frontend structure and will be enabled when the corresponding API is implemented.'}
+      </StatusNotice>
     </main>
   );
 }
