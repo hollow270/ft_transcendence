@@ -1,8 +1,9 @@
-import { DragEvent, FormEvent, useRef, useState } from 'react';
+import { DragEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { BrandMark } from '../components';
+import type { ScannerCapabilities } from '../types';
 
 function UploadIcon() {
   return (
@@ -37,7 +38,6 @@ function SparkleIcon() {
   );
 }
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return bytes + ' B';
@@ -56,11 +56,20 @@ export default function HomePage() {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [scannerCapabilities, setScannerCapabilities] =
+    useState<ScannerCapabilities | null>(null);
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiAnswer, setAiAnswer] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .scannerCapabilities()
+      .then(setScannerCapabilities)
+      .catch(() => setScannerCapabilities(null));
+  }, []);
 
   function acceptFile(nextFile?: File | null) {
     if (!nextFile) return;
@@ -71,9 +80,14 @@ export default function HomePage() {
       return;
     }
 
-    if (nextFile.size > MAX_FILE_BYTES) {
+    const maxFileSizeMb = scannerCapabilities?.maxFileSizeMb ?? 25;
+    const maxFileBytes = maxFileSizeMb * 1024 * 1024;
+
+    if (nextFile.size > maxFileBytes) {
       setFile(null);
-      setMessage('File is too large. Maximum size is 25 MB.');
+      setMessage(
+        'File is too large. Maximum size is ' + maxFileSizeMb + ' MB.',
+      );
       return;
     }
 
@@ -165,6 +179,33 @@ export default function HomePage() {
         </div>
 
         <form className="gv-upload-wrap" onSubmit={submit}>
+          {scannerCapabilities && (
+            <div className="mb-4 flex flex-wrap items-center justify-center gap-2 text-xs">
+              <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-slate-400">
+                Scanner: {scannerCapabilities.provider}
+              </span>
+
+              {!scannerCapabilities.configured && (
+                <span className="rounded-full border border-amber-800 bg-amber-950/30 px-2.5 py-1 text-amber-300">
+                  Scanner not configured
+                </span>
+              )}
+            </div>
+          )}
+
+          {scannerCapabilities?.provider === 'development' && (
+            <div className="mb-4 rounded-lg border border-amber-800/70 bg-amber-950/20 px-4 py-3 text-sm text-amber-200">
+              Development scanner active. Results are placeholders and are not real antivirus verdicts.
+            </div>
+          )}
+
+          {visibility === 'PRIVATE' &&
+            scannerCapabilities &&
+            !scannerCapabilities.supportsPrivate && (
+              <div className="mb-4 rounded-lg border border-sky-900 bg-sky-950/20 px-4 py-3 text-sm text-sky-200">
+                The configured external scanner does not accept private submissions. GO VIRUS can only reuse an already available fresh public result for this private submission.
+              </div>
+            )}
           <input
             ref={inputRef}
             type="file"
@@ -215,7 +256,7 @@ export default function HomePage() {
                   Drag and drop a file here, or click to upload
                 </p>
                 <p className="mt-1 text-xs text-slate-600">
-                  Maximum size: 25 MB
+                  Maximum size: {scannerCapabilities?.maxFileSizeMb ?? 25} MB
                 </p>
               </>
             )}
