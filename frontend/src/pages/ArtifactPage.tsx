@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { PageHeader, StatusNotice } from '../components';
@@ -457,7 +457,12 @@ export default function ArtifactPage() {
                         }
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-sm font-medium text-slate-200">{comment.user.username}</span>
+                          <Link
+                            to={'/users/' + comment.user.id + '/community'}
+                            className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
+                          >
+                            {comment.user.username}
+                          </Link>
                           <span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
                         </div>
                         <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">{comment.body}</p>
