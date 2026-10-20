@@ -94,3 +94,41 @@ export type Notification = {
   createdAt: string;
   readAt: string | null;
 };
+
+
+export type UserCommunitySubmission = {
+  id: string;
+  artifactId: string;
+  artifactType: 'FILE' | 'URL';
+  displayName: string;
+  visibility: 'PUBLIC' | 'PRIVATE';
+  createdAt: string;
+  latestScan: {
+    id: string;
+    status: string;
+    verdict: string;
+    completedAt: string | null;
+  } | null;
+};
+
+export type UserCommunityComment = {
+  id: string;
+  artifactId: string;
+  artifactType: 'FILE' | 'URL';
+  artifactDisplayName: string;
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+};
+
+export type UserCommunity = {
+  user: {
+    id: string;
+    username: string;
+    role: 'USER' | 'MODERATOR' | 'ADMIN';
+    createdAt: string;
+  };
+  isOwner: boolean;
+  submissions: UserCommunitySubmission[];
+  comments: UserCommunityComment[];
+};
