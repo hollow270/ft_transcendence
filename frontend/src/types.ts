@@ -51,7 +51,7 @@ export type Artifact = {
     originalUrl: string | null;
     createdAt: string;
     ownedByViewer: boolean;
-  };
+  } | null;
   latestScan: Scan | null;
 };
 
