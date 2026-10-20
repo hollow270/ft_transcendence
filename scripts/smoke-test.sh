@@ -67,6 +67,10 @@ echo "$REGISTER" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.id || j.email!=="ci@example.com") process.exit(1); console.log("register ok");});
 '
 
+USER_ID=$(printf '%s' "$REGISTER" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.id) process.exit(1); process.stdout.write(j.id);});
+')
+
 LOGIN=$(curl -fsS -X POST "$BASE_URL/auth/login"   -H "Content-Type: application/json"   -d '{"email":"ci@example.com","password":"password123"}')
 
 TOKEN=$(printf '%s' "$LOGIN" | node -e '
@@ -133,6 +137,35 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 
 curl -fsS "$BASE_URL/artifacts/$ARTIFACT_ID/comments"   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.body==="CI smoke-test comment")) process.exit(1); console.log("comment list ok");});
+'
+
+
+printf 'private ft_transcendence file\n' >/tmp/private-sample.txt
+
+PRIVATE_UPLOAD=$(curl -fsS -X POST "$BASE_URL/artifacts/files"   -H "Authorization: Bearer $TOKEN"   -F "file=@/tmp/private-sample.txt;type=text/plain"   -F "visibility=PRIVATE")
+
+printf '%s' "$PRIVATE_UPLOAD" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.submission?.visibility!=="PRIVATE") process.exit(1); console.log("private authenticated upload ok");});
+'
+
+OWN_COMMUNITY=$(curl -fsS "$BASE_URL/users/$USER_ID/community"   -H "Authorization: Bearer $TOKEN")
+
+printf '%s' "$OWN_COMMUNITY" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.isOwner!==true) process.exit(1); if(!j.submissions?.some(x=>x.visibility==="PUBLIC")) process.exit(1); if(!j.submissions?.some(x=>x.visibility==="PRIVATE")) process.exit(1); if(!j.comments?.some(x=>x.body==="CI smoke-test comment")) process.exit(1); console.log("own community activity ok");});
+'
+
+VIEWER_REGISTER=$(curl -fsS -X POST "$BASE_URL/auth/register"   -H "Content-Type: application/json"   -d '{"username":"viewer","email":"viewer@example.com","password":"password123"}')
+
+VIEWER_LOGIN=$(curl -fsS -X POST "$BASE_URL/auth/login"   -H "Content-Type: application/json"   -d '{"email":"viewer@example.com","password":"password123"}')
+
+VIEWER_TOKEN=$(printf '%s' "$VIEWER_LOGIN" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.token) process.exit(1); process.stdout.write(j.token);});
+')
+
+PUBLIC_COMMUNITY=$(curl -fsS "$BASE_URL/users/$USER_ID/community"   -H "Authorization: Bearer $VIEWER_TOKEN")
+
+printf '%s' "$PUBLIC_COMMUNITY" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.isOwner!==false) process.exit(1); if(!j.submissions?.length) process.exit(1); if(j.submissions.some(x=>x.visibility!=="PUBLIC")) process.exit(1); if(!j.comments?.some(x=>x.body==="CI smoke-test comment")) process.exit(1); console.log("user community privacy ok");});
 '
 
 curl -fsS "$BASE_URL/notifications"   -H "Authorization: Bearer $TOKEN"   | node -e '
