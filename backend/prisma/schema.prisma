@@ -251,6 +251,7 @@ model Scan {
   provider            String?     @db.VarChar(100)
   providerAnalysisId  String?     @db.VarChar(255) @map("provider_analysis_id")
   providerStatus      String?     @db.VarChar(100) @map("provider_status")
+  providerCheckedAt   DateTime?   @map("provider_checked_at")
 
   artifact      Artifact           @relation(fields: [artifactId], references: [id], onDelete: Cascade)
   submission    Submission?        @relation(fields: [submissionId], references: [id], onDelete: SetNull)
