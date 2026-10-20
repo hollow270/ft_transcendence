@@ -19,6 +19,11 @@ export class ArtifactsController {
     private readonly auth: AuthService,
   ) {}
 
+  @Get('scanner/capabilities')
+  scannerCapabilities() {
+    return this.artifacts.scannerCapabilities();
+  }
+
   @Post('files')
   @UseInterceptors(
     FileInterceptor('file', {
