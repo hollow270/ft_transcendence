@@ -171,14 +171,16 @@ function AuthPanel({ onClose }: { onClose: () => void }) {
 
 function Sidebar({
   collapsed,
-  onNavigate,
+  onLinkClick,
+  onBrandClick,
 }: {
   collapsed: boolean;
-  onNavigate?: () => void;
+  onLinkClick?: () => void;
+  onBrandClick?: () => void;
 }) {
   return (
     <aside className={'gv-sidebar ' + (collapsed ? 'gv-sidebar-collapsed' : '')}>
-      <button className="gv-brand" onClick={onNavigate ? onNavigate : undefined}>
+      <button className="gv-brand" onClick={onBrandClick}>
         <BrandMark className="h-12 w-12 shrink-0" />
         {!collapsed && (
           <span className="whitespace-nowrap text-xl font-bold tracking-tight">
@@ -192,7 +194,7 @@ function Sidebar({
         <NavLink
           to="/"
           end
-          onClick={onNavigate}
+          onClick={onLinkClick}
           className={({ isActive }) =>
             'gv-side-link ' + (isActive ? 'gv-side-link-active' : '')
           }
@@ -204,7 +206,7 @@ function Sidebar({
 
         <NavLink
           to="/url"
-          onClick={onNavigate}
+          onClick={onLinkClick}
           className={({ isActive }) =>
             'gv-side-link ' + (isActive ? 'gv-side-link-active' : '')
           }
@@ -216,7 +218,7 @@ function Sidebar({
 
         <NavLink
           to="/profile/security"
-          onClick={onNavigate}
+          onClick={onLinkClick}
           className={({ isActive }) =>
             'gv-side-link ' + (isActive ? 'gv-side-link-active' : '')
           }
@@ -261,13 +263,23 @@ export function AppShell() {
   return (
     <div className="gv-app">
       <div className="hidden lg:block">
-        <Sidebar collapsed={sidebarCollapsed} onNavigate={() => navigate('/')} />
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onBrandClick={() => navigate('/')}
+        />
       </div>
 
       {mobileNavOpen && (
         <div className="fixed inset-0 z-50 flex bg-black/60 lg:hidden" onClick={() => setMobileNavOpen(false)}>
           <div onClick={(event) => event.stopPropagation()}>
-            <Sidebar collapsed={false} onNavigate={() => setMobileNavOpen(false)} />
+            <Sidebar
+              collapsed={false}
+              onLinkClick={() => setMobileNavOpen(false)}
+              onBrandClick={() => {
+                setMobileNavOpen(false);
+                navigate('/');
+              }}
+            />
           </div>
         </div>
       )}
