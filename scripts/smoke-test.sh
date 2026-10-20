@@ -91,6 +91,10 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 
 echo "first upload ok: $ARTIFACT_ID"
 
+printf '%s' "$UPLOAD1" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.scan?.provider!=="development" || j.scan?.status!=="COMPLETED") process.exit(1); console.log("scanner provider lifecycle ok");});
+'
+
 SCAN_ID=$(printf '%s' "$UPLOAD1" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.scan?.id) process.exit(1); process.stdout.write(j.scan.id);});
 ')
@@ -104,6 +108,30 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 curl -fsS "$BASE_URL/artifacts/$ARTIFACT_ID"   -H "Authorization: Bearer $TOKEN"   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.file?.sha256 || !j.latestScan) process.exit(1); console.log("artifact lookup ok");});
 '
+
+
+RESCAN=$(curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/rescan"   -H "Authorization: Bearer $TOKEN")
+
+printf '%s' "$RESCAN" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.status!=="COMPLETED" || j.reason!=="MANUAL_RESCAN" || j.provider!=="development") process.exit(1); console.log("manual rescan ok");});
+'
+
+REFRESH=$(curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/refresh"   -H "Authorization: Bearer $TOKEN")
+
+printf '%s' "$REFRESH" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.id || j.status!=="COMPLETED") process.exit(1); console.log("scan refresh endpoint ok");});
+'
+
+: >/tmp/empty-file.txt
+EMPTY_CODE=$(curl -sS -o /tmp/empty-upload.json -w "%{http_code}"   -X POST "$BASE_URL/artifacts/files"   -F "file=@/tmp/empty-file.txt;type=text/plain"   -F "visibility=PUBLIC")
+
+if [ "$EMPTY_CODE" != "400" ]; then
+  echo "empty file upload should return 400, got $EMPTY_CODE"
+  cat /tmp/empty-upload.json
+  exit 1
+fi
+
+echo "file validation ok"
 
 AI_EXPLAIN=$(curl -fsS -N -X POST "$BASE_URL/ai/scans/explain"   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d "{\"scanId\":\"$SCAN_ID\"}")
 
