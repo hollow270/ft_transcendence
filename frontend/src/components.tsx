@@ -238,12 +238,14 @@ export function AppShell() {
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [authOpen, setAuthOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     setSearch(new URLSearchParams(location.search).get('q') ?? '');
     setMobileNavOpen(false);
+    setAccountOpen(false);
   }, [location.pathname, location.search]);
 
   function submitSearch(event: FormEvent) {
@@ -254,10 +256,16 @@ export function AppShell() {
 
   function handleUserClick() {
     if (auth.user) {
-      navigate('/history');
+      setAccountOpen((value) => !value);
       return;
     }
     setAuthOpen(true);
+  }
+
+  async function handleSignOut() {
+    setAccountOpen(false);
+    await auth.signOut();
+    navigate('/');
   }
 
   return (
@@ -322,14 +330,60 @@ export function AppShell() {
               )}
             </button>
 
-            <button
-              className="gv-profile-button"
-              onClick={handleUserClick}
-              aria-label={auth.user ? 'Account' : 'Sign in'}
-              title={auth.user?.username ?? 'Sign in'}
-            >
-              <UserIcon />
-            </button>
+            <div className="relative">
+              <button
+                className="gv-profile-button"
+                onClick={handleUserClick}
+                aria-label={auth.user ? 'Account' : 'Sign in'}
+                title={auth.user?.username ?? 'Sign in'}
+              >
+                <UserIcon />
+              </button>
+
+              {auth.user && accountOpen && (
+                <div className="absolute right-0 top-14 z-50 w-64 overflow-hidden rounded-xl border border-[#2c4770] bg-[#0d1728] shadow-2xl">
+                  <div className="border-b border-[#203754] px-4 py-3">
+                    <p className="truncate text-sm font-semibold text-white">
+                      {auth.user.username}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-slate-500">
+                      {auth.user.email}
+                    </p>
+                  </div>
+
+                  <div className="p-2">
+                    <button
+                      className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-300 hover:bg-[#17253c] hover:text-white"
+                      onClick={() => {
+                        setAccountOpen(false);
+                        navigate('/history');
+                      }}
+                    >
+                      History
+                    </button>
+
+                    <button
+                      className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-300 hover:bg-[#17253c] hover:text-white"
+                      onClick={() => {
+                        setAccountOpen(false);
+                        navigate('/profile/security');
+                      }}
+                    >
+                      Settings
+                    </button>
+                  </div>
+
+                  <div className="border-t border-[#203754] p-2">
+                    <button
+                      className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-red-300 hover:bg-red-950/30 hover:text-red-200"
+                      onClick={() => void handleSignOut()}
+                    >
+                      Log out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
