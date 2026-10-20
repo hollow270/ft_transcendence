@@ -206,6 +206,22 @@ export const api = {
     );
   },
 
+  rescanArtifact(artifactId: string, token: string) {
+    return request<Artifact['latestScan']>(
+      `/artifacts/${encodeURIComponent(artifactId)}/rescan`,
+      { method: 'POST' },
+      token,
+    );
+  },
+
+  refreshArtifactScan(artifactId: string, token?: string | null) {
+    return request<Artifact['latestScan']>(
+      `/artifacts/${encodeURIComponent(artifactId)}/refresh`,
+      { method: 'POST' },
+      token,
+    );
+  },
+
   comments(artifactId: string) {
     return request<Comment[]>(
       `/artifacts/${encodeURIComponent(artifactId)}/comments`,
