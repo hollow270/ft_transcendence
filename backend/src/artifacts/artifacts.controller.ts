@@ -45,6 +45,34 @@ export class ArtifactsController {
     );
   }
 
+  @Post(':artifactId/rescan')
+  async rescanArtifact(
+    @Param('artifactId') artifactId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user =
+      await this.auth.requireUserFromAuthorization(authorization);
+
+    return this.artifacts.rescanArtifact(
+      artifactId,
+      user.id,
+    );
+  }
+
+  @Post(':artifactId/refresh')
+  async refreshArtifactScan(
+    @Param('artifactId') artifactId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user =
+      await this.auth.optionalUserFromAuthorization(authorization);
+
+    return this.artifacts.refreshArtifactScan(
+      artifactId,
+      user?.id ?? null,
+    );
+  }
+
   @Get(':artifactId')
   async getArtifact(
     @Param('artifactId') artifactId: string,
