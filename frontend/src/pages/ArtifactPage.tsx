@@ -282,8 +282,8 @@ export default function ArtifactPage() {
   }
 
   const displayName =
-    artifact.submission.originalFilename ||
-    artifact.submission.originalUrl ||
+    artifact.submission?.originalFilename ||
+    artifact.submission?.originalUrl ||
     artifact.url?.domain ||
     (artifact.file ? artifact.file.sha256.slice(0, 16) + '…' : null) ||
     artifact.id;
@@ -454,9 +454,12 @@ export default function ArtifactPage() {
               <DetailRow label="Artifact ID" value={artifact.id} mono />
               <DetailRow label="First seen" value={formatDate(artifact.firstSeenAt)} />
               <DetailRow label="Last seen" value={formatDate(artifact.lastSeenAt)} />
-              <DetailRow label="Submitted" value={formatDate(artifact.submission.createdAt)} />
-              <DetailRow label="Submission visibility" value={artifact.submission.visibility} />
-              {artifact.submission.originalFilename && (
+              <DetailRow label="Submitted" value={formatDate(artifact.submission?.createdAt)} />
+              <DetailRow
+                label="Submission visibility"
+                value={artifact.submission?.visibility ?? artifact.latestScan?.visibility ?? '—'}
+              />
+              {artifact.submission?.originalFilename && (
                 <DetailRow label="Original filename" value={artifact.submission.originalFilename} />
               )}
               {artifact.file && (
@@ -489,7 +492,7 @@ export default function ArtifactPage() {
                   <div className="flex justify-between gap-4">
                     <dt className="text-slate-500">Visibility</dt>
                     <dd className="text-slate-300">
-                      {artifact.submission.visibility ?? routeState?.submissionVisibility ?? artifact.latestScan?.visibility ?? '—'}
+                      {artifact.submission?.visibility ?? routeState?.submissionVisibility ?? artifact.latestScan?.visibility ?? '—'}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-4">
