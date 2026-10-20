@@ -247,7 +247,10 @@ model Scan {
   startedAt      DateTime?   @map("started_at")
   completedAt    DateTime?   @map("completed_at")
   staleAt        DateTime?   @map("stale_at")
-  errorMessage   String?     @db.Text @map("error_message")
+  errorMessage        String?     @db.Text @map("error_message")
+  provider            String?     @db.VarChar(100)
+  providerAnalysisId  String?     @db.VarChar(255) @map("provider_analysis_id")
+  providerStatus      String?     @db.VarChar(100) @map("provider_status")
 
   artifact      Artifact           @relation(fields: [artifactId], references: [id], onDelete: Cascade)
   submission    Submission?        @relation(fields: [submissionId], references: [id], onDelete: SetNull)
@@ -259,6 +262,7 @@ model Scan {
   @@index([status])
   @@index([overallVerdict])
   @@index([staleAt])
+  @@index([provider, providerAnalysisId])
   @@map("scans")
 }
 
