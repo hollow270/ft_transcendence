@@ -4,6 +4,7 @@ import type {
   Notification,
   UploadResponse,
   User,
+  UserCommunity,
   VoteSummary,
 } from './types';
 
@@ -243,6 +244,14 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ verdict }),
       },
+      token,
+    );
+  },
+
+  userCommunity(userId: string, token?: string | null) {
+    return request<UserCommunity>(
+      `/users/${encodeURIComponent(userId)}/community`,
+      {},
       token,
     );
   },
