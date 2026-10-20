@@ -2,6 +2,7 @@ import type {
   Artifact,
   Comment,
   Notification,
+  ScannerCapabilities,
   UploadResponse,
   User,
   UserCommunity,
@@ -173,6 +174,10 @@ export const api = {
       { method: 'POST' },
       token,
     );
+  },
+
+  scannerCapabilities() {
+    return request<ScannerCapabilities>('/artifacts/scanner/capabilities');
   },
 
   uploadFile(
