@@ -230,6 +230,16 @@ export class ArtifactsService {
             domain: artifact.url.domain,
           }
         : null,
+      submission: {
+        id: allowedSubmission.id,
+        visibility: allowedSubmission.visibility,
+        originalFilename: allowedSubmission.originalFilename,
+        originalUrl: allowedSubmission.originalUrl,
+        createdAt: allowedSubmission.createdAt,
+        ownedByViewer:
+          Boolean(userId) &&
+          allowedSubmission.userId === userId,
+      },
       latestScan: scan
         ? this.formatScan(scan)
         : null,
