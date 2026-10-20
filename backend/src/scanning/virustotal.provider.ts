@@ -157,14 +157,28 @@ export class VirusTotalProvider {
     const body = (await response.json()) as VirusTotalFileReport;
     const results =
       body.data?.attributes?.last_analysis_results;
+    const lastAnalysisDate =
+      body.data?.attributes?.last_analysis_date;
 
     if (!results) {
       return null;
     }
 
+    const lastAnalysisMs = lastAnalysisDate
+      ? lastAnalysisDate * 1000
+      : 0;
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+    if (
+      !lastAnalysisMs ||
+      Date.now() - lastAnalysisMs > sevenDaysMs
+    ) {
+      return this.requestRescanFromKnownFile(sha256);
+    }
+
     return this.completedFromResults(
       results,
-      body.data?.attributes?.last_analysis_date,
+      lastAnalysisDate,
     );
   }
 
@@ -210,6 +224,12 @@ export class VirusTotalProvider {
       providerAnalysisId: analysisId,
       providerStatus: 'queued',
     };
+  }
+
+  private async requestRescanFromKnownFile(
+    sha256: string,
+  ): Promise<ScannerCompletedResult | ScannerPendingResult | null> {
+    return this.requestRescan(sha256);
   }
 
   private async requestRescan(
