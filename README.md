@@ -119,3 +119,44 @@ bash scripts/smoke-test.sh
 The test covers Docker startup, PostgreSQL, Prisma, backend health, React build, API proxying, authentication, file upload, SHA-based deduplication, scan reuse, artifact lookup, AI route authorization/context streaming, comments, voting, notifications and privacy rules.
 
 > `docker compose down -v` deletes the local PostgreSQL development volume. Use it only when you intentionally want a clean database.
+
+
+## File scanning providers
+
+GO VIRUS now has a pluggable file-scanning layer.
+
+Local/CI default:
+
+```env
+SCAN_PROVIDER=development
+```
+
+This mode never pretends to be a real antivirus engine. It returns an UNKNOWN development result so the full application can be tested without external credentials.
+
+Real public multi-engine scanning:
+
+```env
+SCAN_PROVIDER=virustotal
+VIRUSTOTAL_API_KEY=your_key_here
+```
+
+The VirusTotal integration:
+
+- checks an existing file report by SHA-256 before uploading;
+- submits unknown public files to the v3 file scanning API;
+- requests re-analysis by SHA-256 for manual rescans;
+- stores each returned engine result separately in `scan_engine_results`;
+- keeps the external provider analysis ID/status on the local `scans` row;
+- supports refresh of pending analyses from the artifact report.
+
+Important privacy rule: the standard VirusTotal API is treated as a **public scanner**. GO VIRUS will not send a PRIVATE submission (or its hash) to that provider. A privacy-preserving/private scanning provider must be configured before private external scanning can be enabled.
+
+File validation is enforced in both the React UI and NestJS backend:
+
+- non-empty file;
+- maximum 25 MB;
+- valid filename with a maximum of 255 characters;
+- backend filename normalization;
+- SHA-256/SHA-1/MD5 calculated server-side.
+
+Manual rescan requires authentication and one of the user's own submissions for the artifact.
