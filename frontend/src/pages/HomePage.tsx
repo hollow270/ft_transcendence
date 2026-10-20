@@ -2,13 +2,37 @@ import { DragEvent, FormEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { PageHeader } from '../components';
+import { BrandMark } from '../components';
 
-function FileIcon() {
+function UploadIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M6 3h8l4 4v14H6z" />
-      <path d="M14 3v5h5" />
+    <svg
+      viewBox="0 0 64 64"
+      className="h-16 w-16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M19 45H14a9 9 0 0 1-.7-18A16 16 0 0 1 44 22a11 11 0 0 1 6 21h-5" />
+      <path d="M32 48V27" />
+      <path d="m24 35 8-8 8 8" />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="M12 2c.8 4.6 2.8 6.6 7.5 7.5C14.8 10.3 12.8 12.3 12 17c-.8-4.7-2.8-6.7-7.5-7.5C9.2 8.6 11.2 6.6 12 2Z" />
+      <path d="M19 16c.4 2.2 1.3 3.2 3.5 3.5-2.2.4-3.1 1.3-3.5 3.5-.4-2.2-1.3-3.1-3.5-3.5 2.2-.3 3.1-1.3 3.5-3.5Z" />
     </svg>
   );
 }
@@ -23,12 +47,18 @@ export default function HomePage() {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+
   const [file, setFile] = useState<File | null>(null);
   const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [forceRescan, setForceRescan] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiAnswer, setAiAnswer] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   function acceptFile(nextFile?: File | null) {
     if (!nextFile) return;
@@ -73,177 +103,181 @@ export default function HomePage() {
     }
   }
 
-  return (
-    <main className="app-page">
-      <PageHeader
-        title="File analysis"
-        description="Submit a file to identify it by hash, check previous analysis, and create a new scan when required."
-      />
+  async function askAi(event: FormEvent) {
+    event.preventDefault();
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="surface">
-          <div className="surface-header">
-            <h2 className="text-sm font-semibold text-slate-200">Submit a file</h2>
-            <p className="mt-1 text-xs text-slate-500">Maximum size: 25 MB</p>
+    if (!token) {
+      setAiError('Sign in to use the AI assistant.');
+      return;
+    }
+
+    const prompt = aiPrompt.trim();
+    if (!prompt) return;
+
+    setAiBusy(true);
+    setAiAnswer('');
+    setAiError(null);
+
+    try {
+      await api.askAi(prompt, token, (text) => {
+        setAiAnswer((current) => current + text);
+      });
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'AI request failed');
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  return (
+    <main className="gv-home">
+      <section className="gv-center-stage">
+        <div className="gv-home-brand">
+          <BrandMark className="h-20 w-20 sm:h-24 sm:w-24" />
+          <div>
+            <h1>
+              <span>go </span>
+              <strong>virus</strong>
+            </h1>
+            <p>ANALYZE · DETECT · STAY AHEAD</p>
+          </div>
+        </div>
+
+        <form className="gv-upload-wrap" onSubmit={submit}>
+          <input
+            ref={inputRef}
+            type="file"
+            className="sr-only"
+            onChange={(event) => acceptFile(event.target.files?.[0])}
+          />
+
+          <div
+            className={
+              'gv-upload-card ' +
+              (dragging ? 'gv-upload-card-dragging' : '')
+            }
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                inputRef.current?.click();
+              }
+            }}
+          >
+            <div className="text-sky-400">
+              <UploadIcon />
+            </div>
+
+            <div className="mt-4 text-2xl font-semibold tracking-wide text-white">
+              FILE
+            </div>
+
+            {file ? (
+              <>
+                <p className="mt-2 max-w-md break-all text-sm font-medium text-slate-200">
+                  {file.name}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {formatBytes(file.size)} · {file.type || 'Unknown type'}
+                </p>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-slate-400">
+                Drag and drop a file here, or click to upload
+              </p>
+            )}
           </div>
 
-          <form onSubmit={submit} className="surface-body">
-            <input
-              ref={inputRef}
-              type="file"
-              className="sr-only"
-              onChange={(event) => acceptFile(event.target.files?.[0])}
-            />
+          <div className="gv-upload-controls">
+            <label>
+              <span>Visibility</span>
+              <select
+                className="gv-compact-select"
+                value={visibility}
+                onChange={(event) =>
+                  setVisibility(event.target.value as 'PUBLIC' | 'PRIVATE')
+                }
+              >
+                <option value="PUBLIC">Public</option>
+                <option value="PRIVATE" disabled={!user}>Private</option>
+              </select>
+            </label>
 
-            <div
-              className={
-                'rounded-lg border border-dashed px-6 py-12 text-center transition ' +
-                (dragging
-                  ? 'border-blue-500 bg-blue-500/5'
-                  : 'border-slate-700 bg-slate-950/40')
-              }
-              onDragOver={(event) => {
-                event.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={handleDrop}
+            <label className="gv-checkbox">
+              <input
+                type="checkbox"
+                checked={forceRescan}
+                onChange={(event) => setForceRescan(event.target.checked)}
+              />
+              <span>Force rescan</span>
+            </label>
+
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={!file || busy}
             >
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400">
-                <FileIcon />
-              </div>
+              {busy ? 'Scanning…' : 'Scan file'}
+            </button>
+          </div>
 
-              {file ? (
-                <div className="mt-4">
-                  <p className="break-all text-sm font-medium text-slate-200">{file.name}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {formatBytes(file.size)} · {file.type || 'Unknown type'}
-                  </p>
-                  <button
-                    type="button"
-                    className="text-link mt-3"
-                    onClick={() => inputRef.current?.click()}
-                  >
-                    Choose another file
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-slate-200">
-                    Drag and drop a file here
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">or select it from your computer</p>
-                  <button
-                    type="button"
-                    className="secondary-button mt-4"
-                    onClick={() => inputRef.current?.click()}
-                  >
-                    Choose file
-                  </button>
-                </div>
-              )}
+          {message && (
+            <div className="gv-inline-error">{message}</div>
+          )}
+        </form>
+      </section>
+
+      <aside className="gv-ai-panel">
+        <div className="gv-ai-header">
+          <span className="text-cyan-400"><SparkleIcon /></span>
+          <span>AI ASSISTANT</span>
+        </div>
+
+        <div className="gv-ai-body">
+          {!user ? (
+            <div className="gv-ai-empty">
+              <div className="text-cyan-400"><SparkleIcon /></div>
+              <p>Sign in to ask the GO VIRUS assistant.</p>
             </div>
-
-            <div className="mt-5 grid gap-4 border-t border-slate-800 pt-5 sm:grid-cols-2">
-              <label>
-                <span className="mb-1.5 block text-xs font-medium text-slate-400">
-                  Visibility
-                </span>
-                <select
-                  className="app-select w-full"
-                  value={visibility}
-                  onChange={(event) =>
-                    setVisibility(event.target.value as 'PUBLIC' | 'PRIVATE')
-                  }
-                >
-                  <option value="PUBLIC">Public</option>
-                  <option value="PRIVATE" disabled={!user}>Private</option>
-                </select>
-                {!user && (
-                  <span className="mt-1.5 block text-xs text-slate-600">
-                    Sign in to create private submissions.
-                  </span>
-                )}
-              </label>
-
-              <label className="flex items-start gap-3 rounded-md border border-slate-800 bg-slate-950/40 px-3 py-3">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={forceRescan}
-                  onChange={(event) => setForceRescan(event.target.checked)}
-                />
-                <span>
-                  <span className="block text-sm font-medium text-slate-300">Force rescan</span>
-                  <span className="mt-0.5 block text-xs leading-5 text-slate-600">
-                    Ignore a reusable fresh result and create a new scan.
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            {message && (
-              <div className="mt-4 rounded-md border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
-                {message}
-              </div>
-            )}
-
-            <div className="mt-5 flex items-center justify-end gap-3">
-              {file && (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setFile(null)}
-                  disabled={busy}
-                >
-                  Clear
-                </button>
-              )}
-              <button className="primary-button min-w-28" disabled={!file || busy}>
-                {busy ? 'Scanning…' : 'Scan file'}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <aside className="space-y-5">
-          <section className="surface">
-            <div className="surface-header">
-              <h2 className="text-sm font-semibold text-slate-200">How it works</h2>
-            </div>
-            <div className="surface-body space-y-4 text-sm">
-              <div>
-                <p className="font-medium text-slate-300">1. Identify the file</p>
-                <p className="mt-1 leading-5 text-slate-500">
-                  GO VIRUS calculates the file hashes and checks whether the artifact already exists.
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-slate-300">2. Check scan freshness</p>
-                <p className="mt-1 leading-5 text-slate-500">
-                  A recent completed result can be reused instead of scanning the same file again.
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-slate-300">3. Store engine results</p>
-                <p className="mt-1 leading-5 text-slate-500">
-                  Each engine result is kept separately so the report shows exactly what was detected.
-                </p>
+          ) : aiAnswer || aiBusy || aiError ? (
+            <div className="gv-ai-response">
+              {aiError && <div className="gv-inline-error">{aiError}</div>}
+              <div className="whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                {aiAnswer || (aiBusy ? 'Generating response…' : '')}
               </div>
             </div>
-          </section>
-
-          <section className="surface">
-            <div className="surface-body">
-              <h2 className="text-sm font-semibold text-slate-200">Privacy</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Uploaded binaries are temporary. Public submissions may be visible in community features.
-                Private submissions require an account and are excluded from public discussion.
-              </p>
+          ) : (
+            <div className="gv-ai-empty">
+              <div className="text-cyan-400"><SparkleIcon /></div>
+              <p>Ask about malware, scan terminology, or security findings.</p>
             </div>
-          </section>
-        </aside>
-      </div>
+          )}
+        </div>
+
+        <form className="gv-ai-compose" onSubmit={askAi}>
+          <input
+            value={aiPrompt}
+            onChange={(event) => setAiPrompt(event.target.value)}
+            placeholder={user ? 'Ask the assistant…' : 'Sign in to use AI'}
+            disabled={!user || aiBusy}
+            maxLength={4000}
+          />
+          <button
+            type="submit"
+            disabled={!user || aiBusy || !aiPrompt.trim()}
+            aria-label="Send question"
+          >
+            ↑
+          </button>
+        </form>
+      </aside>
     </main>
   );
 }
