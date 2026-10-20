@@ -216,17 +216,6 @@ function Sidebar({
           {!collapsed && <span>URL</span>}
         </NavLink>
 
-        <NavLink
-          to="/profile/security"
-          onClick={onLinkClick}
-          className={({ isActive }) =>
-            'gv-side-link ' + (isActive ? 'gv-side-link-active' : '')
-          }
-          title="Settings"
-        >
-          <SettingsIcon />
-          {!collapsed && <span>Settings</span>}
-        </NavLink>
       </nav>
     </aside>
   );
@@ -360,6 +349,16 @@ export function AppShell() {
                       }}
                     >
                       History
+                    </button>
+
+                    <button
+                      className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-300 hover:bg-[#17253c] hover:text-white"
+                      onClick={() => {
+                        setAccountOpen(false);
+                        navigate('/users/' + auth.user!.id + '/community');
+                      }}
+                    >
+                      Community
                     </button>
 
                     <button
