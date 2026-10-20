@@ -31,6 +31,10 @@ export class ArtifactsService {
     private readonly fileValidation: FileValidationService,
   ) {}
 
+  scannerCapabilities() {
+    return this.scanning.getCapabilities();
+  }
+
   async submitFile(
     uploadedFile: ScannerFile | undefined,
     userId: string | null,
@@ -164,9 +168,16 @@ export class ArtifactsService {
             ...(userId ? [{ userId }] : []),
           ],
         },
+        orderBy: {
+          createdAt: 'desc',
+        },
         select: {
           id: true,
+          userId: true,
           visibility: true,
+          originalFilename: true,
+          originalUrl: true,
+          createdAt: true,
         },
       });
 
