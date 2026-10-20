@@ -22,6 +22,9 @@ export type Scan = {
   startedAt: string | null;
   completedAt: string | null;
   staleAt: string | null;
+  provider: string | null;
+  providerStatus: string | null;
+  errorMessage: string | null;
   engineResults: EngineResult[];
 };
 
