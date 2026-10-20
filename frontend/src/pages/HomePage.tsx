@@ -37,6 +37,8 @@ function SparkleIcon() {
   );
 }
 
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -62,6 +64,25 @@ export default function HomePage() {
 
   function acceptFile(nextFile?: File | null) {
     if (!nextFile) return;
+
+    if (nextFile.size <= 0) {
+      setFile(null);
+      setMessage('Empty files are not accepted.');
+      return;
+    }
+
+    if (nextFile.size > MAX_FILE_BYTES) {
+      setFile(null);
+      setMessage('File is too large. Maximum size is 25 MB.');
+      return;
+    }
+
+    if (!nextFile.name || nextFile.name.length > 255) {
+      setFile(null);
+      setMessage('File name must contain between 1 and 255 characters.');
+      return;
+    }
+
     setMessage(null);
     setFile(nextFile);
   }
@@ -189,9 +210,14 @@ export default function HomePage() {
                 </p>
               </>
             ) : (
-              <p className="mt-2 text-sm text-slate-400">
-                Drag and drop a file here, or click to upload
-              </p>
+              <>
+                <p className="mt-2 text-sm text-slate-400">
+                  Drag and drop a file here, or click to upload
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Maximum size: 25 MB
+                </p>
+              </>
             )}
           </div>
 
