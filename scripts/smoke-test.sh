@@ -12,6 +12,7 @@ trap cleanup EXIT
 
 cp .env.example .env
 export SCAN_PROVIDER=development
+export TWO_FACTOR_ENCRYPTION_KEY=ci-two-factor-encryption-key-0123456789abcdef
 
 docker compose up --build -d
 
@@ -84,6 +85,65 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 
 curl -fsS "$BASE_URL/auth/me"   -H "Authorization: Bearer $TOKEN"   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.email!=="ci@example.com") process.exit(1); console.log("auth me ok");});
+'
+
+TWOFA_REGISTER=$(curl -fsS -X POST "$BASE_URL/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"twofauser","email":"twofa@example.com","password":"password123"}')
+
+TWOFA_LOGIN=$(curl -fsS -X POST "$BASE_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"twofa@example.com","password":"password123"}')
+
+TWOFA_TOKEN=$(printf '%s' "$TWOFA_LOGIN" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.requiresTwoFactor!==false || !j.token) process.exit(1); process.stdout.write(j.token);});
+')
+
+TWOFA_SETUP=$(curl -fsS -X POST "$BASE_URL/auth/2fa/setup" \
+  -H "Authorization: Bearer $TWOFA_TOKEN")
+
+TWOFA_SECRET=$(printf '%s' "$TWOFA_SETUP" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.secret || !j.otpauthUri) process.exit(1); process.stdout.write(j.secret);});
+')
+
+TWOFA_CODE=$(SECRET="$TWOFA_SECRET" node -e '
+const crypto=require("crypto");
+const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const secret=process.env.SECRET || "";
+let bits=0,current=0,out=[];
+for(const ch of secret.replace(/=+$/g,"").toUpperCase()){
+  const idx=alphabet.indexOf(ch); if(idx<0) process.exit(1);
+  current=(current<<5)|idx; bits+=5;
+  if(bits>=8){out.push((current>>>(bits-8))&255); bits-=8;}
+}
+const counter=Math.floor(Date.now()/1000/30);
+const b=Buffer.alloc(8); b.writeBigUInt64BE(BigInt(counter));
+const h=crypto.createHmac("sha1",Buffer.from(out)).update(b).digest();
+const o=h[h.length-1]&15;
+const n=((h[o]&127)<<24)|(h[o+1]<<16)|(h[o+2]<<8)|h[o+3];
+process.stdout.write(String(n%1000000).padStart(6,"0"));
+')
+
+curl -fsS -X POST "$BASE_URL/auth/2fa/enable" \
+  -H "Authorization: Bearer $TWOFA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"$TWOFA_CODE\"}" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.enabled!==true) process.exit(1);});
+'
+
+curl -fsS -X POST "$BASE_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"twofa@example.com","password":"password123"}' \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.requiresTwoFactor!==true || j.token) process.exit(1);});
+'
+
+curl -fsS -X POST "$BASE_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"twofa@example.com\",\"password\":\"password123\",\"totpCode\":\"$TWOFA_CODE\"}" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.requiresTwoFactor!==false || !j.token) process.exit(1); console.log("two-factor authentication flow ok");});
 '
 
 printf 'hello ft_transcendence\n' >/tmp/sample.txt
