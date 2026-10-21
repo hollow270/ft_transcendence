@@ -6,11 +6,13 @@ import {
 import { Verdict } from '@prisma/client';
 import {
   RescanFileInput,
+  RescanUrlInput,
   ScannerCompletedResult,
   ScannerEngineResult,
   ScannerPendingResult,
   ScannerResult,
   StartFileScanInput,
+  StartUrlScanInput,
 } from './scanning.types';
 
 type VirusTotalEngineResult = {
@@ -94,6 +96,53 @@ export class VirusTotalProvider {
     throw new BadGatewayException(
       'VirusTotal does not know this file hash. Re-upload the original file to scan it again.',
     );
+  }
+
+  async scanUrl(
+    input: StartUrlScanInput,
+  ): Promise<ScannerResult> {
+    this.requireConfiguration();
+
+    if (!input.forceRescan) {
+      const existing =
+        await this.getExistingUrlReport(
+          input.normalizedUrl,
+        );
+
+      if (existing) {
+        return existing;
+      }
+    }
+
+    if (input.forceRescan) {
+      const reanalysis =
+        await this.requestUrlRescan(
+          input.normalizedUrl,
+        );
+
+      if (reanalysis) {
+        return reanalysis;
+      }
+    }
+
+    return this.submitUrl(input.normalizedUrl);
+  }
+
+  async rescanUrl(
+    input: RescanUrlInput,
+  ): Promise<ScannerResult> {
+    this.requireConfiguration();
+
+    const reanalysis =
+      await this.requestUrlRescan(
+        input.normalizedUrl,
+      );
+
+    if (reanalysis) {
+      return reanalysis;
+    }
+
+    return this.submitUrl(input.normalizedUrl);
   }
 
   async pollAnalysis(
@@ -180,6 +229,154 @@ export class VirusTotalProvider {
       results,
       lastAnalysisDate,
     );
+  }
+
+  private async getExistingUrlReport(
+    normalizedUrl: string,
+  ): Promise<ScannerResult | null> {
+    const id = this.urlIdentifier(normalizedUrl);
+    const response = await this.request(
+      this.baseUrl +
+        '/urls/' +
+        encodeURIComponent(id),
+      {
+        method: 'GET',
+      },
+    );
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw await this.providerError(
+        response,
+        'Could not retrieve VirusTotal URL report',
+      );
+    }
+
+    const body =
+      (await response.json()) as VirusTotalFileReport;
+    const results =
+      body.data?.attributes?.last_analysis_results;
+    const lastAnalysisDate =
+      body.data?.attributes?.last_analysis_date;
+
+    if (!results) {
+      return null;
+    }
+
+    const lastAnalysisMs = lastAnalysisDate
+      ? lastAnalysisDate * 1000
+      : 0;
+    const sevenDaysMs =
+      7 * 24 * 60 * 60 * 1000;
+
+    if (
+      !lastAnalysisMs ||
+      Date.now() - lastAnalysisMs >
+        sevenDaysMs
+    ) {
+      return this.requestUrlRescan(
+        normalizedUrl,
+      );
+    }
+
+    return this.completedFromResults(
+      results,
+      lastAnalysisDate,
+    );
+  }
+
+  private async submitUrl(
+    normalizedUrl: string,
+  ): Promise<ScannerPendingResult> {
+    const form = new URLSearchParams();
+    form.set('url', normalizedUrl);
+
+    const response = await this.request(
+      this.baseUrl + '/urls',
+      {
+        method: 'POST',
+        body: form,
+      },
+    );
+
+    if (!response.ok) {
+      throw await this.providerError(
+        response,
+        'Could not submit URL to VirusTotal',
+      );
+    }
+
+    const body =
+      (await response.json()) as VirusTotalAnalysis;
+    const analysisId = body.data?.id;
+
+    if (!analysisId) {
+      throw new BadGatewayException(
+        'VirusTotal did not return an analysis identifier.',
+      );
+    }
+
+    return {
+      state: 'RUNNING',
+      provider: this.name,
+      providerAnalysisId: analysisId,
+      providerStatus: 'queued',
+    };
+  }
+
+  private async requestUrlRescan(
+    normalizedUrl: string,
+  ): Promise<ScannerPendingResult | null> {
+    const id = this.urlIdentifier(normalizedUrl);
+    const response = await this.request(
+      this.baseUrl +
+        '/urls/' +
+        encodeURIComponent(id) +
+        '/analyse',
+      {
+        method: 'POST',
+      },
+    );
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw await this.providerError(
+        response,
+        'Could not request VirusTotal URL re-analysis',
+      );
+    }
+
+    const body =
+      (await response.json()) as VirusTotalAnalysis;
+    const analysisId = body.data?.id;
+
+    if (!analysisId) {
+      throw new BadGatewayException(
+        'VirusTotal did not return an analysis identifier.',
+      );
+    }
+
+    return {
+      state: 'RUNNING',
+      provider: this.name,
+      providerAnalysisId: analysisId,
+      providerStatus: 'queued',
+    };
+  }
+
+  private urlIdentifier(
+    normalizedUrl: string,
+  ) {
+    return Buffer.from(
+      normalizedUrl,
+      'utf8',
+    ).toString('base64url');
   }
 
   private async uploadFile(
