@@ -33,12 +33,15 @@ export class ArtifactsService {
     file: UploadedFile | undefined,
     userId: string | null,
     visibilityInput?: string,
+    forceRescanInput?: string,
   ) {
     if (!file?.buffer) {
       throw new BadRequestException('file is required');
     }
 
     const visibility = this.parseVisibility(visibilityInput, userId);
+    const forceRescan =
+      (forceRescanInput ?? 'false').toLowerCase() === 'true';
 
     const sha256 = createHash('sha256').update(file.buffer).digest('hex');
     const sha1 = createHash('sha1').update(file.buffer).digest('hex');
@@ -67,11 +70,13 @@ export class ArtifactsService {
       },
     });
 
-    const latestScan = await this.findReusableScan(
-      artifact.id,
-      visibility,
-      userId,
-    );
+    const latestScan = forceRescan
+      ? null
+      : await this.findReusableScan(
+          artifact.id,
+          visibility,
+          userId,
+        );
 
     if (latestScan) {
       await this.prisma.submission.update({
@@ -98,6 +103,7 @@ export class ArtifactsService {
       userId,
       visibility,
       file,
+      reason: forceRescan ? ScanReason.MANUAL_RESCAN : undefined,
     });
 
     return {
@@ -327,6 +333,7 @@ export class ArtifactsService {
     userId: string | null;
     visibility: Visibility;
     file: UploadedFile;
+    reason?: ScanReason;
   }) {
     const previousCompletedScan = await this.prisma.scan.findFirst({
       where: {
@@ -342,9 +349,11 @@ export class ArtifactsService {
         submissionId: input.submissionId,
         visibility: input.visibility,
         status: ScanStatus.RUNNING,
-        reason: previousCompletedScan
-          ? ScanReason.STALE_RESCAN
-          : ScanReason.INITIAL,
+        reason:
+          input.reason ??
+          (previousCompletedScan
+            ? ScanReason.STALE_RESCAN
+            : ScanReason.INITIAL),
         startedAt: new Date(),
       },
     });
