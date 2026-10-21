@@ -5,12 +5,13 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173}"
 
 cleanup() {
-  docker compose logs --no-color frontend backend postgres || true
+  docker compose logs --no-color frontend backend postgres clamav || true
   docker compose down -v || true
 }
 trap cleanup EXIT
 
 cp .env.example .env
+export SCAN_PROVIDER=development
 
 docker compose up --build -d
 
