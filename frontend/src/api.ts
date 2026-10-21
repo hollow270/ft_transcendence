@@ -2,8 +2,10 @@ import type {
   Artifact,
   ArtifactScanHistoryItem,
   Comment,
+  HistoryItem,
   Notification,
   ScannerCapabilities,
+  SearchResult,
   UploadResponse,
   UrlSubmissionResponse,
   User,
@@ -229,6 +231,23 @@ export const api = {
   scannerCapabilities() {
     return request<ScannerCapabilities>('/artifacts/scanner/capabilities');
   },
+
+  searchArtifacts(query: string) {
+    return request<SearchResult[]>(
+      '/artifacts/search?q=' +
+        encodeURIComponent(query),
+    );
+  },
+
+  history(token: string) {
+    return request<HistoryItem[]>(
+      '/users/me/history',
+      {},
+      token,
+    );
+  },
+
+
 
   uploadFile(
     file: File,
