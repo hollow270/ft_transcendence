@@ -9,6 +9,9 @@ import { FileValidationService } from './artifacts/file-validation.service';
 import { AuthModule } from './auth/auth.module';
 import { CommunityController } from './community/community.controller';
 import { CommunityService } from './community/community.service';
+import { ModerationController } from './moderation/moderation.controller';
+import { ModerationService } from './moderation/moderation.service';
+import { ModeratorGuard } from './moderation/moderator.guard';
 import { NotificationsController } from './notifications/notifications.controller';
 import { NotificationsGateway } from './notifications/notifications.gateway';
 import { NotificationsService } from './notifications/notifications.service';
@@ -30,12 +33,15 @@ import { UsersModule } from './users/users.module';
     ArtifactsController,
     PublicApiController,
     CommunityController,
+    ModerationController,
     NotificationsController,
   ],
   providers: [
     ArtifactsService,
     FileValidationService,
     CommunityService,
+    ModerationService,
+    ModeratorGuard,
     NotificationsGateway,
     NotificationsService,
   ],
