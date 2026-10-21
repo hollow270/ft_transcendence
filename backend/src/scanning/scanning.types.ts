@@ -47,3 +47,15 @@ export type RescanFileInput = {
   sha256: string;
   visibility: Visibility;
 };
+
+
+export type StartUrlScanInput = {
+  normalizedUrl: string;
+  visibility: Visibility;
+  forceRescan: boolean;
+};
+
+export type RescanUrlInput = {
+  normalizedUrl: string;
+  visibility: Visibility;
+};
