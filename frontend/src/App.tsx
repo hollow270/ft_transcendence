@@ -6,14 +6,14 @@ import HomePage from './pages/HomePage';
 import LlmPage from './pages/LlmPage';
 import NotificationsPage from './pages/NotificationsPage';
 import SecurityPage from './pages/SecurityPage';
+import SearchPage from './pages/SearchPage';
+import HistoryPage from './pages/HistoryPage';
 import UserCommunityPage from './pages/UserCommunityPage';
 import UrlPage from './pages/UrlPage';
 import {
   AdminPage,
   ApiKeysPage,
-  HistoryPage,
   ModerationPage,
-  SearchPage,
 } from './pages/PlaceholderPages';
 
 export default function App() {
