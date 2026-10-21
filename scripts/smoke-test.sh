@@ -120,6 +120,12 @@ printf '%s' "$RESCAN" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.status!=="COMPLETED" || j.reason!=="MANUAL_RESCAN" || j.provider!=="development") process.exit(1); console.log("manual rescan ok");});
 '
 
+SCAN_HISTORY=$(curl -fsS "$BASE_URL/artifacts/$ARTIFACT_ID/scans"   -H "Authorization: Bearer $TOKEN")
+
+printf '%s' "$SCAN_HISTORY" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || j.length < 2) process.exit(1); if(!j.some(x=>x.reason==="INITIAL")) process.exit(1); if(!j.some(x=>x.reason==="MANUAL_RESCAN")) process.exit(1); if(!j.every(x=>x.visibility==="PUBLIC")) process.exit(1); if(!j.every(x=>Array.isArray(x.engineResults))) process.exit(1); console.log("scan history ok");});
+'
+
 REFRESH=$(curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/refresh"   -H "Authorization: Bearer $TOKEN")
 
 printf '%s' "$REFRESH" | node -e '
@@ -180,6 +186,14 @@ printf '%s' "$PRIVATE_UPLOAD" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.submission?.visibility!=="PRIVATE") process.exit(1); console.log("private authenticated upload ok");});
 '
 
+PRIVATE_ARTIFACT_ID=$(printf '%s' "$PRIVATE_UPLOAD" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.artifact?.id) process.exit(1); process.stdout.write(j.artifact.id);});
+')
+
+curl -fsS "$BASE_URL/artifacts/$PRIVATE_ARTIFACT_ID/scans"   -H "Authorization: Bearer $TOKEN"   | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.length || !j.every(x=>x.visibility==="PRIVATE")) process.exit(1); console.log("private owner scan history ok");});
+'
+
 OWN_COMMUNITY=$(curl -fsS "$BASE_URL/users/$USER_ID/community"   -H "Authorization: Bearer $TOKEN")
 
 printf '%s' "$OWN_COMMUNITY" | node -e '
@@ -193,6 +207,16 @@ VIEWER_LOGIN=$(curl -fsS -X POST "$BASE_URL/auth/login"   -H "Content-Type: appl
 VIEWER_TOKEN=$(printf '%s' "$VIEWER_LOGIN" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.token) process.exit(1); process.stdout.write(j.token);});
 ')
+
+PRIVATE_HISTORY_CODE=$(curl -sS -o /tmp/private-history.json -w "%{http_code}"   "$BASE_URL/artifacts/$PRIVATE_ARTIFACT_ID/scans"   -H "Authorization: Bearer $VIEWER_TOKEN")
+
+if [ "$PRIVATE_HISTORY_CODE" != "404" ]; then
+  echo "private scan history should be hidden from another user, got $PRIVATE_HISTORY_CODE"
+  cat /tmp/private-history.json
+  exit 1
+fi
+
+echo "private scan history privacy ok"
 
 PUBLIC_COMMUNITY=$(curl -fsS "$BASE_URL/users/$USER_ID/community"   -H "Authorization: Bearer $VIEWER_TOKEN")
 
