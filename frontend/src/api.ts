@@ -1,5 +1,7 @@
 import type {
   Artifact,
+  AdminActivityPoint,
+  AdminOverview,
   ApiKeyInfo,
   ArtifactScanHistoryItem,
   Comment,
@@ -479,6 +481,64 @@ export const api = {
       {},
       token,
     );
+  },
+
+  adminOverview(token: string) {
+    return request<AdminOverview>(
+      '/admin/overview',
+      {},
+      token,
+    );
+  },
+
+  adminActivity(
+    days: number,
+    token: string,
+  ) {
+    return request<AdminActivityPoint[]>(
+      '/admin/activity?days=' +
+        encodeURIComponent(String(days)),
+      {},
+      token,
+    );
+  },
+
+  async adminExportCsv(token: string) {
+    const response = await fetch(
+      API_BASE + '/admin/export.csv',
+      {
+        headers: {
+          Authorization: 'Bearer ' + token,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      let message =
+        'Admin export failed with status ' +
+        response.status;
+
+      try {
+        const data = text
+          ? JSON.parse(text)
+          : null;
+        message =
+          data?.message ??
+          data?.error ??
+          message;
+      } catch {
+        // Keep generic message for non-JSON responses.
+      }
+
+      throw new Error(
+        Array.isArray(message)
+          ? message.join(', ')
+          : message,
+      );
+    }
+
+    return response.blob();
   },
 
   apiKeys(token: string) {
