@@ -171,3 +171,23 @@ export type ArtifactScanHistoryItem = Scan & {
     ownedByViewer: boolean;
   } | null;
 };
+
+
+export type UrlSubmissionResponse = {
+  artifact: {
+    id: string;
+    type: 'URL';
+    normalizedUrl: string | null;
+    domain: string | null;
+    firstSeenAt: string;
+    lastSeenAt: string;
+  };
+  submission: {
+    id: string;
+    visibility: 'PUBLIC' | 'PRIVATE';
+    originalUrl: string | null;
+    createdAt: string;
+  };
+  scan: Scan;
+  reusedScan: boolean;
+};
