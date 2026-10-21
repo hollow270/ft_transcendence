@@ -418,6 +418,18 @@ export function AppShell() {
                         Moderation
                       </button>
                     )}
+
+                    {auth.user.role === 'ADMIN' && (
+                      <button
+                        className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-300 hover:bg-[#17253c] hover:text-white"
+                        onClick={() => {
+                          setAccountOpen(false);
+                          navigate('/admin');
+                        }}
+                      >
+                        Admin
+                      </button>
+                    )}
                   </div>
 
                   <div className="border-t border-[#203754] p-2">
