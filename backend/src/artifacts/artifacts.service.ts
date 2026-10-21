@@ -8,6 +8,7 @@ import {
   Prisma,
   ScanReason,
   ScanStatus,
+  SubmissionSource,
   Verdict,
   Visibility,
 } from '@prisma/client';
@@ -234,6 +235,7 @@ export class ArtifactsService {
     userId: string | null,
     visibilityInput?: string,
     forceRescanInput?: string,
+    source: SubmissionSource = SubmissionSource.WEB,
   ) {
     const file = this.fileValidation.validate(uploadedFile);
     const visibility = this.parseVisibility(visibilityInput, userId);
@@ -274,6 +276,7 @@ export class ArtifactsService {
           binaryDeleteDeadline: new Date(
             Date.now() + 24 * 60 * 60 * 1000,
           ),
+          source,
         },
       });
 
@@ -318,11 +321,14 @@ export class ArtifactsService {
         },
       });
 
-    const reason = forceRescan
-      ? ScanReason.MANUAL_RESCAN
-      : previousCompletedScan
-        ? ScanReason.STALE_RESCAN
-        : ScanReason.INITIAL;
+    const reason =
+      source === SubmissionSource.API
+        ? ScanReason.API_REQUEST
+        : forceRescan
+          ? ScanReason.MANUAL_RESCAN
+          : previousCompletedScan
+            ? ScanReason.STALE_RESCAN
+            : ScanReason.INITIAL;
 
     const scan = await this.createAndRunFileScan({
       artifactId: artifact.id,
@@ -354,6 +360,7 @@ export class ArtifactsService {
     userId: string | null,
     visibilityInput?: string,
     forceRescanInput?: boolean | string,
+    source: SubmissionSource = SubmissionSource.WEB,
   ) {
     const normalized = this.normalizeUrl(rawUrl);
     const visibility = this.parseVisibility(
@@ -384,6 +391,7 @@ export class ArtifactsService {
           userId,
           visibility,
           originalUrl: rawUrl!.trim(),
+          source,
         },
       });
 
@@ -422,11 +430,14 @@ export class ArtifactsService {
         },
       });
 
-    const reason = forceRescan
-      ? ScanReason.MANUAL_RESCAN
-      : previousCompletedScan
-        ? ScanReason.STALE_RESCAN
-        : ScanReason.INITIAL;
+    const reason =
+      source === SubmissionSource.API
+        ? ScanReason.API_REQUEST
+        : forceRescan
+          ? ScanReason.MANUAL_RESCAN
+          : previousCompletedScan
+            ? ScanReason.STALE_RESCAN
+            : ScanReason.INITIAL;
 
     const scan =
       await this.createAndRunUrlScan({
