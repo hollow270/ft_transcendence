@@ -15,6 +15,7 @@ export type EngineResult = {
 
 export type Scan = {
   id: string;
+  createdAt: string;
   status: string;
   reason: string;
   visibility: 'PUBLIC' | 'PRIVATE';
@@ -151,4 +152,16 @@ export type ScannerCapabilities = {
   supportsPrivate: boolean;
   maxFileSizeMb: number;
   external: boolean;
+};
+
+
+export type ArtifactScanHistoryItem = Scan & {
+  submission: {
+    id: string;
+    visibility: 'PUBLIC' | 'PRIVATE';
+    originalFilename: string | null;
+    originalUrl: string | null;
+    createdAt: string;
+    ownedByViewer: boolean;
+  } | null;
 };
