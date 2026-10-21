@@ -123,40 +123,95 @@ The test covers Docker startup, PostgreSQL, Prisma, backend health, React build,
 
 ## File scanning providers
 
-GO VIRUS now has a pluggable file-scanning layer.
+GO VIRUS has four scanner modes.
 
-Local/CI default:
+### Development mode
 
 ```env
 SCAN_PROVIDER=development
 ```
 
-This mode never pretends to be a real antivirus engine. It returns an UNKNOWN development result so the full application can be tested without external credentials.
+Used by CI and normal development when no antivirus service is required. It returns an `UNKNOWN` placeholder result and never claims to be a real antivirus verdict.
 
-Real public multi-engine scanning:
+### Local ClamAV mode
+
+```env
+SCAN_PROVIDER=clamav
+CLAMAV_HOST=clamav
+CLAMAV_PORT=3310
+```
+
+Start the official ClamAV container with:
+
+```bash
+docker compose --profile real-scan up --build
+```
+
+Files are streamed from the backend to `clamd` with the ClamAV `INSTREAM` protocol. The ClamAV TCP port is only exposed inside the Docker network; it is not published to the host.
+
+ClamAV supports both PUBLIC and PRIVATE submissions because scanning stays inside the GO VIRUS Docker environment.
+
+### VirusTotal-only mode
 
 ```env
 SCAN_PROVIDER=virustotal
 VIRUSTOTAL_API_KEY=your_key_here
 ```
 
-The VirusTotal integration:
+This uses VirusTotal API v3 for public multi-engine scanning. PRIVATE submissions are rejected in this mode because the standard VirusTotal API is treated as a public external scanner.
 
-- checks an existing file report by SHA-256 before uploading;
-- submits unknown public files to the v3 file scanning API;
-- requests re-analysis by SHA-256 for manual rescans;
-- stores each returned engine result separately in `scan_engine_results`;
-- keeps the external provider analysis ID/status on the local `scans` row;
-- supports refresh of pending analyses from the artifact report.
+### Real combined mode
 
-Important privacy rule: the standard VirusTotal API is treated as a **public scanner**. GO VIRUS will not send a PRIVATE submission (or its hash) to that provider. A privacy-preserving/private scanning provider must be configured before private external scanning can be enabled.
+Recommended for normal GO VIRUS operation:
 
-File validation is enforced in both the React UI and NestJS backend:
+```env
+SCAN_PROVIDER=real
+CLAMAV_HOST=clamav
+CLAMAV_PORT=3310
+VIRUSTOTAL_API_KEY=your_key_here
+```
+
+Start it with:
+
+```bash
+docker compose --profile real-scan up --build
+```
+
+Behavior:
+
+- PUBLIC file: local ClamAV scan first, then VirusTotal when an API key is configured.
+- PRIVATE file: local ClamAV only. The file and its hash are not sent to VirusTotal.
+- If VirusTotal returns a pending analysis, the local ClamAV result is saved immediately while the scan remains `RUNNING`.
+- When VirusTotal completes, its per-engine results are added to the same scan without deleting the local ClamAV result.
+- The final overall verdict is calculated from all stored engine results.
+- Uploaded binaries are deleted after the configured scanning handoff finishes; metadata and scan results remain.
+
+VirusTotal is optional in `real` mode. Without `VIRUSTOTAL_API_KEY`, GO VIRUS still performs a real local ClamAV scan.
+
+### Real ClamAV integration test
+
+The repository includes an isolated test that uses separate Docker ports and volumes:
+
+```bash
+bash scripts/test-real-scanner.sh
+```
+
+It starts the `real-scan` profile, verifies ClamAV readiness, scans a clean private file, and then checks detection using the harmless EICAR antivirus test file.
+
+### File validation
+
+Validation is enforced in both React and NestJS:
 
 - non-empty file;
-- maximum 25 MB;
-- valid filename with a maximum of 255 characters;
+- maximum 25 MB by default;
+- filename maximum 255 characters;
 - backend filename normalization;
-- SHA-256/SHA-1/MD5 calculated server-side.
+- SHA-256, SHA-1 and MD5 calculated server-side.
 
-Manual rescan requires authentication and one of the user's own submissions for the artifact.
+### Manual rescan
+
+GO VIRUS does not retain uploaded binaries after scanning. Therefore:
+
+- VirusTotal can request a hash-based re-analysis for a known PUBLIC file.
+- A fresh local ClamAV rescan requires the original binary to be uploaded again.
+- PRIVATE files must be re-uploaded if the user wants a new local ClamAV analysis.
