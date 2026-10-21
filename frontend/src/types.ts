@@ -261,3 +261,42 @@ export type ApiKeyInfo = {
 export type CreatedApiKey = ApiKeyInfo & {
   key: string;
 };
+
+
+export type CommentReportReason =
+  | 'SPAM'
+  | 'ABUSIVE'
+  | 'DANGEROUS_MISINFORMATION'
+  | 'OTHER';
+
+export type ModerationReport = {
+  id: string;
+  reason: CommentReportReason;
+  details: string | null;
+  status: 'OPEN' | 'REVIEWING' | 'RESOLVED' | 'REJECTED';
+  createdAt: string;
+  reviewedAt: string | null;
+  reporter: {
+    id: string;
+    username: string;
+  };
+  reviewedBy: {
+    id: string;
+    username: string;
+  } | null;
+  comment: {
+    id: string;
+    body: string;
+    status: 'ACTIVE' | 'HIDDEN' | 'DELETED';
+    createdAt: string;
+    user: {
+      id: string;
+      username: string;
+    };
+  };
+  artifact: {
+    id: string;
+    type: 'FILE' | 'URL';
+    displayName: string;
+  };
+};
