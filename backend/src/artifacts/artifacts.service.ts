@@ -36,6 +36,199 @@ export class ArtifactsService {
     return this.scanning.getCapabilities();
   }
 
+  async searchPublicArtifacts(
+    queryInput?: string,
+  ) {
+    const query = queryInput?.trim();
+
+    if (!query) {
+      return [];
+    }
+
+    if (query.length > 512) {
+      throw new BadRequestException(
+        'search query must contain at most 512 characters',
+      );
+    }
+
+    const lowerQuery = query.toLowerCase();
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        query,
+      );
+
+    const artifacts =
+      await this.prisma.artifact.findMany({
+        where: {
+          submissions: {
+            some: {
+              visibility: Visibility.PUBLIC,
+            },
+          },
+          OR: [
+            ...(isUuid
+              ? [
+                  {
+                    id: query,
+                  },
+                ]
+              : []),
+            {
+              file: {
+                is: {
+                  OR: [
+                    {
+                      sha256: {
+                        contains: lowerQuery,
+                      },
+                    },
+                    {
+                      sha1: {
+                        contains: lowerQuery,
+                      },
+                    },
+                    {
+                      md5: {
+                        contains: lowerQuery,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              url: {
+                is: {
+                  OR: [
+                    {
+                      normalizedUrl: {
+                        contains: query,
+                        mode: 'insensitive',
+                      },
+                    },
+                    {
+                      domain: {
+                        contains: query,
+                        mode: 'insensitive',
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              submissions: {
+                some: {
+                  visibility:
+                    Visibility.PUBLIC,
+                  OR: [
+                    {
+                      originalFilename: {
+                        contains: query,
+                        mode: 'insensitive',
+                      },
+                    },
+                    {
+                      originalUrl: {
+                        contains: query,
+                        mode: 'insensitive',
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+        orderBy: {
+          lastSeenAt: 'desc',
+        },
+        take: 50,
+        include: {
+          file: true,
+          url: true,
+          submissions: {
+            where: {
+              visibility: Visibility.PUBLIC,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+            select: {
+              originalFilename: true,
+              originalUrl: true,
+              createdAt: true,
+            },
+          },
+          scans: {
+            where: {
+              visibility: Visibility.PUBLIC,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              overallVerdict: true,
+              provider: true,
+              completedAt: true,
+            },
+          },
+        },
+      });
+
+    return artifacts.map((artifact) => {
+      const submission =
+        artifact.submissions[0] ?? null;
+      const scan =
+        artifact.scans[0] ?? null;
+
+      return {
+        id: artifact.id,
+        type: artifact.type,
+        displayName:
+          submission?.originalFilename ??
+          submission?.originalUrl ??
+          artifact.file?.sha256 ??
+          artifact.url?.normalizedUrl ??
+          artifact.id,
+        lastSeenAt: artifact.lastSeenAt,
+        file: artifact.file
+          ? {
+              sha256: artifact.file.sha256,
+              sha1: artifact.file.sha1,
+              md5: artifact.file.md5,
+              size:
+                artifact.file.size.toString(),
+              mimeType:
+                artifact.file.mimeType,
+            }
+          : null,
+        url: artifact.url
+          ? {
+              normalizedUrl:
+                artifact.url.normalizedUrl,
+              domain: artifact.url.domain,
+            }
+          : null,
+        latestScan: scan
+          ? {
+              id: scan.id,
+              status: scan.status,
+              verdict:
+                scan.overallVerdict,
+              provider: scan.provider,
+              completedAt:
+                scan.completedAt,
+            }
+          : null,
+      };
+    });
+  }
+
   async submitFile(
     uploadedFile: ScannerFile | undefined,
     userId: string | null,
