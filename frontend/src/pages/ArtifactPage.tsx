@@ -3,9 +3,14 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { PageHeader, StatusNotice } from '../components';
-import type { Artifact, Comment, VoteSummary } from '../types';
+import type {
+  Artifact,
+  ArtifactScanHistoryItem,
+  Comment,
+  VoteSummary,
+} from '../types';
 
-type Tab = 'detection' | 'details' | 'community' | 'ai';
+type Tab = 'detection' | 'details' | 'history' | 'community' | 'ai';
 
 const verdictClass: Record<string, string> = {
   HARMLESS: 'border-emerald-800 bg-emerald-950/40 text-emerald-300',
@@ -57,6 +62,10 @@ export default function ArtifactPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
+  const [scanHistory, setScanHistory] = useState<ArtifactScanHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedHistoryScanId, setSelectedHistoryScanId] =
+    useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('detection');
 
   const [comments, setComments] = useState<Comment[]>([]);
@@ -101,7 +110,8 @@ export default function ArtifactPage() {
   useEffect(() => {
     if (!artifactId) return;
     void refreshCommunity();
-  }, [artifactId]);
+    void loadScanHistory();
+  }, [artifactId, token]);
 
   useEffect(() => {
     setAiAnswer('');
@@ -128,6 +138,32 @@ export default function ArtifactPage() {
       total: results.length,
     };
   }, [artifact]);
+
+  async function loadScanHistory() {
+    setHistoryLoading(true);
+
+    try {
+      const history = await api.artifactScanHistory(artifactId, token);
+      setScanHistory(history);
+
+      setSelectedHistoryScanId((current) => {
+        if (current && history.some((scan) => scan.id === current)) {
+          return current;
+        }
+        return history[0]?.id ?? null;
+      });
+    } catch (error) {
+      setScanHistory([]);
+      setSelectedHistoryScanId(null);
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : 'Could not load scan history',
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
 
   async function refreshCommunity() {
     try {
@@ -193,6 +229,7 @@ export default function ArtifactPage() {
       await api.refreshArtifactScan(artifactId, token);
       const updated = await api.artifact(artifactId, token);
       setArtifact(updated);
+      await loadScanHistory();
     } catch (error) {
       if (!silent) {
         setActionError(
@@ -214,7 +251,8 @@ export default function ArtifactPage() {
       await api.rescanArtifact(artifactId, token);
       const updated = await api.artifact(artifactId, token);
       setArtifact(updated);
-      setTab('detection');
+      await loadScanHistory();
+      setTab('history');
     } catch (error) {
       setActionError(
         error instanceof Error ? error.message : 'Could not start rescan',
@@ -288,9 +326,15 @@ export default function ArtifactPage() {
     (artifact.file ? artifact.file.sha256.slice(0, 16) + '…' : null) ||
     artifact.id;
 
+  const selectedHistoryScan =
+    scanHistory.find((scan) => scan.id === selectedHistoryScanId) ??
+    scanHistory[0] ??
+    null;
+
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'detection', label: 'Detection' },
     { id: 'details', label: 'Details' },
+    { id: 'history', label: 'History' },
     { id: 'community', label: 'Community' },
     { id: 'ai', label: 'AI explanation' },
   ];
@@ -510,6 +554,177 @@ export default function ArtifactPage() {
                 </dl>
               </div>
             </section>
+          </aside>
+        </section>
+      )}
+
+      {tab === 'history' && (
+        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="surface overflow-hidden">
+            <div className="surface-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-200">Scan history</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Previous analyses that you are allowed to view for this artifact.
+                </p>
+              </div>
+              <span className="text-xs text-slate-600">
+                {scanHistory.length} scan{scanHistory.length === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Reason</th>
+                    <th>Provider</th>
+                    <th>Status</th>
+                    <th>Visibility</th>
+                    <th>Verdict</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyLoading ? (
+                    <tr>
+                      <td colSpan={6}>
+                        <div className="empty-state">
+                          <p className="text-sm text-slate-500">Loading scan history…</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : scanHistory.length ? (
+                    scanHistory.map((scan) => (
+                      <tr
+                        key={scan.id}
+                        className={
+                          'cursor-pointer transition hover:bg-slate-800/40 ' +
+                          (selectedHistoryScan?.id === scan.id ? 'bg-slate-800/50' : '')
+                        }
+                        onClick={() => setSelectedHistoryScanId(scan.id)}
+                      >
+                        <td className="whitespace-nowrap">
+                          {formatDate(scan.completedAt ?? scan.createdAt)}
+                        </td>
+                        <td>{scan.reason}</td>
+                        <td>{scan.provider ?? '—'}</td>
+                        <td>{scan.status}</td>
+                        <td>
+                          <span
+                            className={
+                              'status-badge ' +
+                              (scan.visibility === 'PRIVATE'
+                                ? 'border-amber-800 bg-amber-950/40 text-amber-300'
+                                : 'border-sky-800 bg-sky-950/40 text-sky-300')
+                            }
+                          >
+                            {scan.visibility}
+                          </span>
+                        </td>
+                        <td>
+                          <VerdictBadge value={scan.overallVerdict} />
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6}>
+                        <div className="empty-state">
+                          <p className="text-sm font-semibold text-slate-300">
+                            No scan history
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Previous scans will appear here after analysis or rescan.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <aside className="surface h-fit overflow-hidden">
+            <div className="surface-header">
+              <h2 className="text-sm font-semibold text-slate-200">
+                Selected scan
+              </h2>
+            </div>
+
+            {selectedHistoryScan ? (
+              <>
+                <dl className="px-5">
+                  <DetailRow
+                    label="Scan ID"
+                    value={selectedHistoryScan.id}
+                    mono
+                  />
+                  <DetailRow
+                    label="Created"
+                    value={formatDate(selectedHistoryScan.createdAt)}
+                  />
+                  <DetailRow
+                    label="Completed"
+                    value={formatDate(selectedHistoryScan.completedAt)}
+                  />
+                  <DetailRow
+                    label="Reason"
+                    value={selectedHistoryScan.reason}
+                  />
+                  <DetailRow
+                    label="Provider"
+                    value={selectedHistoryScan.provider ?? '—'}
+                  />
+                  <DetailRow
+                    label="Visibility"
+                    value={selectedHistoryScan.visibility}
+                  />
+                </dl>
+
+                <div className="border-t border-slate-800">
+                  <div className="px-5 py-4">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Engine results
+                    </h3>
+                  </div>
+
+                  {selectedHistoryScan.engineResults.length ? (
+                    <div className="max-h-80 overflow-y-auto">
+                      {selectedHistoryScan.engineResults.map((result) => (
+                        <div
+                          key={result.engine}
+                          className="border-t border-slate-800 px-5 py-3"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-slate-300">
+                              {result.engine}
+                            </span>
+                            <VerdictBadge value={result.verdict} />
+                          </div>
+                          {result.detectionName && (
+                            <p className="mt-1 break-words text-xs text-slate-500">
+                              {result.detectionName}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-5 pb-5 text-sm text-slate-500">
+                      No engine results stored for this scan.
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="empty-state min-h-40">
+                <p className="text-sm text-slate-500">
+                  Select a scan to inspect its engine results.
+                </p>
+              </div>
+            )}
           </aside>
         </section>
       )}
