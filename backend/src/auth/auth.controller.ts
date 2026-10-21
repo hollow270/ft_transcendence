@@ -27,8 +27,51 @@ export class AuthController {
   }
 
   @Post('login')
-  login(@Body() body: { email?: string; password?: string }) {
+  login(
+    @Body()
+    body: {
+      email?: string;
+      password?: string;
+      totpCode?: string;
+    },
+  ) {
     return this.auth.login(body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Get('2fa/status')
+  twoFactorStatus(@Req() request: any) {
+    return this.auth.twoFactorStatus(request.user.id);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('2fa/setup')
+  setupTwoFactor(@Req() request: any) {
+    return this.auth.setupTwoFactor(request.user.id);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('2fa/enable')
+  enableTwoFactor(
+    @Req() request: any,
+    @Body('code') code?: string,
+  ) {
+    return this.auth.enableTwoFactor(
+      request.user.id,
+      code,
+    );
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('2fa/disable')
+  disableTwoFactor(
+    @Req() request: any,
+    @Body('code') code?: string,
+  ) {
+    return this.auth.disableTwoFactor(
+      request.user.id,
+      code,
+    );
   }
 
   @UseGuards(SessionAuthGuard)
