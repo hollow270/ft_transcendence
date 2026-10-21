@@ -433,6 +433,30 @@ printf '%s' "$PUBLIC_COMMUNITY" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.isOwner!==false) process.exit(1); if(!j.submissions?.length) process.exit(1); if(j.submissions.some(x=>x.visibility!=="PUBLIC")) process.exit(1); if(!j.comments?.some(x=>x.body==="CI smoke-test comment")) process.exit(1); console.log("user community privacy ok");});
 '
 
+
+REPORT=$(curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/comments/$COMMENT_ID/report" \
+  -H "Authorization: Bearer $VIEWER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"SPAM","details":"CI moderation test"}')
+
+REPORT_ID=$(printf '%s' "$REPORT" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.id || j.reason!=="SPAM" || j.status!=="OPEN") process.exit(1); process.stdout.write(j.id);});
+')
+
+echo "moderation report created ok"
+
+MODERATION_FORBIDDEN=$(curl -sS -o /tmp/moderation-forbidden.json -w "%{http_code}" \
+  "$BASE_URL/moderation/reports?status=OPEN" \
+  -H "Authorization: Bearer $VIEWER_TOKEN")
+
+if [ "$MODERATION_FORBIDDEN" != "403" ]; then
+  echo "normal user moderation access should return 403, got $MODERATION_FORBIDDEN"
+  cat /tmp/moderation-forbidden.json
+  exit 1
+fi
+
+echo "moderation role guard ok"
+
 curl -fsS "$BASE_URL/notifications"   -H "Authorization: Bearer $TOKEN"   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.type==="SCAN_COMPLETED")) process.exit(1); console.log("notification persistence ok");});
 '
