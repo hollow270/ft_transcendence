@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from './ai/ai.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
+import { PublicApiController } from './api-keys/public-api.controller';
 import { AppController } from './app.controller';
 import { ArtifactsController } from './artifacts/artifacts.controller';
 import { ArtifactsService } from './artifacts/artifacts.service';
@@ -15,10 +17,18 @@ import { ScanningModule } from './scanning/scanning.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, AiModule, UsersModule, ScanningModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    AiModule,
+    ApiKeysModule,
+    UsersModule,
+    ScanningModule,
+  ],
   controllers: [
     AppController,
     ArtifactsController,
+    PublicApiController,
     CommunityController,
     NotificationsController,
   ],
