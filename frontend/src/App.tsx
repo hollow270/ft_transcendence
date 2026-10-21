@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth';
 import { AppShell, FeaturePending } from './components';
+import ApiKeysPage from './pages/ApiKeysPage';
 import ArtifactPage from './pages/ArtifactPage';
 import HomePage from './pages/HomePage';
 import LlmPage from './pages/LlmPage';
@@ -12,7 +13,6 @@ import UserCommunityPage from './pages/UserCommunityPage';
 import UrlPage from './pages/UrlPage';
 import {
   AdminPage,
-  ApiKeysPage,
   ModerationPage,
 } from './pages/PlaceholderPages';
 
