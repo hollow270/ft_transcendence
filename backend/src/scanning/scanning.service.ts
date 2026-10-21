@@ -26,8 +26,12 @@ export class ScanningService {
     return this.mode();
   }
 
-  getCapabilities() {
+  async getCapabilities() {
     const mode = this.mode();
+    const clamAvReady =
+      mode === 'clamav' || mode === 'real'
+        ? await this.clamAv.isAvailable()
+        : this.clamAv.configured;
 
     if (mode === 'development') {
       return {
@@ -51,7 +55,7 @@ export class ScanningService {
     if (mode === 'clamav') {
       return {
         provider: mode,
-        configured: this.clamAv.configured,
+        configured: clamAvReady,
         supportsPrivate: true,
         maxFileSizeMb: Number(
           process.env.MAX_FILE_SIZE_MB ?? 25,
@@ -60,7 +64,7 @@ export class ScanningService {
         engines: [
           {
             name: 'clamav',
-            configured: this.clamAv.configured,
+            configured: clamAvReady,
             supportsPrivate: true,
           },
         ],
@@ -88,7 +92,7 @@ export class ScanningService {
 
     return {
       provider: 'real',
-      configured: this.clamAv.configured,
+      configured: clamAvReady,
       supportsPrivate: true,
       maxFileSizeMb: Number(
         process.env.MAX_FILE_SIZE_MB ?? 25,
@@ -97,7 +101,7 @@ export class ScanningService {
       engines: [
         {
           name: 'clamav',
-          configured: this.clamAv.configured,
+          configured: clamAvReady,
           supportsPrivate: true,
         },
         {
