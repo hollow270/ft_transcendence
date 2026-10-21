@@ -14,6 +14,18 @@ export class UsersController {
     private readonly auth: AuthService,
   ) {}
 
+  @Get('me/history')
+  async ownHistory(
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user =
+      await this.auth.requireUserFromAuthorization(
+        authorization,
+      );
+
+    return this.users.getOwnHistory(user.id);
+  }
+
   @Get(':userId/community')
   async community(
     @Param('userId') userId: string,
