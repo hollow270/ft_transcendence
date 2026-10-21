@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import {
   CommentStatus,
+  Prisma,
+  ReportReason,
   UserStatus,
   Verdict,
   Visibility,
@@ -117,6 +119,196 @@ export class CommunityService {
         },
       },
     });
+  }
+
+  async editComment(
+    artifactId: string,
+    commentId: string,
+    userId: string,
+    bodyInput?: string,
+  ) {
+    await this.ensurePublicArtifact(artifactId);
+
+    const body = bodyInput?.trim();
+
+    if (!body || body.length > 4000) {
+      throw new BadRequestException(
+        'comment body must contain between 1 and 4000 characters',
+      );
+    }
+
+    const comment =
+      await this.prisma.comment.findFirst({
+        where: {
+          id: commentId,
+          artifactId,
+          userId,
+          status: CommentStatus.ACTIVE,
+        },
+      });
+
+    if (!comment) {
+      throw new NotFoundException(
+        'comment not found or not editable by this user',
+      );
+    }
+
+    return this.prisma.comment.update({
+      where: {
+        id: comment.id,
+      },
+      data: {
+        body,
+        editedAt: new Date(),
+      },
+      select: {
+        id: true,
+        parentId: true,
+        body: true,
+        createdAt: true,
+        editedAt: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  async deleteComment(
+    artifactId: string,
+    commentId: string,
+    userId: string,
+  ) {
+    await this.ensurePublicArtifact(artifactId);
+
+    const comment =
+      await this.prisma.comment.findFirst({
+        where: {
+          id: commentId,
+          artifactId,
+          userId,
+          status: CommentStatus.ACTIVE,
+        },
+      });
+
+    if (!comment) {
+      throw new NotFoundException(
+        'comment not found or not deletable by this user',
+      );
+    }
+
+    await this.prisma.comment.update({
+      where: {
+        id: comment.id,
+      },
+      data: {
+        status: CommentStatus.DELETED,
+        body: '[deleted]',
+        deletedAt: new Date(),
+      },
+    });
+
+    return {
+      success: true,
+    };
+  }
+
+  async reportComment(
+    artifactId: string,
+    commentId: string,
+    reporterId: string,
+    input: {
+      reason?: string;
+      details?: string;
+    },
+  ) {
+    await this.ensurePublicArtifact(artifactId);
+
+    const comment =
+      await this.prisma.comment.findFirst({
+        where: {
+          id: commentId,
+          artifactId,
+          status: CommentStatus.ACTIVE,
+        },
+        select: {
+          id: true,
+          userId: true,
+        },
+      });
+
+    if (!comment) {
+      throw new NotFoundException(
+        'comment not found',
+      );
+    }
+
+    if (comment.userId === reporterId) {
+      throw new BadRequestException(
+        'you cannot report your own comment',
+      );
+    }
+
+    const reason = (
+      input.reason ?? ''
+    ).toUpperCase() as ReportReason;
+
+    if (
+      !Object.values(ReportReason).includes(
+        reason,
+      )
+    ) {
+      throw new BadRequestException(
+        'reason must be SPAM, ABUSIVE, DANGEROUS_MISINFORMATION or OTHER',
+      );
+    }
+
+    const details =
+      input.details?.trim() || null;
+
+    if (
+      details &&
+      details.length > 2000
+    ) {
+      throw new BadRequestException(
+        'report details must contain at most 2000 characters',
+      );
+    }
+
+    try {
+      return await this.prisma.commentReport.create({
+        data: {
+          commentId: comment.id,
+          reporterId,
+          reason,
+          details,
+        },
+        select: {
+          id: true,
+          commentId: true,
+          reason: true,
+          details: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof
+          Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException(
+          'you already reported this comment',
+        );
+      }
+
+      throw error;
+    }
   }
 
   async vote(
