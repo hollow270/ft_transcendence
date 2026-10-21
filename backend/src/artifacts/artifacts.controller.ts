@@ -50,6 +50,26 @@ export class ArtifactsController {
     );
   }
 
+  @Post('urls')
+  async submitUrl(
+    @Body('url') url: string | undefined,
+    @Body('visibility') visibility: string | undefined,
+    @Body('forceRescan') forceRescan: boolean | string | undefined,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user =
+      await this.auth.optionalUserFromAuthorization(
+        authorization,
+      );
+
+    return this.artifacts.submitUrl(
+      url,
+      user?.id ?? null,
+      visibility,
+      forceRescan,
+    );
+  }
+
   @Get(':artifactId/scans')
   async getArtifactScanHistory(
     @Param('artifactId') artifactId: string,
