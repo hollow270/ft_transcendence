@@ -152,6 +152,11 @@ export type ScannerCapabilities = {
   supportsPrivate: boolean;
   maxFileSizeMb: number;
   external: boolean;
+  engines: Array<{
+    name: string;
+    configured: boolean;
+    supportsPrivate: boolean;
+  }>;
 };
 
 
