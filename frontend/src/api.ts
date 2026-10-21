@@ -1,7 +1,9 @@
 import type {
   Artifact,
+  ApiKeyInfo,
   ArtifactScanHistoryItem,
   Comment,
+  CreatedApiKey,
   HistoryItem,
   Notification,
   ScannerCapabilities,
@@ -372,6 +374,42 @@ export const api = {
     return request<UserCommunity>(
       `/users/${encodeURIComponent(userId)}/community`,
       {},
+      token,
+    );
+  },
+
+  apiKeys(token: string) {
+    return request<ApiKeyInfo[]>(
+      '/api-keys',
+      {},
+      token,
+    );
+  },
+
+  createApiKey(
+    name: string,
+    token: string,
+  ) {
+    return request<CreatedApiKey>(
+      '/api-keys',
+      {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      },
+      token,
+    );
+  },
+
+  revokeApiKey(
+    apiKeyId: string,
+    token: string,
+  ) {
+    return request<{ success: boolean }>(
+      '/api-keys/' +
+        encodeURIComponent(apiKeyId),
+      {
+        method: 'DELETE',
+      },
       token,
     );
   },
