@@ -182,14 +182,22 @@ export default function HomePage() {
           {scannerCapabilities && (
             <div className="mb-4 flex flex-wrap items-center justify-center gap-2 text-xs">
               <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-slate-400">
-                Scanner: {scannerCapabilities.provider}
+                Mode: {scannerCapabilities.provider}
               </span>
 
-              {!scannerCapabilities.configured && (
-                <span className="rounded-full border border-amber-800 bg-amber-950/30 px-2.5 py-1 text-amber-300">
-                  Scanner not configured
+              {scannerCapabilities.engines.map((engine) => (
+                <span
+                  key={engine.name}
+                  className={
+                    'rounded-full border px-2.5 py-1 ' +
+                    (engine.configured
+                      ? 'border-emerald-800 bg-emerald-950/30 text-emerald-300'
+                      : 'border-amber-800 bg-amber-950/30 text-amber-300')
+                  }
+                >
+                  {engine.name}: {engine.configured ? 'ready' : 'not configured'}
                 </span>
-              )}
+              ))}
             </div>
           )}
 
@@ -200,10 +208,17 @@ export default function HomePage() {
           )}
 
           {visibility === 'PRIVATE' &&
+            scannerCapabilities?.provider === 'real' && (
+              <div className="mb-4 rounded-lg border border-sky-900 bg-sky-950/20 px-4 py-3 text-sm text-sky-200">
+                Private mode uses local ClamAV only. GO VIRUS will not send this file or its hash to VirusTotal.
+              </div>
+            )}
+
+          {visibility === 'PRIVATE' &&
             scannerCapabilities &&
             !scannerCapabilities.supportsPrivate && (
               <div className="mb-4 rounded-lg border border-sky-900 bg-sky-950/20 px-4 py-3 text-sm text-sky-200">
-                The configured external scanner does not accept private submissions. GO VIRUS can only reuse an already available fresh public result for this private submission.
+                The configured scanner does not accept private submissions.
               </div>
             )}
           <input
