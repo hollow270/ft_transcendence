@@ -457,6 +457,19 @@ fi
 
 echo "moderation role guard ok"
 
+
+ADMIN_FORBIDDEN=$(curl -sS -o /tmp/admin-forbidden.json -w "%{http_code}" \
+  "$BASE_URL/admin/overview" \
+  -H "Authorization: Bearer $TOKEN")
+
+if [ "$ADMIN_FORBIDDEN" != "403" ]; then
+  echo "normal user admin access should return 403, got $ADMIN_FORBIDDEN"
+  cat /tmp/admin-forbidden.json
+  exit 1
+fi
+
+echo "admin role guard ok"
+
 curl -fsS "$BASE_URL/notifications"   -H "Authorization: Bearer $TOKEN"   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.type==="SCAN_COMPLETED")) process.exit(1); console.log("notification persistence ok");});
 '
