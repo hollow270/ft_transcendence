@@ -26,6 +26,20 @@ export class ClamAvProvider {
     );
   }
 
+  async isAvailable() {
+    if (!this.configured) return false;
+
+    try {
+      const reply = await this.simpleCommand(
+        'zPING\0',
+        Number(process.env.CLAMAV_HEALTH_TIMEOUT_MS ?? 2000),
+      );
+      return reply.trim().toUpperCase() === 'PONG';
+    } catch {
+      return false;
+    }
+  }
+
   async scanFile(
     input: StartFileScanInput,
   ): Promise<ScannerCompletedResult> {
@@ -49,6 +63,68 @@ export class ClamAvProvider {
     throw new BadRequestException(
       'ClamAV rescanning requires the original file because GO VIRUS does not retain uploaded binaries after scanning. Re-upload the file to run ClamAV again.',
     );
+  }
+
+  private async simpleCommand(
+    command: string,
+    timeoutMs: number,
+  ): Promise<string> {
+    const host =
+      (process.env.CLAMAV_HOST ?? 'clamav').trim();
+    const port = Number(
+      process.env.CLAMAV_PORT ?? 3310,
+    );
+
+    const socket = new Socket();
+    let reply = '';
+
+    return new Promise<string>((resolve, reject) => {
+      let settled = false;
+
+      const finish = (
+        error?: Error,
+        value?: string,
+      ) => {
+        if (settled) return;
+        settled = true;
+        socket.destroy();
+
+        if (error) {
+          reject(error);
+        } else {
+          resolve(value ?? '');
+        }
+      };
+
+      socket.setTimeout(timeoutMs);
+
+      socket.on('timeout', () =>
+        finish(new Error('timeout')),
+      );
+      socket.on('error', (error) =>
+        finish(error),
+      );
+      socket.on('data', (data) => {
+        reply += data.toString('utf8');
+
+        if (reply.includes('\0')) {
+          finish(
+            undefined,
+            reply.replace(/\0/g, '').trim(),
+          );
+        }
+      });
+      socket.on('end', () =>
+        finish(
+          undefined,
+          reply.replace(/\0/g, '').trim(),
+        ),
+      );
+
+      socket.connect(port, host, () => {
+        socket.write(Buffer.from(command));
+      });
+    });
   }
 
   private async scanBuffer(buffer: Buffer): Promise<string> {
