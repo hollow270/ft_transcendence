@@ -19,7 +19,6 @@ trap cleanup EXIT
 
 docker compose \
   --env-file .env.example \
-  --profile real-scan \
   up --build -d
 
 echo "Waiting for backend..."
