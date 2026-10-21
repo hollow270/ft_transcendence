@@ -14,7 +14,11 @@ type AuthContextValue = {
   token: string | null;
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (
+    email: string,
+    password: string,
+    totpCode?: string,
+  ) => Promise<'SIGNED_IN' | 'TWO_FACTOR_REQUIRED'>;
   register: (username: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -52,11 +56,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       user,
       loading,
-      async signIn(email, password) {
-        const result = await api.login({ email, password });
+      async signIn(email, password, totpCode) {
+        const result = await api.login({
+          email,
+          password,
+          ...(totpCode ? { totpCode } : {}),
+        });
+
+        if (result.requiresTwoFactor) {
+          return 'TWO_FACTOR_REQUIRED';
+        }
+
         localStorage.setItem('session_token', result.token);
         setToken(result.token);
         setUser(result.user);
+        return 'SIGNED_IN';
       },
       async register(username, email, password) {
         await api.register({ username, email, password });
@@ -93,7 +107,9 @@ export function useAuthForm() {
     username: '',
     email: '',
     password: '',
+    totpCode: '',
   });
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -108,7 +124,16 @@ export function useAuthForm() {
         setMessage('Account created. You can sign in now.');
         setMode('login');
       } else {
-        await auth.signIn(form.email, form.password);
+        const result = await auth.signIn(
+          form.email,
+          form.password,
+          form.totpCode,
+        );
+
+        if (result === 'TWO_FACTOR_REQUIRED') {
+          setTwoFactorRequired(true);
+          setMessage('Enter the 6-digit code from your authenticator app.');
+        }
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Authentication failed');
@@ -124,6 +149,7 @@ export function useAuthForm() {
     setForm,
     busy,
     message,
+    twoFactorRequired,
     submit,
   };
 }
