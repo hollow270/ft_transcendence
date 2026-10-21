@@ -101,7 +101,16 @@ function SettingsIcon() {
 }
 
 function AuthPanel({ onClose }: { onClose: () => void }) {
-  const { mode, setMode, form, setForm, busy, message, submit } = useAuthForm();
+  const {
+    mode,
+    setMode,
+    form,
+    setForm,
+    busy,
+    message,
+    twoFactorRequired,
+    submit,
+  } = useAuthForm();
   const { user } = useAuth();
 
   useEffect(() => {
@@ -159,6 +168,22 @@ function AuthPanel({ onClose }: { onClose: () => void }) {
             value={form.password}
             onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
           />
+          {mode === 'login' && twoFactorRequired && (
+            <input
+              className="app-input"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="6-digit authenticator code"
+              value={form.totpCode}
+              maxLength={6}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  totpCode: event.target.value.replace(/\D/g, '').slice(0, 6),
+                }))
+              }
+            />
+          )}
           {message && <p className="text-sm text-slate-400">{message}</p>}
           <button className="primary-button w-full" disabled={busy}>
             {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
