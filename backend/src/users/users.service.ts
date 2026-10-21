@@ -10,6 +10,118 @@ import { PrismaService } from '../prisma.service';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async getOwnHistory(
+    userId: string,
+  ) {
+    const submissions =
+      await this.prisma.submission.findMany({
+        where: {
+          userId,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 200,
+        include: {
+          artifact: {
+            include: {
+              file: true,
+              url: true,
+              scans: {
+                where: {
+                  OR: [
+                    {
+                      visibility:
+                        Visibility.PUBLIC,
+                    },
+                    {
+                      submission: {
+                        is: {
+                          userId,
+                        },
+                      },
+                    },
+                  ],
+                },
+                orderBy: {
+                  createdAt: 'desc',
+                },
+                take: 1,
+                select: {
+                  id: true,
+                  status: true,
+                  reason: true,
+                  visibility: true,
+                  overallVerdict: true,
+                  provider: true,
+                  createdAt: true,
+                  completedAt: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+    return submissions.map((submission) => {
+      const scan =
+        submission.artifact.scans[0] ?? null;
+
+      return {
+        id: submission.id,
+        artifactId: submission.artifactId,
+        artifactType:
+          submission.artifact.type,
+        displayName:
+          submission.originalFilename ??
+          submission.originalUrl ??
+          submission.artifact.file?.sha256 ??
+          submission.artifact.url?.normalizedUrl ??
+          submission.artifactId,
+        visibility:
+          submission.visibility,
+        source: submission.source,
+        createdAt:
+          submission.createdAt,
+        file: submission.artifact.file
+          ? {
+              sha256:
+                submission.artifact.file.sha256,
+              mimeType:
+                submission.artifact.file.mimeType,
+              size:
+                submission.artifact.file.size.toString(),
+            }
+          : null,
+        url: submission.artifact.url
+          ? {
+              normalizedUrl:
+                submission.artifact.url.normalizedUrl,
+              domain:
+                submission.artifact.url.domain,
+            }
+          : null,
+        latestScan: scan
+          ? {
+              id: scan.id,
+              status: scan.status,
+              reason: scan.reason,
+              visibility:
+                scan.visibility,
+              verdict:
+                scan.overallVerdict,
+              provider:
+                scan.provider,
+              createdAt:
+                scan.createdAt,
+              completedAt:
+                scan.completedAt,
+            }
+          : null,
+      };
+    });
+  }
+
   async getCommunityActivity(
     targetUserId: string,
     viewerUserId: string | null,
