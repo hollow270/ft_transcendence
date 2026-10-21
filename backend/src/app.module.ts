@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { AdminController } from './admin/admin.controller';
+import { AdminGuard } from './admin/admin.guard';
+import { AdminService } from './admin/admin.service';
 import { AiModule } from './ai/ai.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { PublicApiController } from './api-keys/public-api.controller';
@@ -30,6 +33,7 @@ import { UsersModule } from './users/users.module';
   ],
   controllers: [
     AppController,
+    AdminController,
     ArtifactsController,
     PublicApiController,
     CommunityController,
@@ -37,6 +41,8 @@ import { UsersModule } from './users/users.module';
     NotificationsController,
   ],
   providers: [
+    AdminService,
+    AdminGuard,
     ArtifactsService,
     FileValidationService,
     CommunityService,
