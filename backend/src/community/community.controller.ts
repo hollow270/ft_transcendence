@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Req,
@@ -29,6 +31,56 @@ export class CommunityController {
   ) {
     return this.community.createComment(
       artifactId,
+      request.user.id,
+      body,
+    );
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Patch('comments/:commentId')
+  editComment(
+    @Param('artifactId') artifactId: string,
+    @Param('commentId') commentId: string,
+    @Req() request: any,
+    @Body('body') body?: string,
+  ) {
+    return this.community.editComment(
+      artifactId,
+      commentId,
+      request.user.id,
+      body,
+    );
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Delete('comments/:commentId')
+  deleteComment(
+    @Param('artifactId') artifactId: string,
+    @Param('commentId') commentId: string,
+    @Req() request: any,
+  ) {
+    return this.community.deleteComment(
+      artifactId,
+      commentId,
+      request.user.id,
+    );
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('comments/:commentId/report')
+  reportComment(
+    @Param('artifactId') artifactId: string,
+    @Param('commentId') commentId: string,
+    @Req() request: any,
+    @Body()
+    body: {
+      reason?: string;
+      details?: string;
+    },
+  ) {
+    return this.community.reportComment(
+      artifactId,
+      commentId,
       request.user.id,
       body,
     );
