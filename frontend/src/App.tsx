@@ -7,13 +7,13 @@ import LlmPage from './pages/LlmPage';
 import NotificationsPage from './pages/NotificationsPage';
 import SecurityPage from './pages/SecurityPage';
 import UserCommunityPage from './pages/UserCommunityPage';
+import UrlPage from './pages/UrlPage';
 import {
   AdminPage,
   ApiKeysPage,
   HistoryPage,
   ModerationPage,
   SearchPage,
-  UrlPage,
 } from './pages/PlaceholderPages';
 
 export default function App() {
