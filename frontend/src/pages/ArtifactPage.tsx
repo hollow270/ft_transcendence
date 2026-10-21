@@ -17,6 +17,11 @@ const verdictClass: Record<string, string> = {
   SUSPICIOUS: 'border-amber-800 bg-amber-950/40 text-amber-300',
   MALICIOUS: 'border-red-800 bg-red-950/40 text-red-300',
   UNKNOWN: 'border-slate-700 bg-slate-900 text-slate-400',
+  UNDETECTED: 'border-emerald-900 bg-emerald-950/20 text-emerald-400',
+  TIMEOUT: 'border-slate-700 bg-slate-900 text-slate-500',
+  FAILURE: 'border-slate-700 bg-slate-900 text-slate-500',
+  'TYPE-UNSUPPORTED': 'border-slate-700 bg-slate-900 text-slate-500',
+  'CONFIRMED-TIMEOUT': 'border-slate-700 bg-slate-900 text-slate-500',
 };
 
 function VerdictBadge({ value }: { value?: string | null }) {
@@ -26,6 +31,13 @@ function VerdictBadge({ value }: { value?: string | null }) {
       {verdict}
     </span>
   );
+}
+
+function engineResultLabel(result: {
+  verdict: string;
+  category?: string | null;
+}) {
+  return result.category?.toUpperCase() ?? result.verdict;
 }
 
 function formatDate(value?: string | null) {
@@ -134,7 +146,17 @@ export default function ArtifactPage() {
     return {
       malicious: results.filter((result) => result.verdict === 'MALICIOUS').length,
       suspicious: results.filter((result) => result.verdict === 'SUSPICIOUS').length,
-      harmless: results.filter((result) => result.verdict === 'HARMLESS').length,
+      harmless: results.filter(
+        (result) =>
+          result.verdict === 'HARMLESS' &&
+          result.category !== 'undetected',
+      ).length,
+      undetected: results.filter((result) => result.category === 'undetected').length,
+      unknown: results.filter(
+        (result) =>
+          result.verdict === 'UNKNOWN' &&
+          result.category !== 'undetected',
+      ).length,
       total: results.length,
     };
   }, [artifact]);
@@ -444,7 +466,7 @@ export default function ArtifactPage() {
             <div>
               <h2 className="text-sm font-semibold text-slate-200">Engine results</h2>
               <p className="mt-1 text-xs text-slate-500">
-                {detections.malicious} malicious · {detections.suspicious} suspicious · {detections.harmless} harmless
+                {detections.malicious} malicious · {detections.suspicious} suspicious · {detections.harmless} harmless · {detections.undetected} undetected{detections.unknown ? ' · ' + detections.unknown + ' other' : ''}
               </p>
             </div>
             <span className="text-xs text-slate-600">
@@ -467,7 +489,7 @@ export default function ArtifactPage() {
                   artifact.latestScan.engineResults.map((result) => (
                     <tr key={result.engine}>
                       <td className="font-medium text-slate-200">{result.engine}</td>
-                      <td><VerdictBadge value={result.verdict} /></td>
+                      <td><VerdictBadge value={engineResultLabel(result)} /></td>
                       <td>{result.detectionName ?? '—'}</td>
                       <td>{result.responseTimeMs ? result.responseTimeMs + ' ms' : '—'}</td>
                     </tr>
@@ -701,7 +723,7 @@ export default function ArtifactPage() {
                             <span className="text-sm font-medium text-slate-300">
                               {result.engine}
                             </span>
-                            <VerdictBadge value={result.verdict} />
+                            <VerdictBadge value={engineResultLabel(result)} />
                           </div>
                           {result.detectionName && (
                             <p className="mt-1 break-words text-xs text-slate-500">
