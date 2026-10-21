@@ -5,6 +5,7 @@ import type {
   Notification,
   ScannerCapabilities,
   UploadResponse,
+  UrlSubmissionResponse,
   User,
   UserCommunity,
   VoteSummary,
@@ -247,6 +248,28 @@ export const api = {
       {
         method: 'POST',
         body: form,
+      },
+      token,
+    );
+  },
+
+  submitUrl(
+    url: string,
+    options: {
+      visibility: 'PUBLIC' | 'PRIVATE';
+      forceRescan: boolean;
+    },
+    token?: string | null,
+  ) {
+    return request<UrlSubmissionResponse>(
+      '/artifacts/urls',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          url,
+          visibility: options.visibility,
+          forceRescan: options.forceRescan,
+        }),
       },
       token,
     );
