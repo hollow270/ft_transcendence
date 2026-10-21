@@ -225,6 +225,63 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 
 echo "public artifact search ok"
 
+API_KEY_CREATED=$(curl -fsS -X POST "$BASE_URL/api-keys" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"CI public API"}')
+
+PUBLIC_API_KEY=$(printf '%s' "$API_KEY_CREATED" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.id || !j.key || !j.key.startsWith("gv_") || !j.keyPrefix) process.exit(1); process.stdout.write(j.key);});
+')
+
+API_KEY_ID=$(printf '%s' "$API_KEY_CREATED" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.id) process.exit(1); process.stdout.write(j.id);});
+')
+
+curl -fsS "$BASE_URL/api-keys" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.name==="CI public API" && x.keyPrefix && !("key" in x))) process.exit(1); console.log("API key list hides plaintext ok");});
+'
+
+curl -fsS "$BASE_URL/api/v1/search?q=sample.txt" \
+  -H "X-API-Key: $PUBLIC_API_KEY" \
+  | ARTIFACT_ID="$ARTIFACT_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.id===process.env.ARTIFACT_ID)) process.exit(1); console.log("public API search ok");});
+'
+
+API_URL_UPLOAD=$(curl -fsS -X POST "$BASE_URL/api/v1/urls" \
+  -H "X-API-Key: $PUBLIC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://api.example.com/from-key"}')
+
+API_URL_ARTIFACT_ID=$(printf '%s' "$API_URL_UPLOAD" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.artifact?.id || j.submission?.visibility!=="PUBLIC" || j.scan?.reason!=="API_REQUEST") process.exit(1); process.stdout.write(j.artifact.id);});
+')
+
+curl -fsS "$BASE_URL/api/v1/artifacts/$API_URL_ARTIFACT_ID" \
+  -H "X-API-Key: $PUBLIC_API_KEY" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.type!=="URL" || j.url?.domain!=="api.example.com") process.exit(1); console.log("public API artifact lookup ok");});
+'
+
+printf 'public api file\n' >/tmp/api-sample.txt
+API_FILE_UPLOAD=$(curl -fsS -X POST "$BASE_URL/api/v1/files" \
+  -H "X-API-Key: $PUBLIC_API_KEY" \
+  -F "file=@/tmp/api-sample.txt;type=text/plain")
+
+printf '%s' "$API_FILE_UPLOAD" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.artifact?.type!=="FILE" || j.submission?.visibility!=="PUBLIC" || j.scan?.reason!=="API_REQUEST") process.exit(1); console.log("public API file submission ok");});
+'
+
+curl -fsS "$BASE_URL/users/me/history" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.source==="API")) process.exit(1); console.log("API submission source history ok");});
+'
+
+echo "API key management and public API ok"
+
 
 RESCAN=$(curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/rescan"   -H "Authorization: Bearer $TOKEN")
 
@@ -361,6 +418,24 @@ if [ "$HTTP_CODE" != "400" ]; then
 fi
 
 echo "private access rule ok"
+
+curl -fsS -X DELETE "$BASE_URL/api-keys/$API_KEY_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.success!==true) process.exit(1);});
+'
+
+REVOKED_API_CODE=$(curl -sS -o /tmp/revoked-api-key.json -w "%{http_code}" \
+  "$BASE_URL/api/v1/search?q=sample.txt" \
+  -H "X-API-Key: $PUBLIC_API_KEY")
+
+if [ "$REVOKED_API_CODE" != "401" ]; then
+  echo "revoked API key should return 401, got $REVOKED_API_CODE"
+  cat /tmp/revoked-api-key.json
+  exit 1
+fi
+
+echo "revoked API key rejected ok"
 
 TABLE_COUNT=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname = '\''public'\'';"')
 
