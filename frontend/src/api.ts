@@ -1,5 +1,6 @@
 import type {
   Artifact,
+  ArtifactScanHistoryItem,
   Comment,
   Notification,
   ScannerCapabilities,
@@ -206,6 +207,14 @@ export const api = {
   artifact(artifactId: string, token?: string | null) {
     return request<Artifact>(
       `/artifacts/${encodeURIComponent(artifactId)}`,
+      {},
+      token,
+    );
+  },
+
+  artifactScanHistory(artifactId: string, token?: string | null) {
+    return request<ArtifactScanHistoryItem[]>(
+      `/artifacts/${encodeURIComponent(artifactId)}/scans`,
       {},
       token,
     );
