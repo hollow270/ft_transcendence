@@ -246,3 +246,18 @@ export type HistoryItem = {
     completedAt: string | null;
   } | null;
 };
+
+
+export type ApiKeyInfo = {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  rateLimitPerMinute: number;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+};
+
+export type CreatedApiKey = ApiKeyInfo & {
+  key: string;
+};
