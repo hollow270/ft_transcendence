@@ -156,6 +156,112 @@ export class ArtifactsService {
     };
   }
 
+  async submitUrl(
+    rawUrl: string | undefined,
+    userId: string | null,
+    visibilityInput?: string,
+    forceRescanInput?: boolean | string,
+  ) {
+    const normalized = this.normalizeUrl(rawUrl);
+    const visibility = this.parseVisibility(
+      visibilityInput,
+      userId,
+    );
+    const forceRescan =
+      typeof forceRescanInput === 'boolean'
+        ? forceRescanInput
+        : (forceRescanInput ?? 'false')
+            .toString()
+            .toLowerCase() === 'true';
+
+    const artifact =
+      await this.findOrCreateUrlArtifact(
+        normalized,
+      );
+
+    await this.prisma.artifact.update({
+      where: { id: artifact.id },
+      data: { lastSeenAt: new Date() },
+    });
+
+    const submission =
+      await this.prisma.submission.create({
+        data: {
+          artifactId: artifact.id,
+          userId,
+          visibility,
+          originalUrl: rawUrl!.trim(),
+        },
+      });
+
+    const reusableScan = forceRescan
+      ? null
+      : await this.findReusableScan(
+          artifact.id,
+          visibility,
+          userId,
+        );
+
+    if (reusableScan) {
+      return {
+        artifact:
+          this.formatUrlArtifact(artifact),
+        submission: {
+          id: submission.id,
+          visibility: submission.visibility,
+          originalUrl:
+            submission.originalUrl,
+          createdAt: submission.createdAt,
+        },
+        scan: this.formatScan(reusableScan),
+        reusedScan: true,
+      };
+    }
+
+    const previousCompletedScan =
+      await this.prisma.scan.findFirst({
+        where: {
+          artifactId: artifact.id,
+          status: ScanStatus.COMPLETED,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+    const reason = forceRescan
+      ? ScanReason.MANUAL_RESCAN
+      : previousCompletedScan
+        ? ScanReason.STALE_RESCAN
+        : ScanReason.INITIAL;
+
+    const scan =
+      await this.createAndRunUrlScan({
+        artifactId: artifact.id,
+        submissionId: submission.id,
+        userId,
+        visibility,
+        reason,
+        normalizedUrl:
+          normalized.normalizedUrl,
+        forceRescan,
+      });
+
+    return {
+      artifact:
+        this.formatUrlArtifact(artifact),
+      submission: {
+        id: submission.id,
+        visibility: submission.visibility,
+        originalUrl:
+          submission.originalUrl,
+        createdAt: submission.createdAt,
+      },
+      scan: this.formatScan(scan),
+      reusedScan: false,
+    };
+  }
+
   async getArtifact(
     artifactId: string,
     userId: string | null,
@@ -342,12 +448,13 @@ export class ArtifactsService {
         },
         include: {
           file: true,
+          url: true,
         },
       });
 
-    if (!artifact?.file) {
+    if (!artifact || (!artifact.file && !artifact.url)) {
       throw new NotFoundException(
-        'file artifact not found',
+        'artifact not found',
       );
     }
 
@@ -381,11 +488,16 @@ export class ArtifactsService {
     });
 
     try {
-      const result =
-        await this.scanning.rescanFile({
-          sha256: artifact.file.sha256,
-          visibility: submission.visibility,
-        });
+      const result = artifact.file
+        ? await this.scanning.rescanFile({
+            sha256: artifact.file.sha256,
+            visibility: submission.visibility,
+          })
+        : await this.scanning.rescanUrl({
+            normalizedUrl:
+              artifact.url!.normalizedUrl,
+            visibility: submission.visibility,
+          });
 
       const persisted =
         await this.applyScannerResult(
@@ -564,6 +676,55 @@ export class ArtifactsService {
         },
       });
 
+      await this.failScan(scan.id, error);
+      throw error;
+    }
+  }
+
+  private async createAndRunUrlScan(input: {
+    artifactId: string;
+    submissionId: string;
+    userId: string | null;
+    visibility: Visibility;
+    reason: ScanReason;
+    normalizedUrl: string;
+    forceRescan: boolean;
+  }) {
+    const scan = await this.prisma.scan.create({
+      data: {
+        artifactId: input.artifactId,
+        submissionId: input.submissionId,
+        visibility: input.visibility,
+        status: ScanStatus.RUNNING,
+        reason: input.reason,
+        startedAt: new Date(),
+        provider: this.scanning.providerName,
+      },
+    });
+
+    try {
+      const result =
+        await this.scanning.startUrlScan({
+          normalizedUrl:
+            input.normalizedUrl,
+          visibility: input.visibility,
+          forceRescan: input.forceRescan,
+        });
+
+      const persisted =
+        await this.applyScannerResult(
+          scan.id,
+          result,
+        );
+
+      await this.notifyIfCompleted(
+        persisted,
+        input.userId,
+        input.artifactId,
+      );
+
+      return persisted;
+    } catch (error) {
       await this.failScan(scan.id, error);
       throw error;
     }
@@ -927,6 +1088,135 @@ export class ArtifactsService {
     }
   }
 
+  private async findOrCreateUrlArtifact(
+    input: {
+      normalizedUrl: string;
+      urlHash: string;
+      domain: string;
+    },
+  ) {
+    const existing =
+      await this.prisma.urlArtifact.findUnique({
+        where: {
+          urlHash: input.urlHash,
+        },
+        include: {
+          artifact: true,
+        },
+      });
+
+    if (existing) {
+      return {
+        ...existing.artifact,
+        url: existing,
+      };
+    }
+
+    try {
+      return await this.prisma.artifact.create({
+        data: {
+          type: ArtifactType.URL,
+          url: {
+            create: {
+              normalizedUrl:
+                input.normalizedUrl,
+              urlHash: input.urlHash,
+              domain: input.domain,
+            },
+          },
+        },
+        include: {
+          url: true,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof
+          Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const raced =
+          await this.prisma.urlArtifact.findUnique({
+            where: {
+              urlHash: input.urlHash,
+            },
+            include: {
+              artifact: true,
+            },
+          });
+
+        if (raced) {
+          return {
+            ...raced.artifact,
+            url: raced,
+          };
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  private normalizeUrl(
+    rawUrl: string | undefined,
+  ) {
+    const value = rawUrl?.trim();
+
+    if (!value) {
+      throw new BadRequestException(
+        'url is required',
+      );
+    }
+
+    if (value.length > 4096) {
+      throw new BadRequestException(
+        'url must contain at most 4096 characters',
+      );
+    }
+
+    let parsed: URL;
+
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new BadRequestException(
+        'a valid absolute URL is required',
+      );
+    }
+
+    if (
+      parsed.protocol !== 'http:' &&
+      parsed.protocol !== 'https:'
+    ) {
+      throw new BadRequestException(
+        'only http and https URLs are supported',
+      );
+    }
+
+    if (
+      parsed.username ||
+      parsed.password
+    ) {
+      throw new BadRequestException(
+        'URLs containing embedded credentials are not accepted',
+      );
+    }
+
+    parsed.hash = '';
+
+    const normalizedUrl =
+      parsed.toString();
+    const urlHash = createHash('sha256')
+      .update(normalizedUrl)
+      .digest('hex');
+
+    return {
+      normalizedUrl,
+      urlHash,
+      domain: parsed.hostname,
+    };
+  }
+
   private async findReusableScan(
     artifactId: string,
     visibility: Visibility,
@@ -1023,6 +1313,21 @@ export class ArtifactsService {
         artifact.file?.size?.toString() ?? null,
       mimeType:
         artifact.file?.mimeType ?? null,
+      firstSeenAt: artifact.firstSeenAt,
+      lastSeenAt: artifact.lastSeenAt,
+    };
+  }
+
+  private formatUrlArtifact(
+    artifact: any,
+  ) {
+    return {
+      id: artifact.id,
+      type: artifact.type,
+      normalizedUrl:
+        artifact.url?.normalizedUrl ?? null,
+      domain:
+        artifact.url?.domain ?? null,
       firstSeenAt: artifact.firstSeenAt,
       lastSeenAt: artifact.lastSeenAt,
     };
