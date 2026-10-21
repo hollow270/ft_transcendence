@@ -5,6 +5,7 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -22,6 +23,11 @@ export class ArtifactsController {
   @Get('scanner/capabilities')
   scannerCapabilities() {
     return this.artifacts.scannerCapabilities();
+  }
+
+  @Get('search')
+  search(@Query('q') query?: string) {
+    return this.artifacts.searchPublicArtifacts(query);
   }
 
   @Post('files')
