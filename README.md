@@ -52,6 +52,24 @@ Expected:
 }
 ```
 
+## One-command full stack
+
+GO VIRUS now uses one Compose stack. There are no Docker Compose profiles for the normal application.
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+That single command starts:
+
+- PostgreSQL
+- ClamAV
+- NestJS backend
+- React frontend
+
+The default scanner mode in `.env.example` is `real`, so ClamAV is used automatically. VirusTotal is added for PUBLIC files when `VIRUSTOTAL_API_KEY` is configured.
+
 ## AI configuration
 
 The AI module supports:
@@ -141,11 +159,7 @@ CLAMAV_HOST=clamav
 CLAMAV_PORT=3310
 ```
 
-Start the official ClamAV container with:
-
-```bash
-docker compose --profile real-scan up --build
-```
+ClamAV is part of the normal Compose stack. No profile or separate command is required.
 
 Files are streamed from the backend to `clamd` with the ClamAV `INSTREAM` protocol. The ClamAV TCP port is only exposed inside the Docker network; it is not published to the host.
 
@@ -171,11 +185,13 @@ CLAMAV_PORT=3310
 VIRUSTOTAL_API_KEY=your_key_here
 ```
 
-Start it with:
+The whole application starts with one command:
 
 ```bash
-docker compose --profile real-scan up --build
+docker compose up --build
 ```
+
+This starts PostgreSQL, ClamAV, the NestJS backend, and the React frontend together.
 
 Behavior:
 
@@ -196,7 +212,7 @@ The repository includes an isolated test that uses separate Docker ports and vol
 bash scripts/test-real-scanner.sh
 ```
 
-It starts the `real-scan` profile, verifies ClamAV readiness, scans a clean private file, and then checks detection using the harmless EICAR antivirus test file.
+It starts an isolated copy of the full Compose stack, verifies ClamAV readiness, scans a clean private file, and then checks detection using the harmless EICAR antivirus test file.
 
 ### File validation
 
