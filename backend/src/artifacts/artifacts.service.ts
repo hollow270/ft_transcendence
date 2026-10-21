@@ -246,6 +246,90 @@ export class ArtifactsService {
     };
   }
 
+  async getArtifactScanHistory(
+    artifactId: string,
+    userId: string | null,
+  ) {
+    const allowedSubmission =
+      await this.prisma.submission.findFirst({
+        where: {
+          artifactId,
+          OR: [
+            { visibility: Visibility.PUBLIC },
+            ...(userId ? [{ userId }] : []),
+          ],
+        },
+        select: {
+          id: true,
+        },
+      });
+
+    if (!allowedSubmission) {
+      throw new NotFoundException(
+        'artifact not found',
+      );
+    }
+
+    const scans = await this.prisma.scan.findMany({
+      where: {
+        artifactId,
+        OR: [
+          { visibility: Visibility.PUBLIC },
+          ...(userId
+            ? [
+                {
+                  submission: {
+                    is: {
+                      userId,
+                    },
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        submission: {
+          select: {
+            id: true,
+            userId: true,
+            visibility: true,
+            originalFilename: true,
+            originalUrl: true,
+            createdAt: true,
+          },
+        },
+        engineResults: {
+          include: {
+            engine: true,
+          },
+        },
+      },
+    });
+
+    return scans.map((scan) => ({
+      ...this.formatScan(scan),
+      submission: scan.submission
+        ? {
+            id: scan.submission.id,
+            visibility: scan.submission.visibility,
+            originalFilename:
+              scan.submission.originalFilename,
+            originalUrl:
+              scan.submission.originalUrl,
+            createdAt:
+              scan.submission.createdAt,
+            ownedByViewer:
+              Boolean(userId) &&
+              scan.submission.userId === userId,
+          }
+        : null,
+    }));
+  }
+
   async rescanArtifact(
     artifactId: string,
     userId: string,
@@ -882,6 +966,7 @@ export class ArtifactsService {
   private formatScan(scan: any) {
     return {
       id: scan.id,
+      createdAt: scan.createdAt,
       status: scan.status,
       reason: scan.reason,
       visibility: scan.visibility,
