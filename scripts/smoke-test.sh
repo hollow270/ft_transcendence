@@ -207,6 +207,25 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 '
 
 
+SEARCH_FILE=$(curl -fsS "$BASE_URL/artifacts/search?q=sample.txt")
+printf '%s' "$SEARCH_FILE" | ARTIFACT_ID="$ARTIFACT_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.id===process.env.ARTIFACT_ID && x.type==="FILE")) process.exit(1); console.log("public file search ok");});
+'
+
+SEARCH_URL=$(curl -fsS "$BASE_URL/artifacts/search?q=example.com")
+printf '%s' "$SEARCH_URL" | URL_ARTIFACT_ID="$URL_ARTIFACT_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.id===process.env.URL_ARTIFACT_ID && x.type==="URL")) process.exit(1); console.log("public URL search ok");});
+'
+
+OWN_HISTORY=$(curl -fsS "$BASE_URL/users/me/history" \
+  -H "Authorization: Bearer $TOKEN")
+printf '%s' "$OWN_HISTORY" | ARTIFACT_ID="$ARTIFACT_ID" URL_ARTIFACT_ID="$URL_ARTIFACT_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j)) process.exit(1); if(!j.some(x=>x.artifactId===process.env.ARTIFACT_ID && x.artifactType==="FILE")) process.exit(1); if(!j.some(x=>x.artifactId===process.env.URL_ARTIFACT_ID && x.artifactType==="URL")) process.exit(1); console.log("user submission history ok");});
+'
+
+echo "public artifact search ok"
+
+
 RESCAN=$(curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/rescan"   -H "Authorization: Bearer $TOKEN")
 
 printf '%s' "$RESCAN" | node -e '
@@ -277,6 +296,18 @@ PRIVATE_UPLOAD=$(curl -fsS -X POST "$BASE_URL/artifacts/files"   -H "Authorizati
 
 printf '%s' "$PRIVATE_UPLOAD" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.submission?.visibility!=="PRIVATE") process.exit(1); console.log("private authenticated upload ok");});
+'
+
+
+curl -fsS "$BASE_URL/artifacts/search?q=private-sample.txt" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || j.length!==0) process.exit(1); console.log("private artifact excluded from search ok");});
+'
+
+curl -fsS "$BASE_URL/users/me/history" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.displayName==="private-sample.txt" && x.visibility==="PRIVATE")) process.exit(1); console.log("private artifact included in owner history ok");});
 '
 
 PRIVATE_ARTIFACT_ID=$(printf '%s' "$PRIVATE_UPLOAD" | node -e '
