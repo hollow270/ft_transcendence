@@ -191,3 +191,58 @@ export type UrlSubmissionResponse = {
   scan: Scan;
   reusedScan: boolean;
 };
+
+
+export type SearchResult = {
+  id: string;
+  type: 'FILE' | 'URL';
+  displayName: string;
+  lastSeenAt: string;
+  file: {
+    sha256: string;
+    sha1: string | null;
+    md5: string | null;
+    size: string;
+    mimeType: string;
+  } | null;
+  url: {
+    normalizedUrl: string;
+    domain: string | null;
+  } | null;
+  latestScan: {
+    id: string;
+    status: string;
+    verdict: string;
+    provider: string | null;
+    completedAt: string | null;
+  } | null;
+};
+
+export type HistoryItem = {
+  id: string;
+  artifactId: string;
+  artifactType: 'FILE' | 'URL';
+  displayName: string;
+  visibility: 'PUBLIC' | 'PRIVATE';
+  source: string;
+  createdAt: string;
+  file: {
+    sha256: string;
+    mimeType: string;
+    size: string;
+  } | null;
+  url: {
+    normalizedUrl: string;
+    domain: string | null;
+  } | null;
+  latestScan: {
+    id: string;
+    status: string;
+    reason: string;
+    visibility: 'PUBLIC' | 'PRIVATE';
+    verdict: string;
+    provider: string | null;
+    createdAt: string;
+    completedAt: string | null;
+  } | null;
+};
