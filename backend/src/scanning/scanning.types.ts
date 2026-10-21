@@ -29,6 +29,7 @@ export type ScannerPendingResult = {
   provider: string;
   providerAnalysisId: string;
   providerStatus: string;
+  partialResults?: ScannerEngineResult[];
 };
 
 export type ScannerResult =
