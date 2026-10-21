@@ -102,6 +102,33 @@ POST /api/ai/scans/explain
 
 Vite proxies `/api/*` to the NestJS backend, where the routes are exposed as `/ai/*`.
 
+## Two-factor authentication
+
+GO VIRUS supports TOTP two-factor authentication with authenticator apps.
+
+Generate a stable local encryption key once:
+
+```bash
+openssl rand -hex 32
+```
+
+Put the generated value in your local `.env`:
+
+```env
+TWO_FACTOR_ENCRYPTION_KEY=your_generated_value
+```
+
+Then restart the normal full stack:
+
+```bash
+docker compose down
+docker compose up --build -d
+```
+
+Users can enable 2FA under **Settings → Security**. The setup secret is encrypted with AES-256-GCM before it is stored in PostgreSQL. Once 2FA is enabled, password login does not create a session until a valid 6-digit TOTP code is supplied.
+
+Keep `TWO_FACTOR_ENCRYPTION_KEY` private and stable. Changing or losing it makes existing encrypted authenticator secrets unreadable.
+
 ## Prisma development workflow
 
 The backend container currently runs:
