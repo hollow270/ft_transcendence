@@ -105,6 +105,12 @@ services:
       BACKEND: http://frontend:5173
       SERVER_NAME: ${WAF_SERVER_NAME:-localhost}
       PORT: 8080
+      SSL_PORT: 8443
+      SSL_PROTOCOLS: "TLSv1.2 TLSv1.3"
+      SSL_CERT_FILE: /etc/nginx/conf/server.crt
+      SSL_CERT_KEY_FILE: /etc/nginx/conf/server.key
+      SSL_OCSP_STAPLING: "off"
+      NGINX_ALWAYS_TLS_REDIRECT: ${HTTPS_REDIRECT:-off}
       MODSEC_RULE_ENGINE: "On"
       BLOCKING_PARANOIA: "1"
       ANOMALY_INBOUND: "5"
@@ -116,8 +122,10 @@ services:
       MODSEC_REQ_BODY_NOFILES_LIMIT: "1048576"
     ports:
       - "${APP_PORT:-8080}:8080"
+      - "${APP_HTTPS_PORT:-8443}:8443"
     volumes:
       - ./waf/security-headers.conf.template:/etc/nginx/templates/conf.d/security-headers.conf.template:ro
+      - ./waf/tls:/etc/nginx/conf
     depends_on:
       frontend:
         condition: service_healthy
