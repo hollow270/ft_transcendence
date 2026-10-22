@@ -343,6 +343,22 @@ API_URL_ARTIFACT_ID=$(printf '%s' "$API_URL_UPLOAD" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.artifact?.id || j.submission?.visibility!=="PUBLIC" || j.scan?.reason!=="API_REQUEST") process.exit(1); process.stdout.write(j.artifact.id);});
 ')
 
+API_URL_SUBMISSION_ID=$(printf '%s' "$API_URL_UPLOAD" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.submission?.id) process.exit(1); process.stdout.write(j.submission.id);});
+')
+
+curl -fsS -X PUT "$BASE_URL/api/v1/artifacts/$API_URL_ARTIFACT_ID/rescan" \
+  -H "X-API-Key: $PUBLIC_API_KEY" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.reason!=="MANUAL_RESCAN") process.exit(1);});
+'
+
+curl -fsS -X DELETE "$BASE_URL/api/v1/submissions/$API_URL_SUBMISSION_ID" \
+  -H "X-API-Key: $PUBLIC_API_KEY" \
+  | API_URL_ARTIFACT_ID="$API_URL_ARTIFACT_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.success!==true || j.artifactId!==process.env.API_URL_ARTIFACT_ID) process.exit(1); console.log("public API PUT/DELETE ok");});
+'
+
 curl -fsS "$BASE_URL/api/v1/artifacts/$API_URL_ARTIFACT_ID" \
   -H "X-API-Key: $PUBLIC_API_KEY" \
   | node -e '
