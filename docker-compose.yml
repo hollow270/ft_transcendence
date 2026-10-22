@@ -101,6 +101,7 @@ services:
 
   waf:
     image: owasp/modsecurity-crs:nginx
+    entrypoint: ["/bin/sh", "/run/go-virus/entrypoint.sh"]
     environment:
       BACKEND: http://frontend:5173
       SERVER_NAME: ${WAF_SERVER_NAME:-localhost}
@@ -125,7 +126,7 @@ services:
       - "${APP_HTTPS_PORT:-8443}:8443"
     volumes:
       - ./waf/security-headers.conf.template:/etc/nginx/templates/conf.d/security-headers.conf.template:ro
-      - ./waf/11-use-custom-certificate.sh:/docker-entrypoint.d/11-use-custom-certificate.sh:ro
+      - ./waf/entrypoint.sh:/run/go-virus/entrypoint.sh:ro
       - ./waf/tls:/run/go-virus-tls:ro
     depends_on:
       frontend:
