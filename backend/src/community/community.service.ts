@@ -6,17 +6,23 @@ import {
 } from '@nestjs/common';
 import {
   CommentStatus,
+  NotificationType,
   Prisma,
   ReportReason,
   UserStatus,
   Verdict,
   Visibility,
 } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class CommunityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications:
+      NotificationsService,
+  ) {}
 
   async listComments(artifactId: string) {
     await this.ensurePublicArtifact(artifactId);
@@ -88,7 +94,10 @@ export class CommunityService {
           artifactId,
           status: CommentStatus.ACTIVE,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          userId: true,
+        },
       });
 
       if (!parent) {
@@ -98,27 +107,64 @@ export class CommunityService {
       }
     }
 
-    return this.prisma.comment.create({
-      data: {
-        artifactId,
-        userId,
-        parentId: input.parentId ?? null,
-        body,
-      },
-      select: {
-        id: true,
-        artifactId: true,
-        parentId: true,
-        body: true,
-        createdAt: true,
-        user: {
+    const parent = input.parentId
+      ? await this.prisma.comment.findFirst({
+          where: {
+            id: input.parentId,
+            artifactId,
+            status: CommentStatus.ACTIVE,
+          },
           select: {
             id: true,
-            username: true,
+            userId: true,
+          },
+        })
+      : null;
+
+    const comment =
+      await this.prisma.comment.create({
+        data: {
+          artifactId,
+          userId,
+          parentId: input.parentId ?? null,
+          body,
+        },
+        select: {
+          id: true,
+          artifactId: true,
+          parentId: true,
+          body: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              username: true,
+            },
           },
         },
-      },
+      });
+
+    await this.notifications.createResourceEvent({
+      userId,
+      type:
+        NotificationType.RESOURCE_CREATED,
+      entityType: 'comment',
+      entityId: comment.id,
+      artifactId,
+      commentId: comment.id,
+      message: 'Your comment was created.',
     });
+
+    if (parent) {
+      await this.notifications.createCommentReply({
+        recipientUserId: parent.userId,
+        actorUserId: userId,
+        artifactId,
+        commentId: comment.id,
+      });
+    }
+
+    return comment;
   }
 
   async editComment(
@@ -153,29 +199,43 @@ export class CommunityService {
       );
     }
 
-    return this.prisma.comment.update({
-      where: {
-        id: comment.id,
-      },
-      data: {
-        body,
-        editedAt: new Date(),
-      },
-      select: {
-        id: true,
-        parentId: true,
-        body: true,
-        createdAt: true,
-        editedAt: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-            role: true,
+    const updated =
+      await this.prisma.comment.update({
+        where: {
+          id: comment.id,
+        },
+        data: {
+          body,
+          editedAt: new Date(),
+        },
+        select: {
+          id: true,
+          parentId: true,
+          body: true,
+          createdAt: true,
+          editedAt: true,
+          user: {
+            select: {
+              id: true,
+              username: true,
+              role: true,
+            },
           },
         },
-      },
+      });
+
+    await this.notifications.createResourceEvent({
+      userId,
+      type:
+        NotificationType.RESOURCE_UPDATED,
+      entityType: 'comment',
+      entityId: comment.id,
+      artifactId,
+      commentId: comment.id,
+      message: 'Your comment was updated.',
     });
+
+    return updated;
   }
 
   async deleteComment(
@@ -210,6 +270,17 @@ export class CommunityService {
         body: '[deleted]',
         deletedAt: new Date(),
       },
+    });
+
+    await this.notifications.createResourceEvent({
+      userId,
+      type:
+        NotificationType.RESOURCE_DELETED,
+      entityType: 'comment',
+      entityId: comment.id,
+      artifactId,
+      commentId: comment.id,
+      message: 'Your comment was deleted.',
     });
 
     return {
