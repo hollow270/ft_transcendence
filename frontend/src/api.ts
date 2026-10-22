@@ -537,20 +537,57 @@ export const api = {
   },
 
   adminActivity(
-    days: number,
+    input: {
+      days?: number;
+      from?: string;
+      to?: string;
+    },
     token: string,
   ) {
+    const params = new URLSearchParams();
+
+    if (input.days) {
+      params.set(
+        'days',
+        String(input.days),
+      );
+    }
+    if (input.from) {
+      params.set('from', input.from);
+    }
+    if (input.to) {
+      params.set('to', input.to);
+    }
+
     return request<AdminActivityPoint[]>(
-      '/admin/activity?days=' +
-        encodeURIComponent(String(days)),
+      '/admin/activity?' +
+        params.toString(),
       {},
       token,
     );
   },
 
-  async adminExportCsv(token: string) {
+  async adminExportCsv(
+    token: string,
+    range?: {
+      from?: string;
+      to?: string;
+    },
+  ) {
+    const params =
+      new URLSearchParams();
+
+    if (range?.from) {
+      params.set('from', range.from);
+    }
+    if (range?.to) {
+      params.set('to', range.to);
+    }
+
     const response = await fetch(
-      API_BASE + '/admin/export.csv',
+      API_BASE +
+        '/admin/export.csv?' +
+        params.toString(),
       {
         headers: {
           Authorization: 'Bearer ' + token,
@@ -574,6 +611,64 @@ export const api = {
           message;
       } catch {
         // Keep generic message for non-JSON responses.
+      }
+
+      throw new Error(
+        Array.isArray(message)
+          ? message.join(', ')
+          : message,
+      );
+    }
+
+    return response.blob();
+  },
+
+  async adminExportPdf(
+    token: string,
+    range?: {
+      from?: string;
+      to?: string;
+    },
+  ) {
+    const params =
+      new URLSearchParams();
+
+    if (range?.from) {
+      params.set('from', range.from);
+    }
+    if (range?.to) {
+      params.set('to', range.to);
+    }
+
+    const response = await fetch(
+      API_BASE +
+        '/admin/export.pdf?' +
+        params.toString(),
+      {
+        headers: {
+          Authorization:
+            'Bearer ' + token,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const text =
+        await response.text();
+      let message =
+        'Admin PDF export failed with status ' +
+        response.status;
+
+      try {
+        const data = text
+          ? JSON.parse(text)
+          : null;
+        message =
+          data?.message ??
+          data?.error ??
+          message;
+      } catch {
+        // Keep generic message.
       }
 
       throw new Error(
