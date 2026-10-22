@@ -116,6 +116,8 @@ services:
       MODSEC_REQ_BODY_NOFILES_LIMIT: "1048576"
     ports:
       - "${APP_PORT:-8080}:8080"
+    volumes:
+      - ./waf/security-headers.conf.template:/etc/nginx/templates/conf.d/security-headers.conf.template:ro
     depends_on:
       frontend:
         condition: service_healthy
