@@ -401,6 +401,19 @@ export class CommunityService {
       );
     }
 
+    const previousVote =
+      await this.prisma.communityVote.findUnique({
+        where: {
+          artifactId_userId: {
+            artifactId,
+            userId,
+          },
+        },
+        select: {
+          verdict: true,
+        },
+      });
+
     const vote = await this.prisma.communityVote.upsert({
       where: {
         artifactId_userId: {
@@ -415,6 +428,23 @@ export class CommunityService {
         artifactId,
         userId,
         verdict: verdict as Verdict,
+      },
+    });
+
+    await this.notifications.createResourceEvent({
+      userId,
+      type: previousVote
+        ? NotificationType.RESOURCE_UPDATED
+        : NotificationType.RESOURCE_CREATED,
+      entityType: 'community_vote',
+      entityId:
+        artifactId + ':' + userId,
+      artifactId,
+      message: previousVote
+        ? 'Your community verdict was updated.'
+        : 'Your community verdict was created.',
+      metadata: {
+        verdict: vote.verdict,
       },
     });
 
