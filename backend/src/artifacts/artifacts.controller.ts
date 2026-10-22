@@ -25,6 +25,25 @@ export class ArtifactsController {
     return this.artifacts.scannerCapabilities();
   }
 
+  @Get('search/advanced')
+  advancedSearch(
+    @Query('q') query?: string,
+    @Query('type') type?: string,
+    @Query('verdict') verdict?: string,
+    @Query('sort') sort?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.artifacts.searchPublicArtifactsAdvanced({
+      query,
+      type,
+      verdict,
+      sort,
+      page,
+      pageSize,
+    });
+  }
+
   @Get('search')
   search(@Query('q') query?: string) {
     return this.artifacts.searchPublicArtifacts(query);
