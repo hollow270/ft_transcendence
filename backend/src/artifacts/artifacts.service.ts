@@ -557,6 +557,56 @@ export class ArtifactsService {
     };
   }
 
+  async deleteApiSubmission(
+    submissionId: string,
+    userId: string,
+  ) {
+    const submission =
+      await this.prisma.submission.findFirst({
+        where: {
+          id: submissionId,
+          userId,
+          source: SubmissionSource.API,
+        },
+        select: {
+          id: true,
+          artifactId: true,
+        },
+      });
+
+    if (!submission) {
+      throw new NotFoundException(
+        'API submission not found',
+      );
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.submission.delete({
+        where: {
+          id: submission.id,
+        },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: userId,
+          action: 'API_SUBMISSION_DELETED',
+          targetType: 'submission',
+          targetId: submission.id,
+          metadata: {
+            artifactId:
+              submission.artifactId,
+          },
+        },
+      }),
+    ]);
+
+    return {
+      success: true,
+      submissionId: submission.id,
+      artifactId: submission.artifactId,
+    };
+  }
+
   async getArtifactScanHistory(
     artifactId: string,
     userId: string | null,
