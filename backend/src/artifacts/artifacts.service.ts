@@ -230,6 +230,357 @@ export class ArtifactsService {
     });
   }
 
+  async searchPublicArtifactsAdvanced(input: {
+    query?: string;
+    type?: string;
+    verdict?: string;
+    sort?: string;
+    page?: string | number;
+    pageSize?: string | number;
+  }) {
+    const query = input.query?.trim() ?? '';
+
+    if (query.length > 512) {
+      throw new BadRequestException(
+        'search query must contain at most 512 characters',
+      );
+    }
+
+    const typeValue =
+      input.type?.toUpperCase();
+    const type =
+      typeValue === 'FILE' ||
+      typeValue === 'URL'
+        ? (typeValue as ArtifactType)
+        : undefined;
+
+    if (
+      input.type &&
+      !type
+    ) {
+      throw new BadRequestException(
+        'type must be FILE or URL',
+      );
+    }
+
+    const verdictValue =
+      input.verdict?.toUpperCase();
+    const verdict =
+      verdictValue &&
+      Object.values(Verdict).includes(
+        verdictValue as Verdict,
+      )
+        ? (verdictValue as Verdict)
+        : undefined;
+
+    if (
+      input.verdict &&
+      !verdict
+    ) {
+      throw new BadRequestException(
+        'invalid verdict filter',
+      );
+    }
+
+    const allowedSorts = [
+      'LAST_SEEN_DESC',
+      'LAST_SEEN_ASC',
+      'FIRST_SEEN_DESC',
+      'FIRST_SEEN_ASC',
+    ] as const;
+    const sort = (
+      input.sort ?? 'LAST_SEEN_DESC'
+    ).toUpperCase();
+
+    if (
+      !allowedSorts.includes(
+        sort as (typeof allowedSorts)[number],
+      )
+    ) {
+      throw new BadRequestException(
+        'invalid search sort',
+      );
+    }
+
+    const page = Math.max(
+      1,
+      Math.min(
+        1000,
+        Number(input.page ?? 1) || 1,
+      ),
+    );
+    const pageSize = Math.max(
+      1,
+      Math.min(
+        50,
+        Number(input.pageSize ?? 10) || 10,
+      ),
+    );
+
+    const lowerQuery =
+      query.toLowerCase();
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        query,
+      );
+
+    const where: Prisma.ArtifactWhereInput = {
+      submissions: {
+        some: {
+          visibility: Visibility.PUBLIC,
+        },
+      },
+      ...(type ? { type } : {}),
+      ...(verdict
+        ? {
+            scans: {
+              some: {
+                visibility:
+                  Visibility.PUBLIC,
+                overallVerdict:
+                  verdict,
+              },
+            },
+          }
+        : {}),
+      ...(query
+        ? {
+            OR: [
+              ...(isUuid
+                ? [{ id: query }]
+                : []),
+              {
+                file: {
+                  is: {
+                    OR: [
+                      {
+                        sha256: {
+                          contains:
+                            lowerQuery,
+                        },
+                      },
+                      {
+                        sha1: {
+                          contains:
+                            lowerQuery,
+                        },
+                      },
+                      {
+                        md5: {
+                          contains:
+                            lowerQuery,
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+              {
+                url: {
+                  is: {
+                    OR: [
+                      {
+                        normalizedUrl: {
+                          contains:
+                            query,
+                          mode:
+                            'insensitive',
+                        },
+                      },
+                      {
+                        domain: {
+                          contains:
+                            query,
+                          mode:
+                            'insensitive',
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+              {
+                submissions: {
+                  some: {
+                    visibility:
+                      Visibility.PUBLIC,
+                    OR: [
+                      {
+                        originalFilename:
+                          {
+                            contains:
+                              query,
+                            mode:
+                              'insensitive',
+                          },
+                      },
+                      {
+                        originalUrl: {
+                          contains:
+                            query,
+                          mode:
+                            'insensitive',
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const orderBy =
+      sort === 'LAST_SEEN_ASC'
+        ? { lastSeenAt: 'asc' as const }
+        : sort === 'FIRST_SEEN_DESC'
+          ? {
+              firstSeenAt:
+                'desc' as const,
+            }
+          : sort === 'FIRST_SEEN_ASC'
+            ? {
+                firstSeenAt:
+                  'asc' as const,
+              }
+            : {
+                lastSeenAt:
+                  'desc' as const,
+              };
+
+    const [total, artifacts] =
+      await this.prisma.$transaction([
+        this.prisma.artifact.count({
+          where,
+        }),
+        this.prisma.artifact.findMany({
+          where,
+          orderBy,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: {
+            file: true,
+            url: true,
+            submissions: {
+              where: {
+                visibility:
+                  Visibility.PUBLIC,
+              },
+              orderBy: {
+                createdAt: 'desc',
+              },
+              take: 1,
+              select: {
+                originalFilename: true,
+                originalUrl: true,
+                createdAt: true,
+              },
+            },
+            scans: {
+              where: {
+                visibility:
+                  Visibility.PUBLIC,
+                ...(verdict
+                  ? {
+                      overallVerdict:
+                        verdict,
+                    }
+                  : {}),
+              },
+              orderBy: {
+                createdAt: 'desc',
+              },
+              take: 1,
+              select: {
+                id: true,
+                status: true,
+                overallVerdict: true,
+                provider: true,
+                completedAt: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+    const items = artifacts.map(
+      (artifact) => {
+        const submission =
+          artifact.submissions[0] ??
+          null;
+        const scan =
+          artifact.scans[0] ?? null;
+
+        return {
+          id: artifact.id,
+          type: artifact.type,
+          displayName:
+            submission?.originalFilename ??
+            submission?.originalUrl ??
+            artifact.file?.sha256 ??
+            artifact.url
+              ?.normalizedUrl ??
+            artifact.id,
+          firstSeenAt:
+            artifact.firstSeenAt,
+          lastSeenAt:
+            artifact.lastSeenAt,
+          file: artifact.file
+            ? {
+                sha256:
+                  artifact.file.sha256,
+                sha1: artifact.file.sha1,
+                md5: artifact.file.md5,
+                size:
+                  artifact.file.size.toString(),
+                mimeType:
+                  artifact.file.mimeType,
+              }
+            : null,
+          url: artifact.url
+            ? {
+                normalizedUrl:
+                  artifact.url
+                    .normalizedUrl,
+                domain:
+                  artifact.url.domain,
+              }
+            : null,
+          latestScan: scan
+            ? {
+                id: scan.id,
+                status: scan.status,
+                verdict:
+                  scan.overallVerdict,
+                provider:
+                  scan.provider,
+                completedAt:
+                  scan.completedAt,
+              }
+            : null,
+        };
+      },
+    );
+
+    return {
+      items,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(
+        1,
+        Math.ceil(total / pageSize),
+      ),
+      sort,
+      filters: {
+        query,
+        type: type ?? null,
+        verdict: verdict ?? null,
+      },
+    };
+  }
+
   async submitFile(
     uploadedFile: ScannerFile | undefined,
     userId: string | null,
