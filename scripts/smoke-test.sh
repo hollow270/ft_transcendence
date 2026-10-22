@@ -469,6 +469,12 @@ curl -fsS -X DELETE "$BASE_URL/artifacts/$ARTIFACT_ID/comments/$EDIT_COMMENT_ID"
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.success!==true) process.exit(1); console.log("comment edit/delete ok");});
 '
 
+curl -fsS "$BASE_URL/notifications" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); const types=new Set(j.map(x=>x.type)); if(!types.has("RESOURCE_CREATED") || !types.has("RESOURCE_UPDATED") || !types.has("RESOURCE_DELETED")) process.exit(1); console.log("comment lifecycle notifications ok");});
+'
+
 curl -fsS -X PUT "$BASE_URL/artifacts/$ARTIFACT_ID/vote"   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d '{"verdict":"SUSPICIOUS"}'   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.verdict!=="SUSPICIOUS") process.exit(1); console.log("vote ok");});
 '
@@ -523,6 +529,20 @@ VIEWER_LOGIN=$(curl -fsS -X POST "$BASE_URL/auth/login"   -H "Content-Type: appl
 VIEWER_TOKEN=$(printf '%s' "$VIEWER_LOGIN" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.token) process.exit(1); process.stdout.write(j.token);});
 ')
+
+curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/comments" \
+  -H "Authorization: Bearer $VIEWER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"body\":\"CI reply notification\",\"parentId\":\"$COMMENT_ID\"}" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.id || !j.parentId) process.exit(1);});
+'
+
+curl -fsS "$BASE_URL/notifications" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.some(x=>x.type==="COMMENT_REPLY")) process.exit(1); console.log("comment reply notification ok");});
+'
 
 PRIVATE_HISTORY_CODE=$(curl -sS -o /tmp/private-history.json -w "%{http_code}"   "$BASE_URL/artifacts/$PRIVATE_ARTIFACT_ID/scans"   -H "Authorization: Bearer $VIEWER_TOKEN")
 
