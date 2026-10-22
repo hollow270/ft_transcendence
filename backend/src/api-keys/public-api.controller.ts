@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
   UploadedFile,
@@ -46,6 +48,37 @@ export class PublicApiController {
 
     request.apiArtifactId = artifactId;
     return artifact;
+  }
+
+  @Put('artifacts/:artifactId/rescan')
+  async rescanArtifact(
+    @Req() request: any,
+    @Param('artifactId') artifactId: string,
+  ) {
+    const result =
+      await this.artifacts.rescanArtifact(
+        artifactId,
+        request.apiKeyAuth.userId,
+      );
+
+    request.apiArtifactId = artifactId;
+    return result;
+  }
+
+  @Delete('submissions/:submissionId')
+  async deleteSubmission(
+    @Req() request: any,
+    @Param('submissionId') submissionId: string,
+  ) {
+    const result =
+      await this.artifacts.deleteApiSubmission(
+        submissionId,
+        request.apiKeyAuth.userId,
+      );
+
+    request.apiArtifactId =
+      result.artifactId;
+    return result;
   }
 
   @Post('urls')
