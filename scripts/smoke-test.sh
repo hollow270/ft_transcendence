@@ -3,9 +3,10 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173}"
+WAF_URL="${WAF_URL:-http://localhost:8080}"
 
 cleanup() {
-  docker compose logs --no-color frontend backend postgres clamav || true
+  docker compose logs --no-color waf frontend backend postgres clamav || true
   docker compose down -v || true
 }
 trap cleanup EXIT
@@ -63,6 +64,51 @@ echo "frontend dev server ok"
 curl -fsS "$FRONTEND_URL/api/health"   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.status!=="ok" || j.database!=="connected") process.exit(1); console.log("frontend API proxy ok");});
 '
+
+
+echo "Waiting for OWASP CRS WAF..."
+waf_ready=0
+for _ in $(seq 1 60); do
+  if curl -fsS "$WAF_URL/healthz" >/dev/null 2>&1; then
+    waf_ready=1
+    break
+  fi
+  sleep 2
+done
+
+if [ "$waf_ready" -ne 1 ]; then
+  echo "WAF never became healthy"
+  exit 1
+fi
+
+curl -fsS -D /tmp/waf-headers.txt "$WAF_URL/api/health" -o /tmp/waf-health.json
+
+node -e '
+const fs=require("fs");
+const health=JSON.parse(fs.readFileSync("/tmp/waf-health.json","utf8"));
+if(health.status!=="ok" || health.database!=="connected") process.exit(1);
+'
+
+grep -qi '^x-content-type-options: nosniff' /tmp/waf-headers.txt
+grep -qi '^x-frame-options: DENY' /tmp/waf-headers.txt
+grep -qi '^content-security-policy:' /tmp/waf-headers.txt
+
+if grep -qi '^x-powered-by:' /tmp/waf-headers.txt; then
+  echo "x-powered-by must not be exposed"
+  exit 1
+fi
+
+echo "WAF secure entrypoint ok"
+
+WAF_ATTACK_CODE=$(curl -sS -o /tmp/waf-attack.html -w "%{http_code}"   "$WAF_URL/api/artifacts/search?q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E")
+
+if [ "$WAF_ATTACK_CODE" != "403" ]; then
+  echo "WAF should block the XSS probe with 403, got $WAF_ATTACK_CODE"
+  cat /tmp/waf-attack.html
+  exit 1
+fi
+
+echo "OWASP CRS blocking mode ok"
 
 docker compose exec -T frontend npm run build
 echo "frontend production build ok"
