@@ -43,8 +43,13 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       TWO_FACTOR_ENCRYPTION_KEY: ${TWO_FACTOR_ENCRYPTION_KEY:-}
+      TWO_FACTOR_ENCRYPTION_KEY_FILE: ${TWO_FACTOR_ENCRYPTION_KEY_FILE:-}
+      VIRUSTOTAL_API_KEY_FILE: ${VIRUSTOTAL_API_KEY_FILE:-}
+      OPENAI_API_KEY_FILE: ${OPENAI_API_KEY_FILE:-}
+      APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      HTTP_RATE_LIMIT_PER_MINUTE: ${HTTP_RATE_LIMIT_PER_MINUTE:-300}
     ports:
-      - "${BACKEND_PORT:-3000}:3000"
+      - "127.0.0.1:${BACKEND_PORT:-3000}:3000"
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -73,7 +78,7 @@ services:
     environment:
       VITE_PROXY_TARGET: http://backend:3000
     ports:
-      - "${FRONTEND_PORT:-5173}:5173"
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -87,6 +92,40 @@ services:
           "node",
           "-e",
           "fetch('http://localhost:5173').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  waf:
+    image: owasp/modsecurity-crs:nginx
+    environment:
+      BACKEND: http://frontend:5173
+      SERVER_NAME: ${WAF_SERVER_NAME:-localhost}
+      PORT: 8080
+      MODSEC_RULE_ENGINE: "On"
+      BLOCKING_PARANOIA: "1"
+      ANOMALY_INBOUND: "5"
+      ANOMALY_OUTBOUND: "4"
+      ALLOWED_METHODS: "GET HEAD POST PUT PATCH DELETE OPTIONS"
+      MAX_FILE_SIZE: "26214400"
+      COMBINED_FILE_SIZES: "26214400"
+      MODSEC_REQ_BODY_LIMIT: "30000000"
+      MODSEC_REQ_BODY_NOFILES_LIMIT: "1048576"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fsS",
+          "http://localhost:8080/healthz"
         ]
       interval: 10s
       timeout: 5s
