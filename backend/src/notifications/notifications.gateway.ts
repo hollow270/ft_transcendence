@@ -1,5 +1,7 @@
 import {
   OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
@@ -20,11 +22,29 @@ const socketOrigins = (
     methods: ['GET', 'POST'],
   },
 })
-export class NotificationsGateway implements OnGatewayConnection {
+export class NotificationsGateway
+  implements
+    OnGatewayInit,
+    OnGatewayConnection,
+    OnGatewayDisconnect
+{
   @WebSocketServer()
   server!: Server;
 
   constructor(private readonly auth: AuthService) {}
+
+  afterInit(server: Server) {
+    const timer = setInterval(() => {
+      server.to('admins').emit(
+        'admin:metrics',
+        {
+          at: new Date().toISOString(),
+        },
+      );
+    }, 5000);
+
+    timer.unref();
+  }
 
   async handleConnection(client: Socket) {
     try {
@@ -41,10 +61,32 @@ export class NotificationsGateway implements OnGatewayConnection {
         await this.auth.requireUserFromAuthorization(authorization);
 
       client.data.userId = user.id;
+      client.data.role = user.role;
       await client.join(`user:${user.id}`);
+
+      if (user.role === 'ADMIN') {
+        await client.join('admins');
+      }
     } catch {
       client.disconnect(true);
     }
+  }
+
+  handleDisconnect(client: Socket) {
+    client.data.userId = undefined;
+    client.data.role = undefined;
+  }
+
+  emitAdminMetricsChanged(
+    payload: Record<string, unknown> = {},
+  ) {
+    this.server.to('admins').emit(
+      'admin:metrics',
+      {
+        at: new Date().toISOString(),
+        ...payload,
+      },
+    );
   }
 
   emitToUser(userId: string, event: string, payload: unknown) {
