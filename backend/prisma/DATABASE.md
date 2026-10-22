@@ -50,16 +50,26 @@ ScanEngineResult = one engine's result inside that scan
 - LLM prompts and generated responses are intentionally not stored.
 - Admin analytics can be calculated from the normal application tables.
 
-## Development behavior
+## Versioned migration workflow
 
-For this early development phase the backend container runs:
+Database V1 is frozen as the initial versioned Prisma migration:
+
+```text
+prisma/migrations/20261022084251_database_v1/migration.sql
+```
+
+The generated baseline contains the complete 19-table schema, 13 PostgreSQL enums, indexes, unique constraints and foreign keys.
+
+The backend container now starts with:
 
 ```bash
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
 npm run start:dev
 ```
 
-So `docker compose up --build` automatically synchronizes the Prisma schema with the local development database.
+For local databases that were created earlier with `prisma db push`, the startup script detects the complete 19-table legacy Database V1 schema and records the initial migration as already applied before running `migrate deploy`. Existing rows are left intact.
 
-Once the schema is stable, switch from `prisma db push` to versioned Prisma migrations before production.
+A partially populated unmanaged schema is not baselined automatically; startup stops instead of guessing.
+
+Future schema changes must be represented by additional migrations rather than `prisma db push`.
