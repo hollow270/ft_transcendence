@@ -25,13 +25,19 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Frontend:
+Secure application entry point:
+
+```text
+http://localhost:8080
+```
+
+Local development frontend:
 
 ```text
 http://localhost:5173
 ```
 
-Backend:
+Local development backend:
 
 ```text
 http://localhost:3000
@@ -128,6 +134,59 @@ docker compose up --build -d
 Users can enable 2FA under **Settings → Security**. The setup secret is encrypted with AES-256-GCM before it is stored in PostgreSQL. Once 2FA is enabled, password login does not create a session until a valid 6-digit TOTP code is supplied.
 
 Keep `TWO_FACTOR_ENCRYPTION_KEY` private and stable. Changing or losing it makes existing encrypted authenticator secrets unreadable.
+
+## Security hardening
+
+The normal Compose stack now includes an OWASP Core Rule Set / ModSecurity reverse-proxy WAF.
+
+Use the secure entry point:
+
+```text
+http://localhost:8080
+```
+
+The direct development ports remain available only on the local loopback interface:
+
+```text
+127.0.0.1:5173  frontend
+127.0.0.1:3000  backend
+127.0.0.1:5432  PostgreSQL
+```
+
+This prevents the development services and database from listening on external host interfaces while keeping local debugging convenient.
+
+The WAF:
+
+- runs in blocking mode with OWASP CRS;
+- proxies the React/Vite application, API and Socket.IO traffic;
+- permits the HTTP methods used by GO VIRUS;
+- supports the configured 25 MB upload limit;
+- applies browser-facing security headers including CSP, frame protection, MIME sniffing protection, referrer policy and a restrictive permissions policy.
+
+The NestJS application also applies Helmet security headers, restricts CORS and WebSocket origins, trusts only the reverse-proxy hop, removes the Express disclosure header, and enforces a global request rate limit. Registration and login are limited more aggressively.
+
+Default local limits:
+
+```env
+HTTP_RATE_LIMIT_PER_MINUTE=300
+APP_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080
+```
+
+For a real deployment, set `APP_ALLOWED_ORIGINS` and `WAF_SERVER_NAME` to the deployment hostname instead of keeping the local defaults.
+
+### File-mounted secrets
+
+GO VIRUS can read sensitive values either from normal environment variables or from files mounted into the backend container. This is useful with Docker secrets, Kubernetes secrets, or a Vault agent that writes secrets to files.
+
+Supported file variables:
+
+```env
+VIRUSTOTAL_API_KEY_FILE=/run/secrets/virustotal
+OPENAI_API_KEY_FILE=/run/secrets/openai
+TWO_FACTOR_ENCRYPTION_KEY_FILE=/run/secrets/two_factor
+```
+
+When a `*_FILE` variable is configured, the file value takes precedence over the plain environment variable. Secret files are not included in the repository.
 
 ## Prisma development workflow
 
