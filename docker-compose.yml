@@ -102,6 +102,7 @@ services:
   waf:
     image: owasp/modsecurity-crs:nginx
     entrypoint: ["/bin/sh", "/run/go-virus/entrypoint.sh"]
+    command: ["nginx", "-g", "daemon off;"]
     environment:
       BACKEND: http://frontend:5173
       SERVER_NAME: ${WAF_SERVER_NAME:-localhost}
