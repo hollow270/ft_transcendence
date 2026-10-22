@@ -309,6 +309,12 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 
 echo "public artifact search ok"
 
+ADVANCED_SEARCH=$(curl -fsS "$BASE_URL/artifacts/search/advanced?q=sample.txt&type=FILE&verdict=UNKNOWN&sort=LAST_SEEN_DESC&page=1&pageSize=1")
+
+printf '%s' "$ADVANCED_SEARCH" | ARTIFACT_ID="$ARTIFACT_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j.items) || j.items.length!==1) process.exit(1); if(j.items[0].id!==process.env.ARTIFACT_ID) process.exit(1); if(j.page!==1 || j.pageSize!==1 || j.total<1 || j.totalPages<1) process.exit(1); if(j.filters?.type!=="FILE" || j.filters?.verdict!=="UNKNOWN") process.exit(1); console.log("advanced artifact search ok");});
+'
+
 API_KEY_CREATED=$(curl -fsS -X POST "$BASE_URL/api-keys" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -353,16 +359,17 @@ curl -fsS -X PUT "$BASE_URL/api/v1/artifacts/$API_URL_ARTIFACT_ID/rescan" \
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.reason!=="MANUAL_RESCAN") process.exit(1);});
 '
 
-curl -fsS -X DELETE "$BASE_URL/api/v1/submissions/$API_URL_SUBMISSION_ID" \
-  -H "X-API-Key: $PUBLIC_API_KEY" \
-  | API_URL_ARTIFACT_ID="$API_URL_ARTIFACT_ID" node -e '
-let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.success!==true || j.artifactId!==process.env.API_URL_ARTIFACT_ID) process.exit(1); console.log("public API PUT/DELETE ok");});
-'
 
 curl -fsS "$BASE_URL/api/v1/artifacts/$API_URL_ARTIFACT_ID" \
   -H "X-API-Key: $PUBLIC_API_KEY" \
   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.type!=="URL" || j.url?.domain!=="api.example.com") process.exit(1); console.log("public API artifact lookup ok");});
+'
+
+curl -fsS -X DELETE "$BASE_URL/api/v1/submissions/$API_URL_SUBMISSION_ID" \
+  -H "X-API-Key: $PUBLIC_API_KEY" \
+  | API_URL_ARTIFACT_ID="$API_URL_ARTIFACT_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.success!==true || j.artifactId!==process.env.API_URL_ARTIFACT_ID) process.exit(1); console.log("public API PUT/DELETE ok");});
 '
 
 printf 'public api file\n' >/tmp/api-sample.txt
