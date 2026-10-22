@@ -371,3 +371,33 @@ export type AdminActivityPoint = {
   scans: number;
   apiRequests: number;
 };
+
+
+export type AdvancedSearchSort =
+  | 'LAST_SEEN_DESC'
+  | 'LAST_SEEN_ASC'
+  | 'FIRST_SEEN_DESC'
+  | 'FIRST_SEEN_ASC';
+
+export type AdvancedSearchResponse = {
+  items: Array<
+    SearchResult & {
+      firstSeenAt: string;
+    }
+  >;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  sort: AdvancedSearchSort;
+  filters: {
+    query: string;
+    type: 'FILE' | 'URL' | null;
+    verdict:
+      | 'UNKNOWN'
+      | 'HARMLESS'
+      | 'SUSPICIOUS'
+      | 'MALICIOUS'
+      | null;
+  };
+};
