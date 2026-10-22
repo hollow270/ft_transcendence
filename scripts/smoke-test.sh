@@ -4,6 +4,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173}"
 WAF_URL="${WAF_URL:-http://localhost:8080}"
+HTTPS_WAF_URL="${HTTPS_WAF_URL:-https://localhost:8443}"
 
 cleanup() {
   docker compose logs --no-color waf frontend backend postgres clamav || true
@@ -109,6 +110,34 @@ if [ "$WAF_ATTACK_CODE" != "403" ]; then
 fi
 
 echo "OWASP CRS blocking mode ok"
+
+
+https_ready=0
+for _ in $(seq 1 30); do
+  if curl -kfsS "$HTTPS_WAF_URL/healthz" >/dev/null 2>&1; then
+    https_ready=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$https_ready" -ne 1 ]; then
+  echo "HTTPS WAF endpoint never became ready"
+  exit 1
+fi
+
+curl -kfsS --tlsv1.2   -D /tmp/waf-https-headers.txt   "$HTTPS_WAF_URL/api/health"   -o /tmp/waf-https-health.json
+
+node -e '
+const fs=require("fs");
+const health=JSON.parse(fs.readFileSync("/tmp/waf-https-health.json","utf8"));
+if(health.status!=="ok" || health.database!=="connected") process.exit(1);
+'
+
+grep -qi '^content-security-policy:' /tmp/waf-https-headers.txt
+grep -qi '^x-content-type-options: nosniff' /tmp/waf-https-headers.txt
+
+echo "HTTPS WAF entrypoint ok"
 
 docker compose exec -T frontend npm run build
 echo "frontend production build ok"
