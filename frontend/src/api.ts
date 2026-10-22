@@ -1,4 +1,6 @@
 import type {
+  AdvancedSearchResponse,
+  AdvancedSearchSort,
   Artifact,
   AdminActivityPoint,
   AdminOverview,
@@ -236,6 +238,49 @@ export const api = {
 
   scannerCapabilities() {
     return request<ScannerCapabilities>('/artifacts/scanner/capabilities');
+  },
+
+  searchArtifactsAdvanced(input: {
+    query?: string;
+    type?: 'FILE' | 'URL' | '';
+    verdict?:
+      | 'UNKNOWN'
+      | 'HARMLESS'
+      | 'SUSPICIOUS'
+      | 'MALICIOUS'
+      | '';
+    sort?: AdvancedSearchSort;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const params = new URLSearchParams();
+
+    if (input.query?.trim()) {
+      params.set('q', input.query.trim());
+    }
+    if (input.type) {
+      params.set('type', input.type);
+    }
+    if (input.verdict) {
+      params.set('verdict', input.verdict);
+    }
+    if (input.sort) {
+      params.set('sort', input.sort);
+    }
+    if (input.page) {
+      params.set('page', String(input.page));
+    }
+    if (input.pageSize) {
+      params.set(
+        'pageSize',
+        String(input.pageSize),
+      );
+    }
+
+    return request<AdvancedSearchResponse>(
+      '/artifacts/search/advanced?' +
+        params.toString(),
+    );
   },
 
   searchArtifacts(query: string) {
