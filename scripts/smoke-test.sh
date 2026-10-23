@@ -2,9 +2,10 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:3000}"
+FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173}"
 
 cleanup() {
-  docker compose logs --no-color backend postgres || true
+  docker compose logs --no-color frontend backend postgres || true
   docker compose down -v || true
 }
 trap cleanup EXIT
@@ -34,6 +35,31 @@ const health = JSON.parse(fs.readFileSync("/tmp/health.json", "utf8"));
 if (health.status !== "ok" || health.database !== "connected") process.exit(1);
 console.log("health ok");
 '
+
+echo "Waiting for React frontend..."
+frontend_ready=0
+for _ in $(seq 1 60); do
+  if curl -fsS "$FRONTEND_URL" >/tmp/frontend.html 2>/dev/null; then
+    frontend_ready=1
+    break
+  fi
+  sleep 2
+done
+
+if [ "$frontend_ready" -ne 1 ]; then
+  echo "Frontend never became healthy"
+  exit 1
+fi
+
+grep -q "Transcendence Scanner" /tmp/frontend.html
+echo "frontend dev server ok"
+
+curl -fsS "$FRONTEND_URL/api/health"   | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.status!=="ok" || j.database!=="connected") process.exit(1); console.log("frontend API proxy ok");});
+'
+
+docker compose exec -T frontend npm run build
+echo "frontend production build ok"
 
 REGISTER=$(curl -fsS -X POST "$BASE_URL/auth/register"   -H "Content-Type: application/json"   -d '{"username":"ciuser","email":"ci@example.com","password":"password123"}')
 
