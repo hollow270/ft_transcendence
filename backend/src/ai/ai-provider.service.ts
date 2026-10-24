@@ -51,7 +51,7 @@ export class AiProviderService {
           model: this.modelName,
           messages,
           stream: true,
-          max_tokens: 1500,
+          max_completion_tokens: 1500,
           stream_options: {
             include_usage: true,
           },
