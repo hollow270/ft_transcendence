@@ -10,9 +10,10 @@ import { NotificationsController } from './notifications/notifications.controlle
 import { NotificationsGateway } from './notifications/notifications.gateway';
 import { NotificationsService } from './notifications/notifications.service';
 import { PrismaModule } from './prisma.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, AiModule],
+  imports: [PrismaModule, AuthModule, AiModule, UsersModule],
   controllers: [
     AppController,
     ArtifactsController,
