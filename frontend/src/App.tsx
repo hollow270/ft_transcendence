@@ -5,6 +5,7 @@ import ArtifactPage from './pages/ArtifactPage';
 import HomePage from './pages/HomePage';
 import LlmPage from './pages/LlmPage';
 import NotificationsPage from './pages/NotificationsPage';
+import UserCommunityPage from './pages/UserCommunityPage';
 import {
   AdminPage,
   ApiKeysPage,
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="search" element={<SearchPage />} />
             <Route path="artifact/:artifactId" element={<ArtifactPage />} />
             <Route path="history" element={<HistoryPage />} />
+            <Route path="users/:userId/community" element={<UserCommunityPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="profile/security" element={<SecurityPage />} />
             <Route path="llm" element={<LlmPage />} />
