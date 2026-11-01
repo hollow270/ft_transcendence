@@ -56,6 +56,7 @@ export default function ArtifactPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [scanBusy, setScanBusy] = useState(false);
   const [tab, setTab] = useState<Tab>('detection');
 
   const [comments, setComments] = useState<Comment[]>([]);
@@ -106,6 +107,17 @@ export default function ArtifactPage() {
     setAiAnswer('');
     setAiError(null);
   }, [artifactId]);
+
+  useEffect(() => {
+    if (artifact?.latestScan?.status !== 'RUNNING') return;
+
+    const timer = window.setInterval(() => {
+      void refreshPendingScan(true);
+    }, 20000);
+
+    return () => window.clearInterval(timer);
+  }, [artifact?.latestScan?.id, artifact?.latestScan?.status, token]);
+
 
   const detections = useMemo(() => {
     const results = artifact?.latestScan?.engineResults ?? [];
@@ -166,6 +178,49 @@ export default function ArtifactPage() {
       setVotes(await api.votes(artifactId));
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Vote failed');
+    }
+  }
+
+  async function refreshPendingScan(silent = false) {
+    if (!artifactId) return;
+
+    if (!silent) {
+      setScanBusy(true);
+      setActionError(null);
+    }
+
+    try {
+      await api.refreshArtifactScan(artifactId, token);
+      const updated = await api.artifact(artifactId, token);
+      setArtifact(updated);
+    } catch (error) {
+      if (!silent) {
+        setActionError(
+          error instanceof Error ? error.message : 'Could not refresh scan status',
+        );
+      }
+    } finally {
+      if (!silent) setScanBusy(false);
+    }
+  }
+
+  async function requestRescan() {
+    if (!token || !artifact?.file) return;
+
+    setScanBusy(true);
+    setActionError(null);
+
+    try {
+      await api.rescanArtifact(artifactId, token);
+      const updated = await api.artifact(artifactId, token);
+      setArtifact(updated);
+      setTab('detection');
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : 'Could not start rescan',
+      );
+    } finally {
+      setScanBusy(false);
     }
   }
 
@@ -243,7 +298,29 @@ export default function ArtifactPage() {
       <PageHeader
         title={artifact.file ? 'File report' : 'URL report'}
         description={displayName}
-        actions={<VerdictBadge value={artifact.latestScan?.overallVerdict} />}
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <VerdictBadge value={artifact.latestScan?.overallVerdict} />
+            {artifact.latestScan?.status === 'RUNNING' && (
+              <button
+                className="secondary-button"
+                disabled={scanBusy}
+                onClick={() => void refreshPendingScan(false)}
+              >
+                {scanBusy ? 'Refreshing…' : 'Refresh results'}
+              </button>
+            )}
+            {user && artifact.file && artifact.latestScan?.status !== 'RUNNING' && (
+              <button
+                className="secondary-button"
+                disabled={scanBusy}
+                onClick={() => void requestRescan()}
+              >
+                {scanBusy ? 'Starting…' : 'Rescan'}
+              </button>
+            )}
+          </div>
+        }
       />
 
       <section className="surface overflow-hidden">
@@ -304,6 +381,19 @@ export default function ArtifactPage() {
 
       {tab === 'detection' && (
         <section className="mt-6 surface overflow-hidden">
+          {artifact.latestScan?.status === 'RUNNING' && (
+            <div className="border-b border-slate-800 p-5">
+              <StatusNotice title="Analysis is still running">
+                The external provider has accepted this file. GO VIRUS will refresh the report automatically, or you can use “Refresh results”.
+              </StatusNotice>
+            </div>
+          )}
+
+          {artifact.latestScan?.status === 'FAILED' && (
+            <div className="border-b border-red-900 bg-red-950/20 p-5 text-sm text-red-300">
+              Scan failed{artifact.latestScan.errorMessage ? ': ' + artifact.latestScan.errorMessage : '.'}
+            </div>
+          )}
           <div className="surface-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-200">Engine results</h2>
@@ -394,6 +484,14 @@ export default function ArtifactPage() {
                     <dd className="text-slate-300">
                       {routeState?.submissionVisibility ?? artifact.latestScan?.visibility ?? '—'}
                     </dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-500">Provider</dt>
+                    <dd className="text-right text-slate-300">{artifact.latestScan?.provider ?? '—'}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-500">Provider status</dt>
+                    <dd className="text-right text-slate-300">{artifact.latestScan?.providerStatus ?? '—'}</dd>
                   </div>
                   <div className="flex justify-between gap-4">
                     <dt className="text-slate-500">Fresh until</dt>
@@ -528,7 +626,15 @@ export default function ArtifactPage() {
                     <h2 className="text-sm font-semibold text-slate-200">Scan explanation</h2>
                     <p className="mt-1 text-xs text-slate-500">Generated from the structured scan evidence stored for this report.</p>
                   </div>
-                  <button className="primary-button" disabled={aiBusy || !artifact.latestScan?.id} onClick={explainScan}>
+                  <button
+                    className="primary-button"
+                    disabled={
+                      aiBusy ||
+                      !artifact.latestScan?.id ||
+                      artifact.latestScan.status !== 'COMPLETED'
+                    }
+                    onClick={explainScan}
+                  >
                     {aiBusy ? 'Generating…' : 'Explain scan'}
                   </button>
                 </div>
