@@ -135,7 +135,7 @@ export class VirusTotalProvider {
 
   private async getExistingReport(
     sha256: string,
-  ): Promise<ScannerCompletedResult | null> {
+  ): Promise<ScannerResult | null> {
     const response = await this.request(
       this.baseUrl + '/files/' + encodeURIComponent(sha256),
       {
@@ -228,7 +228,7 @@ export class VirusTotalProvider {
 
   private async requestRescanFromKnownFile(
     sha256: string,
-  ): Promise<ScannerCompletedResult | ScannerPendingResult | null> {
+  ): Promise<ScannerPendingResult | null> {
     return this.requestRescan(sha256);
   }
 
