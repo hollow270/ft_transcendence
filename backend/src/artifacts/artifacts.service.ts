@@ -367,7 +367,10 @@ export class ArtifactsService {
       scan.providerCheckedAt &&
       Date.now() -
         scan.providerCheckedAt.getTime() <
-        15_000
+        Number(
+          process.env.SCANNER_REFRESH_COOLDOWN_MS ??
+            60000,
+        )
     ) {
       return this.formatScan(scan);
     }
