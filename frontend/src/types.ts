@@ -44,6 +44,14 @@ export type Artifact = {
     normalizedUrl: string;
     domain: string | null;
   } | null;
+  submission: {
+    id: string;
+    visibility: 'PUBLIC' | 'PRIVATE';
+    originalFilename: string | null;
+    originalUrl: string | null;
+    createdAt: string;
+    ownedByViewer: boolean;
+  };
   latestScan: Scan | null;
 };
 
@@ -134,4 +142,13 @@ export type UserCommunity = {
   isOwner: boolean;
   submissions: UserCommunitySubmission[];
   comments: UserCommunityComment[];
+};
+
+
+export type ScannerCapabilities = {
+  provider: string;
+  configured: boolean;
+  supportsPrivate: boolean;
+  maxFileSizeMb: number;
+  external: boolean;
 };
