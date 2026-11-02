@@ -22,6 +22,22 @@ export class ScanningService {
     return this.resolveProvider().name;
   }
 
+  getCapabilities() {
+    const provider = this.resolveProvider();
+    const configured =
+      provider.name === this.virusTotal.name
+        ? this.virusTotal.configured
+        : true;
+
+    return {
+      provider: provider.name,
+      configured,
+      supportsPrivate: provider.supportsPrivate,
+      maxFileSizeMb: Number(process.env.MAX_FILE_SIZE_MB ?? 25),
+      external: provider.name !== this.development.name,
+    };
+  }
+
   async startFileScan(
     input: StartFileScanInput,
   ): Promise<ScannerResult> {
