@@ -78,6 +78,9 @@ export class CommunityService {
     ) {
       throw new ForbiddenException('commenting is temporarily disabled');
     }
+	
+	if ( typeof input.body !== 'string' )
+		throw new BadRequestException('bad comment type');
 
     const body = input.body?.trim();
 
