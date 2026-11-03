@@ -36,6 +36,10 @@ if (health.status !== "ok" || health.database !== "connected") process.exit(1);
 console.log("health ok");
 '
 
+curl -fsS "$BASE_URL/artifacts/scanner/capabilities"   | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.provider!=="development" || j.configured!==true || typeof j.supportsPrivate!=="boolean" || !j.maxFileSizeMb) process.exit(1); console.log("scanner capabilities ok");});
+'
+
 echo "Waiting for React frontend..."
 frontend_ready=0
 for _ in $(seq 1 60); do
@@ -106,7 +110,7 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 '
 
 curl -fsS "$BASE_URL/artifacts/$ARTIFACT_ID"   -H "Authorization: Bearer $TOKEN"   | node -e '
-let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.file?.sha256 || !j.latestScan) process.exit(1); console.log("artifact lookup ok");});
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.file?.sha256 || !j.latestScan || j.submission?.originalFilename!=="sample.txt" || j.submission?.visibility!=="PUBLIC") process.exit(1); console.log("artifact lookup ok");});
 '
 
 
