@@ -50,6 +50,20 @@ export class ArtifactsController {
     );
   }
 
+  @Get(':artifactId/scans')
+  async getArtifactScanHistory(
+    @Param('artifactId') artifactId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user =
+      await this.auth.optionalUserFromAuthorization(authorization);
+
+    return this.artifacts.getArtifactScanHistory(
+      artifactId,
+      user?.id ?? null,
+    );
+  }
+
   @Post(':artifactId/rescan')
   async rescanArtifact(
     @Param('artifactId') artifactId: string,
