@@ -587,12 +587,22 @@ export class ArtifactsService {
         );
       }
 
+      const partialVerdict =
+        result.partialResults?.length
+          ? this.overallVerdict(
+              result.partialResults.map(
+                (item) => item.verdict,
+              ),
+            )
+          : Verdict.UNKNOWN;
+
       return this.prisma.scan.update({
         where: {
           id: scanId,
         },
         data: {
           status: ScanStatus.RUNNING,
+          overallVerdict: partialVerdict,
           provider: result.provider,
           providerAnalysisId:
             result.providerAnalysisId,
