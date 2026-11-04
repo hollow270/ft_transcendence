@@ -377,11 +377,18 @@ export const api = {
     );
   },
 
-  comments(artifactId: string) {
-    return request<Comment[]>(
-      `/artifacts/${encodeURIComponent(artifactId)}/comments`,
-    );
-  },
+	comments( artifactId: string, limit?: number, offset?: number )  {
+		
+		const	url = `/artifacts/${ encodeURIComponent( artifactId ) }/comments`;
+		const	params = new URLSearchParams();
+
+		if ( limit !== undefined )
+			params.set( 'limit', String( limit ) );
+		if ( offset !== undefined )
+			params.set( 'offset', String( offset ) );
+
+		return request<Comment[]>( params ? `${ url }?${ params }` : url, );
+	},
 
   createComment(
     artifactId: string,
