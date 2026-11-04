@@ -23,6 +23,8 @@ export class CommunityController {
 				@Query('limit') limit?: string,
 				@Query('offset') offset?: string) {
 
+		console.log('PAGINATION CONTROLLER:', limit, offset);
+
 		if ( limit !== undefined ) {
 
 			const	nLimit = Number( limit );
