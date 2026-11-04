@@ -24,33 +24,36 @@ export class CommunityService {
       NotificationsService,
   ) {}
 
-  async listComments(artifactId: string) {
-    await this.ensurePublicArtifact(artifactId);
+	async listComments( artifactId: string, limit?: number, offset?: number ) {
+		await this.ensurePublicArtifact(artifactId);
 
-    return this.prisma.comment.findMany({
-      where: {
-        artifactId,
-        status: CommentStatus.ACTIVE,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-      select: {
-        id: true,
-        parentId: true,
-        body: true,
-        createdAt: true,
-        editedAt: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-            role: true,
-          },
-        },
-      },
-    });
-  }
+		return this.prisma.comment.findMany({
+			where: {
+				artifactId,
+				status: CommentStatus.ACTIVE,
+			},
+			orderBy: [
+				{ createdAt: 'asc' },
+				{ id: 'asc' }
+			],
+			select: {
+				id: true,
+				parentId: true,
+				body: true,
+				createdAt: true,
+				editedAt: true,
+				user: {
+					select: {
+						id: true,
+						username: true,
+						role: true,
+					},
+				},
+			},
+			take: limit,
+			skip: offset,
+		});
+	}
 
   async createComment(
     artifactId: string,
@@ -178,7 +181,10 @@ export class CommunityService {
   ) {
     await this.ensurePublicArtifact(artifactId);
 
-    const body = bodyInput?.trim();
+	if ( typeof bodyInput !== 'string' )
+		throw new BadRequestException('bad comment type');
+
+    const body = bodyInput.trim();
 
     if (!body || body.length > 4000) {
       throw new BadRequestException(
