@@ -17,6 +17,7 @@ import { PrismaService } from '../prisma.service';
 import { ScanningService } from '../scanning/scanning.service';
 import {
   ScannerCompletedResult,
+  ScannerEngineResult,
   ScannerFile,
   ScannerResult,
 } from '../scanning/scanning.types';
@@ -573,6 +574,19 @@ export class ArtifactsService {
     result: ScannerResult,
   ) {
     if (result.state === 'RUNNING') {
+      if (result.partialResults?.length) {
+        await this.prisma.$transaction(
+          async (tx) => {
+            await this.persistEngineResults(
+              tx,
+              scanId,
+              result.provider,
+              result.partialResults ?? [],
+            );
+          },
+        );
+      }
+
       return this.prisma.scan.update({
         where: {
           id: scanId,
@@ -607,10 +621,6 @@ export class ArtifactsService {
     scanId: string,
     result: ScannerCompletedResult,
   ) {
-    const verdict = this.overallVerdict(
-      result.results.map((item) => item.verdict),
-    );
-
     const completedAt = result.completedAt;
     const staleAt = new Date(
       completedAt.getTime() +
@@ -619,48 +629,28 @@ export class ArtifactsService {
 
     return this.prisma.$transaction(
       async (tx) => {
-        await tx.scanEngineResult.deleteMany({
-          where: {
-            scanId,
-          },
-        });
+        await this.persistEngineResults(
+          tx,
+          scanId,
+          result.provider,
+          result.results,
+        );
 
-        for (const item of result.results) {
-          const engine =
-            await tx.scanEngine.upsert({
-              where: {
-                name: item.engineName,
-              },
-              update: {
-                active: true,
-                provider: result.provider,
-              },
-              create: {
-                name: item.engineName,
-                provider: result.provider,
-                active: true,
-              },
-            });
-
-          await tx.scanEngineResult.create({
-            data: {
+        const storedResults =
+          await tx.scanEngineResult.findMany({
+            where: {
               scanId,
-              engineId: engine.id,
-              verdict: item.verdict,
-              detectionName:
-                item.detectionName,
-              engineVersion:
-                item.engineVersion ?? null,
-              signatureVersion:
-                item.signatureVersion ?? null,
-              responseTimeMs:
-                item.responseTimeMs ?? null,
-              rawResult: item.rawResult
-                ? (item.rawResult as Prisma.InputJsonValue)
-                : undefined,
+            },
+            select: {
+              verdict: true,
             },
           });
-        }
+
+        const verdict = this.overallVerdict(
+          storedResults.map(
+            (item) => item.verdict,
+          ),
+        );
 
         return tx.scan.update({
           where: {
@@ -686,6 +676,70 @@ export class ArtifactsService {
         });
       },
     );
+  }
+
+  private async persistEngineResults(
+    tx: Prisma.TransactionClient,
+    scanId: string,
+    provider: string,
+    results: ScannerEngineResult[],
+  ) {
+    for (const item of results) {
+      const engine =
+        await tx.scanEngine.upsert({
+          where: {
+            name: item.engineName,
+          },
+          update: {
+            active: true,
+            provider,
+          },
+          create: {
+            name: item.engineName,
+            provider,
+            active: true,
+          },
+        });
+
+      await tx.scanEngineResult.upsert({
+        where: {
+          scanId_engineId: {
+            scanId,
+            engineId: engine.id,
+          },
+        },
+        update: {
+          verdict: item.verdict,
+          detectionName:
+            item.detectionName,
+          engineVersion:
+            item.engineVersion ?? null,
+          signatureVersion:
+            item.signatureVersion ?? null,
+          responseTimeMs:
+            item.responseTimeMs ?? null,
+          rawResult: item.rawResult
+            ? (item.rawResult as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
+        },
+        create: {
+          scanId,
+          engineId: engine.id,
+          verdict: item.verdict,
+          detectionName:
+            item.detectionName,
+          engineVersion:
+            item.engineVersion ?? null,
+          signatureVersion:
+            item.signatureVersion ?? null,
+          responseTimeMs:
+            item.responseTimeMs ?? null,
+          rawResult: item.rawResult
+            ? (item.rawResult as Prisma.InputJsonValue)
+            : undefined,
+        },
+      });
+    }
   }
 
   private async failScan(
