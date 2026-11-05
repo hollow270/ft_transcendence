@@ -205,17 +205,22 @@ export default function ArtifactPage() {
 	async	function	refreshCommunity() {
 
 		try {
+			const	visibleCommentsLimit = Math.max( fetchedCommentsCount, MAX_COMMENT_PER_REQ );
+
 			const [commentData, voteData] = await Promise.all([
-				api.comments( artifactId, MAX_COMMENT_PER_REQ + 1 ),
+				api.comments( artifactId, visibleCommentsLimit + 1 ),
 				api.votes(artifactId),
 			]);
-			setFetchedCommentsCount( commentData.length - 1 );
-			console.log( `refreshCommunity() comments log: ${fetchedCommentsCount}` );
-			setHasMoreComments( commentData.length > MAX_COMMENT_PER_REQ );
-			setComments( commentData.slice( 0, MAX_COMMENT_PER_REQ ) );
+
+			const	visibleComments = commentData.slice( 0, visibleCommentsLimit );
+
+			setFetchedCommentsCount( visibleComments.length );
+			setHasMoreComments( commentData.length > visibleCommentsLimit );
+			setComments( visibleComments );
 			setVotes(voteData);
 			setCommunityAvailable(true);
 		} catch {
+			setFetchedCommentsCount( 0 );
 			setHasMoreComments( false );
 			setComments([]);
 			setVotes(null);
@@ -229,12 +234,13 @@ export default function ArtifactPage() {
 			setActionError( null );
 			setLoadingMoreComments( true );
 
-			const	moreComments: Comment[] = await api.comments( artifactId, MAX_COMMENT_PER_REQ + 1, comments.length );
-			setFetchedCommentsCount( fetchedCommentsCount + moreComments.length - 1 );
-			console.log( `loadMoreComments() comments log: ${fetchedCommentsCount}` );
+			const	moreComments: Comment[] = await api.comments( artifactId, MAX_COMMENT_PER_REQ + 1, fetchedCommentsCount );
+			const	additionalPageComments = moreComments.slice( 0, MAX_COMMENT_PER_REQ );
+
+			setFetchedCommentsCount( fetchedCommentsCount + additionalPageComments.length );
 
 			setHasMoreComments( moreComments.length > MAX_COMMENT_PER_REQ );
-			setComments( previousComments => [ ...previousComments, ...moreComments.slice( 0, MAX_COMMENT_PER_REQ ) ] );
+			setComments( previousComments => [ ...previousComments, ...additionalPageComments ] );
 		} catch {
 			setActionError( 'could not load more comments' );
 		} finally {
