@@ -937,6 +937,7 @@ export class ArtifactsService {
         where: {
           artifactId,
           status: ScanStatus.COMPLETED,
+          provider: this.scanning.providerName,
           OR:
             visibility === Visibility.PUBLIC
               ? [
