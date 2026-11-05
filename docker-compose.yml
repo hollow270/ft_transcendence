@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
 
   clamav:
-    image: clamav/clamav:stable
+    image: clamav/clamav:stable-debian
     profiles:
       - real-scan
     volumes:
