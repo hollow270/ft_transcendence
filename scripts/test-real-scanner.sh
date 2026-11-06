@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export COMPOSE_PROJECT_NAME="\${COMPOSE_PROJECT_NAME:-go-virus-real-test}"
-export POSTGRES_PORT="\${POSTGRES_PORT:-55432}"
-export BACKEND_PORT="\${BACKEND_PORT:-3100}"
-export FRONTEND_PORT="\${FRONTEND_PORT:-5273}"
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-go-virus-real-test}"
+export POSTGRES_PORT="${POSTGRES_PORT:-55432}"
+export BACKEND_PORT="${BACKEND_PORT:-3100}"
+export FRONTEND_PORT="${FRONTEND_PORT:-5273}"
 export SCAN_PROVIDER=real
 export VIRUSTOTAL_API_KEY=
 
-BASE_URL="http://localhost:\${BACKEND_PORT}"
+BASE_URL="http://localhost:${BACKEND_PORT}"
 
 cleanup() {
   docker compose \
     --env-file .env.example \
-    --profile real-scan \
     down -v || true
 }
 trap cleanup EXIT
@@ -53,7 +52,6 @@ if [ "$scanner_ready" -ne 1 ]; then
   echo "ClamAV never became ready"
   docker compose \
     --env-file .env.example \
-    --profile real-scan \
     logs --no-color clamav backend
   exit 1
 fi
@@ -61,8 +59,8 @@ fi
 echo "ClamAV ready"
 
 suffix="$(date +%s)"
-email="real-scan-\${suffix}@example.com"
-username="realscan\${suffix}"
+email="real-scan-${suffix}@example.com"
+username="realscan${suffix}"
 
 curl -fsS -X POST "$BASE_URL/auth/register" \
   -H "Content-Type: application/json" \
