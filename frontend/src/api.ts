@@ -153,16 +153,64 @@ export const api = {
     });
   },
 
-  login(payload: { email: string; password: string }) {
-    return request<{
-      token: string;
-      tokenType: string;
-      expiresAt: string;
-      user: User;
-    }>('/auth/login', {
+  login(payload: {
+    email: string;
+    password: string;
+    totpCode?: string;
+  }) {
+    return request<
+      | { requiresTwoFactor: true }
+      | {
+          requiresTwoFactor: false;
+          token: string;
+          tokenType: string;
+          expiresAt: string;
+          user: User;
+        }
+    >('/auth/login', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  twoFactorStatus(token: string) {
+    return request<{
+      enabled: boolean;
+      configured: boolean;
+    }>('/auth/2fa/status', {}, token);
+  },
+
+  setupTwoFactor(token: string) {
+    return request<{
+      secret: string;
+      otpauthUri: string;
+    }>(
+      '/auth/2fa/setup',
+      { method: 'POST' },
+      token,
+    );
+  },
+
+  enableTwoFactor(code: string, token: string) {
+    return request<{ enabled: boolean }>(
+      '/auth/2fa/enable',
+      {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      },
+      token,
+    );
+  },
+
+  disableTwoFactor(code: string, token: string) {
+    return request<{ enabled: boolean }>(
+      '/auth/2fa/disable',
+      {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      },
+      token,
+    );
   },
 
   me(token: string) {
