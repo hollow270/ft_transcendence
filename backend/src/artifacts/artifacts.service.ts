@@ -1051,6 +1051,10 @@ export class ArtifactsService {
           result.engine?.name ??
           result.engineId,
         verdict: result.verdict,
+        category:
+          typeof result.rawResult?.category === 'string'
+            ? result.rawResult.category
+            : null,
         detectionName:
           result.detectionName,
         responseTimeMs:
