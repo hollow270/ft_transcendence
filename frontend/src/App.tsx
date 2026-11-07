@@ -5,6 +5,7 @@ import ArtifactPage from './pages/ArtifactPage';
 import HomePage from './pages/HomePage';
 import LlmPage from './pages/LlmPage';
 import NotificationsPage from './pages/NotificationsPage';
+import SecurityPage from './pages/SecurityPage';
 import UserCommunityPage from './pages/UserCommunityPage';
 import {
   AdminPage,
@@ -12,7 +13,6 @@ import {
   HistoryPage,
   ModerationPage,
   SearchPage,
-  SecurityPage,
   UrlPage,
 } from './pages/PlaceholderPages';
 
