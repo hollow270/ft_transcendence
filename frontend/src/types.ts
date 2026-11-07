@@ -9,6 +9,7 @@ export type User = {
 export type EngineResult = {
   engine: string;
   verdict: string;
+  category: string | null;
   detectionName: string | null;
   responseTimeMs: number | null;
 };
