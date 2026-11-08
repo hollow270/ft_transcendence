@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Verdict } from '@prisma/client';
 import {
   RescanFileInput,
+  RescanUrlInput,
   ScannerCompletedResult,
   StartFileScanInput,
+  StartUrlScanInput,
 } from './scanning.types';
 
 @Injectable()
@@ -26,6 +28,24 @@ export class DevelopmentScanProvider {
     return this.unknownResult(
       'Development Placeholder',
       'binary not retained',
+    );
+  }
+
+  async scanUrl(
+    input: StartUrlScanInput,
+  ): Promise<ScannerCompletedResult> {
+    return this.unknownResult(
+      'Development URL Placeholder',
+      input.normalizedUrl,
+    );
+  }
+
+  async rescanUrl(
+    input: RescanUrlInput,
+  ): Promise<ScannerCompletedResult> {
+    return this.unknownResult(
+      'Development URL Placeholder',
+      input.normalizedUrl,
     );
   }
 
