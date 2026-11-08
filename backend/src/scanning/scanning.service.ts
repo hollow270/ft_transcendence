@@ -7,10 +7,12 @@ import { ClamAvProvider } from './clamav.provider';
 import { DevelopmentScanProvider } from './development-scan.provider';
 import {
   RescanFileInput,
+  RescanUrlInput,
   ScannerCompletedResult,
   ScannerPendingResult,
   ScannerResult,
   StartFileScanInput,
+  StartUrlScanInput,
 } from './scanning.types';
 import { VirusTotalProvider } from './virustotal.provider';
 
@@ -135,6 +137,74 @@ export class ScanningService {
     }
 
     return this.startRealScan(input);
+  }
+
+  async startUrlScan(
+    input: StartUrlScanInput,
+  ): Promise<ScannerResult> {
+    const mode = this.mode();
+
+    if (mode === 'development') {
+      return this.development.scanUrl(input);
+    }
+
+    if (mode === 'clamav') {
+      throw new BadRequestException(
+        'ClamAV scans files, not URLs. Configure VirusTotal or use real scanner mode.',
+      );
+    }
+
+    this.ensurePrivacy(
+      this.virusTotal.supportsPrivate,
+      input.visibility,
+    );
+
+    if (!this.virusTotal.configured) {
+      throw new BadRequestException(
+        'VirusTotal must be configured before submitting a new URL scan.',
+      );
+    }
+
+    const result =
+      await this.virusTotal.scanUrl(input);
+
+    return mode === 'real'
+      ? this.wrapVirusTotalResult(result)
+      : result;
+  }
+
+  async rescanUrl(
+    input: RescanUrlInput,
+  ): Promise<ScannerResult> {
+    const mode = this.mode();
+
+    if (mode === 'development') {
+      return this.development.rescanUrl(input);
+    }
+
+    if (mode === 'clamav') {
+      throw new BadRequestException(
+        'ClamAV scans files, not URLs. Configure VirusTotal or use real scanner mode.',
+      );
+    }
+
+    this.ensurePrivacy(
+      this.virusTotal.supportsPrivate,
+      input.visibility,
+    );
+
+    if (!this.virusTotal.configured) {
+      throw new BadRequestException(
+        'VirusTotal must be configured before rescanning a URL.',
+      );
+    }
+
+    const result =
+      await this.virusTotal.rescanUrl(input);
+
+    return mode === 'real'
+      ? this.wrapVirusTotalResult(result)
+      : result;
   }
 
   async rescanFile(
