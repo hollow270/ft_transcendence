@@ -175,6 +175,38 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 '
 
 
+URL_UPLOAD1=$(curl -fsS -X POST "$BASE_URL/artifacts/urls" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"HTTPS://Example.COM:443/path#fragment","visibility":"PUBLIC"}')
+
+URL_ARTIFACT_ID=$(printf '%s' "$URL_UPLOAD1" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.artifact?.id || j.artifact?.type!=="URL" || j.artifact?.normalizedUrl!=="https://example.com/path" || j.artifact?.domain!=="example.com" || j.reusedScan!==false || j.scan?.provider!=="development") process.exit(1); process.stdout.write(j.artifact.id);});
+')
+
+URL_UPLOAD2=$(curl -fsS -X POST "$BASE_URL/artifacts/urls" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/path#another-fragment","visibility":"PUBLIC"}')
+
+printf '%s' "$URL_UPLOAD2" | URL_ARTIFACT_ID="$URL_ARTIFACT_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.artifact?.id!==process.env.URL_ARTIFACT_ID || j.reusedScan!==true) process.exit(1); console.log("URL submission/dedup ok");});
+'
+
+curl -fsS "$BASE_URL/artifacts/$URL_ARTIFACT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.type!=="URL" || j.url?.normalizedUrl!=="https://example.com/path" || j.url?.domain!=="example.com" || !j.latestScan) process.exit(1); console.log("URL artifact lookup ok");});
+'
+
+URL_RESCAN=$(curl -fsS -X POST "$BASE_URL/artifacts/$URL_ARTIFACT_ID/rescan" \
+  -H "Authorization: Bearer $TOKEN")
+
+printf '%s' "$URL_RESCAN" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.status!=="COMPLETED" || j.reason!=="MANUAL_RESCAN" || j.provider!=="development") process.exit(1); console.log("URL manual rescan ok");});
+'
+
+
 RESCAN=$(curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/rescan"   -H "Authorization: Bearer $TOKEN")
 
 printf '%s' "$RESCAN" | node -e '
