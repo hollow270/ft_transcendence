@@ -18,11 +18,9 @@ import { PrismaService } from '../prisma.service';
 import { isUUID } from 'class-validator';
 
 @Injectable()
-export class CommunityService {
-
-	constructor(
-		private readonly prisma: PrismaService,
-		private readonly notifications: NotificationsService, ) {}
+export class CommunityService
+{
+	constructor( private readonly prisma: PrismaService, private readonly notifications: NotificationsService, ) {}
 
 	async listComments( artifactId: string, limit?: number, offset?: number ) {
 
@@ -54,6 +52,64 @@ export class CommunityService {
 			take: limit,
 			skip: offset,
 		});
+	}
+
+	async getDiscussion( artifactId: string, limit: number, cursor?: string )
+	{
+		await this.ensurePublicArtifact(artifactId);
+
+		const	[rows, totalCount] =await Promise.all( [ this.prisma.comment.findMany(
+			{
+				where: {
+					artifactId,
+					parentId: null,
+					status: CommentStatus.ACTIVE,
+				},
+				orderBy: [
+					{ createdAt: 'desc' },
+					{ id: 'desc' }
+				],
+				select: {
+					id: true,
+					parentId: true,
+					body: true,
+					createdAt: true,
+					editedAt: true,
+					user: {
+						select: {
+							id: true,
+							username: true,
+							role: true,
+						},
+					},
+					_count: {
+						select: {
+							replies: {
+								where: {
+									status: CommentStatus.ACTIVE
+								}
+							}
+						}
+					}
+				},
+				take: limit + 1,
+				cursor: cursor ? { id: cursor } : undefined,
+				skip: cursor ? 1 : 0
+			}
+		), this.prisma.comment.count(
+			{
+				where: {
+					artifactId,
+					status: CommentStatus.ACTIVE
+				}
+			}
+		) ] );
+
+		const	hasMore = rows.length > limit;
+		const	items = hasMore ? rows.slice( 0, limit ) : rows;
+		const	nextCursor = hasMore ? rows[rows.length - 2].id : null;
+
+		return { totalCount, items, nextCursor };
 	}
 
 	async createComment( artifactId: string, userId: string, input: { body?: string; parentId?: string }, )

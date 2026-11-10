@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, UseGuards, Query, BadRequestException, ParseUUIDPipe } from '@nestjs/common';
 import { SessionAuthGuard } from '../auth/auth.guard';
 import { CommunityService } from './community.service';
+import { DiscussionQueryDto } from './dto/discussion-query.dto';
 
 @Controller('artifacts/:artifactId')
 export class CommunityController
@@ -37,6 +38,12 @@ export class CommunityController
 			throw new BadRequestException( 'bad request params' );
 
 		return this.community.listComments( artifactId );
+	}
+
+	@Get( 'discussion' )
+	listDiscussion( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string, @Query() query: DiscussionQueryDto )
+	{
+		return ( this.community.getDiscussion( artifactId, query.limit, query.cursor ) );
 	}
 
 	@UseGuards(SessionAuthGuard)
