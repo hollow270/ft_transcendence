@@ -46,6 +46,14 @@ export class CommunityController
 		return ( this.community.getDiscussion( artifactId, query.limit, query.cursor ) );
 	}
 
+	@Get( 'comments/:commentId/replies' )
+	getReplies( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
+		@Param( 'commentId', ParseUUIDPipe ) commentId: string,
+		@Query() query: DiscussionQueryDto )
+	{
+		return ( this.community.getReplies( artifactId, commentId, query.limit, query.cursor ) );
+	}
+
 	@UseGuards(SessionAuthGuard)
 	@Post('comments')
 	createComment( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,

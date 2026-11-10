@@ -82,7 +82,7 @@ export class CommunityService
 	{
 		await this.ensurePublicArtifact(artifactId);
 
-		const	[rows, totalCount] =await Promise.all( [ this.prisma.comment.findMany(
+		const	[rows, totalCount] = await Promise.all( [ this.prisma.comment.findMany(
 			{
 				where: {
 					artifactId,
@@ -122,9 +122,38 @@ export class CommunityService
 
 		const	hasMore = rows.length > limit;
 		const	items = hasMore ? rows.slice( 0, limit ) : rows;
-		const	nextCursor = hasMore ? rows[rows.length - 2].id : null;
+		const	nextCursor = hasMore ? items[items.length - 1].id : null;
 
 		return { totalCount, items, nextCursor };
+	}
+
+	async getReplies( artifactId: string, commentId: string, limit: number, cursor?: string )
+	{
+		await this.ensurePublicArtifact( artifactId );
+
+		const	rows= await this.prisma.comment.findMany(
+			{
+				where: {
+					artifactId,
+					parentId: commentId,
+					status: CommentStatus.ACTIVE
+				},
+				orderBy: [
+					{ createdAt: 'asc' },
+					{ id: 'asc' }
+				],
+				take: limit + 1,
+				cursor: cursor ? { id: cursor } : undefined,
+				skip: cursor ? 1 : 0,
+				select: COMMENT_FIELDS
+			}
+		);
+
+		const	hasMore = rows.length > limit;
+		const	items = hasMore ? rows.slice( 0, limit ) : rows;
+		const	nextCursor = hasMore ? items[items.length - 1].id : null;
+
+		return ( { items, nextCursor } );
 	}
 
 	async createComment( artifactId: string, userId: string, input: { body?: string; parentId?: string }, )
