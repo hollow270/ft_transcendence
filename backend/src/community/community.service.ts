@@ -17,9 +17,25 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 import { isUUID } from 'class-validator';
 
+const	VISIBLE_COMMENTS = {
+	OR: [
+		{
+			status: CommentStatus.ACTIVE
+		},
+		{
+			replies: {
+				some: {
+					status: CommentStatus.ACTIVE
+				}
+			}
+		}
+	]
+};
+
 const	COMMENT_FIELDS = {
 	id: true,
 	parentId: true,
+	status: true,
 	body: true,
 	createdAt: true,
 	editedAt: true,
@@ -34,7 +50,8 @@ const	COMMENT_FIELDS = {
 		select: {
 			replies: {
 				where: {
-					status: CommentStatus.ACTIVE
+					// status: CommentStatus.ACTIVE
+					...VISIBLE_COMMENTS
 				}
 			}
 		}
@@ -87,7 +104,8 @@ export class CommunityService
 				where: {
 					artifactId,
 					parentId: null,
-					status: CommentStatus.ACTIVE,
+					// status: CommentStatus.ACTIVE,
+					...VISIBLE_COMMENTS
 				},
 				orderBy: [
 					{ createdAt: 'desc' },
@@ -100,7 +118,8 @@ export class CommunityService
 					...COMMENT_FIELDS,
 					replies: {
 						where: {
-							status: CommentStatus.ACTIVE
+							// status: CommentStatus.ACTIVE
+							...VISIBLE_COMMENTS
 						},
 						orderBy: [
 							{ createdAt: 'asc' },
@@ -122,9 +141,15 @@ export class CommunityService
 
 		const	hasMore = rows.length > limit;
 		const	items = hasMore ? rows.slice( 0, limit ) : rows;
+
+		let		maskedItems = items.map( mask );
+		for ( let i = 0; i < maskedItems.length; i++ ) {
+			maskedItems[i].replies = maskedItems[i].replies.map( mask );
+		}
+
 		const	nextCursor = hasMore ? items[items.length - 1].id : null;
 
-		return { totalCount, items, nextCursor };
+		return { totalCount, items: maskedItems, nextCursor };
 	}
 
 	async getReplies( artifactId: string, commentId: string, limit: number, cursor?: string )
@@ -136,7 +161,8 @@ export class CommunityService
 				where: {
 					artifactId,
 					parentId: commentId,
-					status: CommentStatus.ACTIVE
+					// status: CommentStatus.ACTIVE
+					...VISIBLE_COMMENTS
 				},
 				orderBy: [
 					{ createdAt: 'asc' },
@@ -151,9 +177,10 @@ export class CommunityService
 
 		const	hasMore = rows.length > limit;
 		const	items = hasMore ? rows.slice( 0, limit ) : rows;
+		const	maskedItems = items.map( mask );
 		const	nextCursor = hasMore ? items[items.length - 1].id : null;
 
-		return ( { items, nextCursor } );
+		return ( { items: maskedItems, nextCursor } );
 	}
 
 	async createComment( artifactId: string, userId: string, input: { body?: string; parentId?: string }, )
@@ -318,7 +345,7 @@ export class CommunityService
 	async deleteComment( artifactId: string, commentId: string, userId: string, )
 	{
 		await this.ensurePublicArtifact(artifactId);
-		await this.assertCanComment( userId );
+		// await this.assertCanComment( userId );
 
 		const comment = await this.prisma.comment.findFirst(
 			{
@@ -573,3 +600,9 @@ export class CommunityService
 		}
 	}
 }
+
+function mask<T extends { status: CommentStatus }>( comment: T )
+{
+	return ( comment.status === CommentStatus.ACTIVE ? comment : { ...comment, body: null, user: null } );
+}
+
