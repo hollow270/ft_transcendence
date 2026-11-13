@@ -15,7 +15,6 @@ import {
 } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
-import { isUUID } from 'class-validator';
 
 const	VISIBLE_COMMENTS = {
 	OR: [
@@ -50,7 +49,6 @@ const	COMMENT_FIELDS = {
 		select: {
 			replies: {
 				where: {
-					// status: CommentStatus.ACTIVE
 					...VISIBLE_COMMENTS
 				}
 			}
@@ -104,7 +102,6 @@ export class CommunityService
 				where: {
 					artifactId,
 					parentId: null,
-					// status: CommentStatus.ACTIVE,
 					...VISIBLE_COMMENTS
 				},
 				orderBy: [
@@ -118,7 +115,6 @@ export class CommunityService
 					...COMMENT_FIELDS,
 					replies: {
 						where: {
-							// status: CommentStatus.ACTIVE
 							...VISIBLE_COMMENTS
 						},
 						orderBy: [
@@ -161,7 +157,6 @@ export class CommunityService
 				where: {
 					artifactId,
 					parentId: commentId,
-					// status: CommentStatus.ACTIVE
 					...VISIBLE_COMMENTS
 				},
 				orderBy: [
@@ -183,23 +178,15 @@ export class CommunityService
 		return ( { items: maskedItems, nextCursor } );
 	}
 
-	async createComment( artifactId: string, userId: string, input: { body?: string; parentId?: string }, )
+	async createComment( artifactId: string, userId: string, input: { body: string; parentId?: string }, )
 	{
 		await this.ensurePublicArtifact(artifactId);
 		await this.assertCanComment( userId );
 
-		if ( typeof input.body !== 'string' ) {
-			throw new BadRequestException('bad comment type');
-		}
-
 		const body = input.body.trim();
 
-		if (!body || body.length > 4000) {
+		if ( !body ) {
 			throw new BadRequestException( 'comment body must contain between 1 and 4000 characters', );
-		}
-
-		if ( input.parentId !== undefined && ( typeof input.parentId !== 'string' || !isUUID( input.parentId ) ) ) {
-			throw new BadRequestException( 'bad comment parent type' );
 		}
 
 		const parent = input.parentId ? await this.prisma.comment.findFirst	(
@@ -271,18 +258,14 @@ export class CommunityService
 		return ( comment );
 	}
 
-	async editComment( artifactId: string, commentId: string, userId: string, bodyInput?: string, )
+	async editComment( artifactId: string, commentId: string, userId: string, bodyInput: string, )
 	{
 		await this.ensurePublicArtifact(artifactId);
 		await this.assertCanComment( userId );
 
-		if ( typeof bodyInput !== 'string' ) {
-			throw new BadRequestException('bad comment type');
-		}
-
 		const body = bodyInput.trim();
 
-		if (!body || body.length > 4000) {
+		if ( !body ) {
 			throw new BadRequestException( 'comment body must contain between 1 and 4000 characters', );
 		}
 
@@ -345,7 +328,6 @@ export class CommunityService
 	async deleteComment( artifactId: string, commentId: string, userId: string, )
 	{
 		await this.ensurePublicArtifact(artifactId);
-		// await this.assertCanComment( userId );
 
 		const comment = await this.prisma.comment.findFirst(
 			{
@@ -390,7 +372,7 @@ export class CommunityService
 		return { success: true, };
 	}
 
-	async reportComment( artifactId: string, commentId: string, reporterId: string, input: { reason?: string; details?: string; }, )
+	async reportComment( artifactId: string, commentId: string, reporterId: string, input: { reason: ReportReason; details?: string; }, )
 	{
 		await this.ensurePublicArtifact(artifactId);
 
@@ -418,20 +400,6 @@ export class CommunityService
 			throw new BadRequestException( 'you cannot report your own comment', );
 		}
 
-		if ( input.reason !== undefined && typeof input.reason !== 'string' ) {
-			throw new BadRequestException( 'bad reason param' );
-		}
-
-		if ( input.details !== undefined && typeof input.details !== 'string' ) {
-			throw new BadRequestException( 'bad details param' );
-		}
-
-		const reason = ( input.reason ?? '' ).toUpperCase() as ReportReason;
-
-		if ( !Object.values(ReportReason).includes( reason, ) ) {
-			throw new BadRequestException( 'reason must be SPAM, ABUSIVE, DANGEROUS_MISINFORMATION or OTHER', );
-		}
-
 		const details = input.details?.trim() || null;
 
 		if ( details && details.length > 2000 ) {
@@ -444,7 +412,7 @@ export class CommunityService
 					data: {
 						commentId: comment.id,
 						reporterId,
-						reason,
+						reason: input.reason,
 						details,
 					},
 					select: {
@@ -466,19 +434,9 @@ export class CommunityService
 		}
 	}
 
-	async vote( artifactId: string, userId: string, verdictInput?: string, )
+	async vote( artifactId: string, userId: string, verdictInput: Verdict, )
 	{
 		await this.ensurePublicArtifact(artifactId);
-
-		if ( verdictInput !== undefined && typeof verdictInput !== 'string' ) {
-			throw new BadRequestException( 'bad vote param' );
-		}
-
-		const verdict = (verdictInput ?? '').toUpperCase();
-
-		if ( verdict !== Verdict.HARMLESS && verdict !== Verdict.SUSPICIOUS && verdict !== Verdict.MALICIOUS ) {
-			throw new BadRequestException( 'verdict must be HARMLESS, SUSPICIOUS or MALICIOUS', );
-		}
 
 		const previousVote =
 		await this.prisma.communityVote.findUnique({
@@ -501,12 +459,12 @@ export class CommunityService
 			},
 		},
 		update: {
-			verdict: verdict as Verdict,
+			verdict: verdictInput,
 		},
 		create: {
 			artifactId,
 			userId,
-			verdict: verdict as Verdict,
+			verdict: verdictInput,
 		},
 		});
 
