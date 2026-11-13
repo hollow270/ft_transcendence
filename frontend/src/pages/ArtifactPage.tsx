@@ -7,6 +7,7 @@ import type {
   Artifact,
   ArtifactScanHistoryItem,
   Comment,
+  CommentReportReason,
   VoteSummary,
 } from '../types';
 
@@ -85,6 +86,15 @@ export default function ArtifactPage() {
   const [communityAvailable, setCommunityAvailable] = useState(false);
   const [commentBody, setCommentBody] = useState('');
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
+  const [editingCommentId, setEditingCommentId] =
+    useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
+  const [reportTargetId, setReportTargetId] =
+    useState<string | null>(null);
+  const [reportReason, setReportReason] =
+    useState<CommentReportReason>('SPAM');
+  const [reportDetails, setReportDetails] = useState('');
+  const [communityBusy, setCommunityBusy] = useState(false);
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiAnswer, setAiAnswer] = useState('');
@@ -223,6 +233,113 @@ export default function ArtifactPage() {
       await refreshCommunity();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Comment failed');
+    }
+  }
+
+  async function saveCommentEdit(
+    event: FormEvent,
+    commentId: string,
+  ) {
+    event.preventDefault();
+
+    if (!token || !editBody.trim()) return;
+
+    setCommunityBusy(true);
+    setActionError(null);
+
+    try {
+      await api.editComment(
+        artifactId,
+        commentId,
+        editBody.trim(),
+        token,
+      );
+      setEditingCommentId(null);
+      setEditBody('');
+      await refreshCommunity();
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : 'Could not edit comment',
+      );
+    } finally {
+      setCommunityBusy(false);
+    }
+  }
+
+  async function removeComment(
+    commentId: string,
+  ) {
+    if (!token) return;
+
+    if (
+      !window.confirm(
+        'Delete this comment?',
+      )
+    ) {
+      return;
+    }
+
+    setCommunityBusy(true);
+    setActionError(null);
+
+    try {
+      await api.deleteComment(
+        artifactId,
+        commentId,
+        token,
+      );
+      await refreshCommunity();
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : 'Could not delete comment',
+      );
+    } finally {
+      setCommunityBusy(false);
+    }
+  }
+
+  async function submitReport(
+    event: FormEvent,
+    commentId: string,
+  ) {
+    event.preventDefault();
+
+    if (!token) return;
+
+    setCommunityBusy(true);
+    setActionError(null);
+
+    try {
+      await api.reportComment(
+        artifactId,
+        commentId,
+        {
+          reason: reportReason,
+          ...(reportDetails.trim()
+            ? {
+                details:
+                  reportDetails.trim(),
+              }
+            : {}),
+        },
+        token,
+      );
+
+      setReportTargetId(null);
+      setReportReason('SPAM');
+      setReportDetails('');
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : 'Could not report comment',
+      );
+    } finally {
+      setCommunityBusy(false);
     }
   }
 
@@ -810,12 +927,203 @@ export default function ArtifactPage() {
                           </Link>
                           <span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
                         </div>
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">{comment.body}</p>
-                        {user && (
-                          <button type="button" className="text-link mt-2 text-xs" onClick={() => setReplyTo(comment)}>
-                            Reply
-                          </button>
+                        {editingCommentId === comment.id ? (
+                          <form
+                            className="mt-3 space-y-3"
+                            onSubmit={(event) =>
+                              void saveCommentEdit(
+                                event,
+                                comment.id,
+                              )
+                            }
+                          >
+                            <textarea
+                              className="app-input min-h-24 resize-y"
+                              value={editBody}
+                              maxLength={4000}
+                              onChange={(event) =>
+                                setEditBody(
+                                  event.target.value,
+                                )
+                              }
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                className="primary-button"
+                                disabled={
+                                  communityBusy ||
+                                  !editBody.trim()
+                                }
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => {
+                                  setEditingCommentId(
+                                    null,
+                                  );
+                                  setEditBody('');
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">
+                            {comment.body}
+                          </p>
                         )}
+
+                        {comment.editedAt && (
+                          <p className="mt-1 text-xs text-slate-600">
+                            Edited {formatDate(comment.editedAt)}
+                          </p>
+                        )}
+
+                        {user && (
+                          <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                            <button
+                              type="button"
+                              className="text-link"
+                              onClick={() =>
+                                setReplyTo(comment)
+                              }
+                            >
+                              Reply
+                            </button>
+
+                            {user.id ===
+                            comment.user.id ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="text-link"
+                                  onClick={() => {
+                                    setEditingCommentId(
+                                      comment.id,
+                                    );
+                                    setEditBody(
+                                      comment.body,
+                                    );
+                                    setReportTargetId(
+                                      null,
+                                    );
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-link"
+                                  disabled={
+                                    communityBusy
+                                  }
+                                  onClick={() =>
+                                    void removeComment(
+                                      comment.id,
+                                    )
+                                  }
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                className="text-link"
+                                onClick={() => {
+                                  setReportTargetId(
+                                    reportTargetId ===
+                                      comment.id
+                                      ? null
+                                      : comment.id,
+                                  );
+                                  setEditingCommentId(
+                                    null,
+                                  );
+                                }}
+                              >
+                                Report
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {user &&
+                          reportTargetId ===
+                            comment.id && (
+                            <form
+                              className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+                              onSubmit={(event) =>
+                                void submitReport(
+                                  event,
+                                  comment.id,
+                                )
+                              }
+                            >
+                              <select
+                                className="gv-compact-select"
+                                value={reportReason}
+                                onChange={(event) =>
+                                  setReportReason(
+                                    event.target
+                                      .value as CommentReportReason,
+                                  )
+                                }
+                              >
+                                <option value="SPAM">
+                                  Spam
+                                </option>
+                                <option value="ABUSIVE">
+                                  Abusive
+                                </option>
+                                <option value="DANGEROUS_MISINFORMATION">
+                                  Dangerous misinformation
+                                </option>
+                                <option value="OTHER">
+                                  Other
+                                </option>
+                              </select>
+
+                              <textarea
+                                className="app-input min-h-20 resize-y"
+                                placeholder="Optional details for moderators…"
+                                value={reportDetails}
+                                maxLength={2000}
+                                onChange={(event) =>
+                                  setReportDetails(
+                                    event.target.value,
+                                  )
+                                }
+                              />
+
+                              <div className="flex gap-2">
+                                <button
+                                  className="primary-button"
+                                  disabled={
+                                    communityBusy
+                                  }
+                                >
+                                  Submit report
+                                </button>
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => {
+                                    setReportTargetId(
+                                      null,
+                                    );
+                                    setReportDetails('');
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          )}
                       </article>
                     ))
                   ) : (
