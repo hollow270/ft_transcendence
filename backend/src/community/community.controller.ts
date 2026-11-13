@@ -2,6 +2,10 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, UseGuards,
 import { SessionAuthGuard } from '../auth/auth.guard';
 import { CommunityService } from './community.service';
 import { DiscussionQueryDto } from './dto/discussion-query.dto';
+import { PostCommentDto } from './dto/post-comment.dto';
+import { PatchCommentDto } from './dto/patch-comment.dto';
+import { PostReportDto } from './dto/post-report.dto';
+import { PutVoteDto } from './dto/put-vote.dto';
 
 @Controller('artifacts/:artifactId')
 export class CommunityController
@@ -58,9 +62,10 @@ export class CommunityController
 	@Post('comments')
 	createComment( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
 		@Req() request: any,
-		@Body() body: { body?: string; parentId?: string }, )
+		@Body() query: PostCommentDto )
 	{
-		return this.community.createComment( artifactId, request.user.id, body, );
+		const	body = { body: query.body, parentId: query.parentId };
+		return this.community.createComment( artifactId, request.user.id, body );
 	}
 
 	@UseGuards(SessionAuthGuard)
@@ -68,9 +73,9 @@ export class CommunityController
 	editComment( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
 		@Param( 'commentId', ParseUUIDPipe ) commentId: string,
 		@Req() request: any,
-		@Body('body') body?: string, )
+		@Body() query: PatchCommentDto )
 	{
-		return this.community.editComment( artifactId, commentId, request.user.id, body, );
+		return this.community.editComment( artifactId, commentId, request.user.id, query.body );
 	}
 
 	@UseGuards(SessionAuthGuard)
@@ -87,26 +92,21 @@ export class CommunityController
 	reportComment( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
 		@Param( 'commentId', ParseUUIDPipe ) commentId: string,
 		@Req() request: any,
-		@Body() body: {
-			reason?: string;
-			details?: string;
-		}, )
+		@Body() query: PostReportDto
+	)
 	{
-		return this.community.reportComment(
-		artifactId,
-		commentId,
-		request.user.id,
-		body,
-		);
+		const	body = { reason: query.reason, details: query.details };
+		return this.community.reportComment( artifactId, commentId, request.user.id, body );
 	}
 
 	@UseGuards(SessionAuthGuard)
 	@Put('vote')
 	vote( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
 		@Req() request: any,
-		@Body('verdict') verdict?: string, )
+		@Body() query: PutVoteDto
+	)
 	{
-		return this.community.vote( artifactId, request.user.id, verdict, );
+		return this.community.vote( artifactId, request.user.id, query.verdict );
 	}
 
 	@Get('votes')
