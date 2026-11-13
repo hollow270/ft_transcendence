@@ -4,7 +4,9 @@ import type {
   ArtifactScanHistoryItem,
   Comment,
   CreatedApiKey,
+  CommentReportReason,
   HistoryItem,
+  ModerationReport,
   Notification,
   ScannerCapabilities,
   SearchResult,
@@ -352,6 +354,107 @@ export const api = {
   votes(artifactId: string) {
     return request<VoteSummary>(
       `/artifacts/${encodeURIComponent(artifactId)}/votes`,
+    );
+  },
+
+  editComment(
+    artifactId: string,
+    commentId: string,
+    body: string,
+    token: string,
+  ) {
+    return request<Comment>(
+      '/artifacts/' +
+        encodeURIComponent(artifactId) +
+        '/comments/' +
+        encodeURIComponent(commentId),
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ body }),
+      },
+      token,
+    );
+  },
+
+  deleteComment(
+    artifactId: string,
+    commentId: string,
+    token: string,
+  ) {
+    return request<{ success: boolean }>(
+      '/artifacts/' +
+        encodeURIComponent(artifactId) +
+        '/comments/' +
+        encodeURIComponent(commentId),
+      {
+        method: 'DELETE',
+      },
+      token,
+    );
+  },
+
+  reportComment(
+    artifactId: string,
+    commentId: string,
+    payload: {
+      reason: CommentReportReason;
+      details?: string;
+    },
+    token: string,
+  ) {
+    return request(
+      '/artifacts/' +
+        encodeURIComponent(artifactId) +
+        '/comments/' +
+        encodeURIComponent(commentId) +
+        '/report',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      token,
+    );
+  },
+
+  moderationReports(
+    status: 'OPEN' | 'REVIEWING' | 'RESOLVED' | 'REJECTED',
+    token: string,
+  ) {
+    return request<ModerationReport[]>(
+      '/moderation/reports?status=' +
+        encodeURIComponent(status),
+      {},
+      token,
+    );
+  },
+
+  resolveModerationReport(
+    reportId: string,
+    payload: {
+      action:
+        | 'HIDE_COMMENT'
+        | 'DELETE_COMMENT'
+        | 'BAN_COMMENTING'
+        | 'NO_ACTION';
+      reason?: string;
+      banDays?: number;
+    },
+    token: string,
+  ) {
+    return request<{
+      id: string;
+      status: string;
+      reviewedAt: string;
+      action: string;
+    }>(
+      '/moderation/reports/' +
+        encodeURIComponent(reportId) +
+        '/resolve',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      token,
     );
   },
 
