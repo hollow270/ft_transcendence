@@ -1,0 +1,152 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  clamav:
+    image: clamav/clamav:stable-debian
+    volumes:
+      - clamav_data:/var/lib/clamav
+    expose:
+      - "3310"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PORT: 3000
+      SCAN_PROVIDER: ${SCAN_PROVIDER:-real}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-25}
+      SCANNER_HTTP_TIMEOUT_MS: ${SCANNER_HTTP_TIMEOUT_MS:-30000}
+      SCANNER_REFRESH_COOLDOWN_MS: ${SCANNER_REFRESH_COOLDOWN_MS:-60000}
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-30000}
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      VIRUSTOTAL_BASE_URL: ${VIRUSTOTAL_BASE_URL:-https://www.virustotal.com/api/v3}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      TWO_FACTOR_ENCRYPTION_KEY: ${TWO_FACTOR_ENCRYPTION_KEY:-}
+      CLAIM_TOKEN_SECRET: ${CLAIM_TOKEN_SECRET:-}
+      TWO_FACTOR_ENCRYPTION_KEY_FILE: ${TWO_FACTOR_ENCRYPTION_KEY_FILE:-}
+      VIRUSTOTAL_API_KEY_FILE: ${VIRUSTOTAL_API_KEY_FILE:-}
+      OPENAI_API_KEY_FILE: ${OPENAI_API_KEY_FILE:-}
+      APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,https://localhost:8443,https://127.0.0.1:8443}
+      HTTP_RATE_LIMIT_PER_MINUTE: ${HTTP_RATE_LIMIT_PER_MINUTE:-300}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clamav:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      VITE_PROXY_TARGET: http://backend:3000
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:5173').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  waf:
+    image: owasp/modsecurity-crs:nginx
+    entrypoint: ["/bin/sh", "/run/go-virus/entrypoint.sh"]
+    command: ["nginx", "-g", "daemon off;"]
+    environment:
+      BACKEND: http://frontend:5173
+      SERVER_NAME: ${WAF_SERVER_NAME:-localhost}
+      PORT: 8080
+      SSL_PORT: 8443
+      SSL_PROTOCOLS: "TLSv1.2 TLSv1.3"
+      SSL_CERT_FILE: /etc/nginx/conf/server.crt
+      SSL_CERT_KEY_FILE: /etc/nginx/conf/server.key
+      SSL_OCSP_STAPLING: "off"
+      NGINX_ALWAYS_TLS_REDIRECT: ${HTTPS_REDIRECT:-off}
+      MODSEC_RULE_ENGINE: "On"
+      BLOCKING_PARANOIA: "1"
+      ANOMALY_INBOUND: "5"
+      ANOMALY_OUTBOUND: "4"
+      ALLOWED_METHODS: "GET HEAD POST PUT PATCH DELETE OPTIONS"
+      MAX_FILE_SIZE: "26214400"
+      COMBINED_FILE_SIZES: "26214400"
+      MODSEC_REQ_BODY_LIMIT: "30000000"
+      MODSEC_REQ_BODY_NOFILES_LIMIT: "1048576"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+      - "${APP_HTTPS_PORT:-8443}:8443"
+    volumes:
+      - ./waf/security-headers.conf.template:/etc/nginx/templates/conf.d/security-headers.conf.template:ro
+      - ./waf/entrypoint.sh:/run/go-virus/entrypoint.sh:ro
+      - ./waf/tls:/run/go-virus-tls:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fsS",
+          "http://localhost:8080/healthz"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  clamav_data:

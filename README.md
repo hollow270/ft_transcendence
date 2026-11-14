@@ -1,1 +1,422 @@
-*This project has been created as part of the 42 curriculum by kamrene, aayache, yhajbi, nfaska.*
+# GO VIRUS / ft_transcendence
+
+GO VIRUS is the current ft_transcendence application: a VirusTotal-inspired security scanner with community and AI-assisted scan explanations.
+
+## Current stack
+
+- React + Vite + Tailwind CSS frontend
+- NestJS backend
+- Prisma ORM
+- PostgreSQL 16
+- Socket.IO / WebSockets
+- OpenAI-compatible streamed LLM integration
+- Docker Compose
+
+The database V1 contains 19 application tables for users, 2FA, sessions, file/URL artifacts, submissions, scans, scan engines/results, comments, votes, reports, moderation, notifications, API usage, LLM usage and audit logs.
+
+Database details: `backend/prisma/DATABASE.md`
+
+## Product layer (v2)
+
+GO VIRUS now ships as a full product:
+
+- `/` public landing page with an inline scanner. Guests get a limited report preview (verdict, detection count, first 2 engines); hashes, all engines, AI explanation, votes and history unlock after sign-up.
+- `/login`, `/signup` full-page auth with 2FA. A guest scan is attached to the new account automatically (signed claim token, 24h window).
+- `/app/*` signed-in dashboard: overview stats, scanner, report pages, history, search, AI assistant, notifications, API keys.
+- Account management: profile, email change (password required), password change (signs out other devices), signed-in devices with per-session sign-out, account deletion.
+- Admin user management (`/app/admin/users`): search, filter, change roles, disable/enable, force sign-out. All changes go to `audit_logs`.
+
+New backend routes:
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/account/overview` | Dashboard stats, 30-day activity, recent scans |
+| PATCH | `/account/profile` | Update username / email |
+| POST | `/account/password` | Change password |
+| GET | `/account/sessions` | Active sessions |
+| DELETE | `/account/sessions/:id` | Sign out one session |
+| POST | `/account/sessions/revoke-others` | Sign out all other sessions |
+| POST | `/account/claims` | Attach an anonymous scan to the account |
+| POST | `/account/delete` | Delete account |
+| GET | `/admin/users` | Paginated user list |
+| PATCH | `/admin/users/:id` | Change role / status |
+| POST | `/admin/users/:id/revoke-sessions` | Force sign-out |
+
+Optional env: `CLAIM_TOKEN_SECRET` (keeps guest-scan claim tokens valid across backend restarts).
+
+No database migration is required.
+
+## First run
+
+```bash
+git clone https://github.com/kamrene2771/ft_transcendence_docker.git
+cd ft_transcendence_docker
+cp .env.example .env
+docker compose up --build
+```
+
+Protected HTTP entry point:
+
+```text
+http://localhost:8080
+```
+
+HTTPS entry point:
+
+```text
+https://localhost:8443
+```
+
+Without a custom certificate the WAF generates a local self-signed certificate automatically.
+
+Local development frontend:
+
+```text
+http://localhost:5173
+```
+
+Local development backend:
+
+```text
+http://localhost:3000
+```
+
+Health check:
+
+```text
+http://localhost:3000/health
+```
+
+Expected:
+
+```json
+{
+  "status": "ok",
+  "database": "connected"
+}
+```
+
+## One-command full stack
+
+GO VIRUS now uses one Compose stack. There are no Docker Compose profiles for the normal application.
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+That single command starts:
+
+- PostgreSQL
+- ClamAV
+- NestJS backend
+- React frontend
+- OWASP CRS / ModSecurity WAF with HTTP and HTTPS listeners
+
+The default scanner mode in `.env.example` is `real`, so ClamAV is used automatically. VirusTotal is added for PUBLIC files when `VIRUSTOTAL_API_KEY` is configured.
+
+## AI configuration
+
+The AI module supports:
+
+- authenticated general cybersecurity questions;
+- authenticated explanations of completed scans;
+- Server-Sent Events streaming;
+- authorization checks before private scan evidence is exposed;
+- prompt-injection-resistant scan evidence formatting;
+- LLM usage metrics in `llm_usage_logs`;
+- no storage of user prompts or generated answers.
+
+Set the key only in your local `.env`:
+
+```bash
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4o-mini
+```
+
+`OPENAI_BASE_URL` is optional for a compatible gateway/provider.
+
+Do **not** commit `.env`.
+
+The frontend calls:
+
+```text
+POST /api/ai/ask
+POST /api/ai/scans/explain
+```
+
+Vite proxies `/api/*` to the NestJS backend, where the routes are exposed as `/ai/*`.
+
+## Two-factor authentication
+
+GO VIRUS supports TOTP two-factor authentication with authenticator apps.
+
+Generate a stable local encryption key once:
+
+```bash
+openssl rand -hex 32
+```
+
+Put the generated value in your local `.env`:
+
+```env
+TWO_FACTOR_ENCRYPTION_KEY=your_generated_value
+```
+
+Then restart the normal full stack:
+
+```bash
+docker compose down
+docker compose up --build -d
+```
+
+Users can enable 2FA under **Settings → Security**. The setup secret is encrypted with AES-256-GCM before it is stored in PostgreSQL. Once 2FA is enabled, password login does not create a session until a valid 6-digit TOTP code is supplied.
+
+Keep `TWO_FACTOR_ENCRYPTION_KEY` private and stable. Changing or losing it makes existing encrypted authenticator secrets unreadable.
+
+## Security hardening
+
+The normal Compose stack now includes an OWASP Core Rule Set / ModSecurity reverse-proxy WAF.
+
+Use the protected entry points:
+
+```text
+http://localhost:8080
+https://localhost:8443
+```
+
+The WAF accepts TLS 1.2 and TLS 1.3 only.
+
+The direct development ports remain available only on the local loopback interface:
+
+```text
+127.0.0.1:5173  frontend
+127.0.0.1:3000  backend
+127.0.0.1:5432  PostgreSQL
+```
+
+This prevents the development services and database from listening on external host interfaces while keeping local debugging convenient.
+
+The WAF:
+
+- runs in blocking mode with OWASP CRS;
+- proxies the React/Vite application, API and Socket.IO traffic;
+- permits the HTTP methods used by GO VIRUS;
+- supports the configured 25 MB upload limit;
+- applies browser-facing security headers including CSP, frame protection, MIME sniffing protection, referrer policy and a restrictive permissions policy.
+
+The NestJS application also applies Helmet security headers, restricts CORS and WebSocket origins, trusts only the reverse-proxy hop, removes the Express disclosure header, and enforces a global request rate limit. Registration and login are limited more aggressively.
+
+Default local limits:
+
+```env
+HTTP_RATE_LIMIT_PER_MINUTE=300
+APP_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,https://localhost:8443,https://127.0.0.1:8443
+```
+
+For a real deployment, set `APP_ALLOWED_ORIGINS` and `WAF_SERVER_NAME` to the deployment hostname instead of keeping the local defaults.
+
+### HTTPS / TLS certificates
+
+The WAF always has an HTTPS listener on container port `8443`.
+
+If `waf/tls/server.crt` and `waf/tls/server.key` are absent, the WAF image creates a self-signed local certificate so the HTTPS path can still be tested.
+
+For a browser-trusted local certificate on macOS, install `mkcert` once and run:
+
+```bash
+brew install mkcert
+bash scripts/setup-local-tls.sh
+docker compose up --build -d
+```
+
+Then open:
+
+```text
+https://localhost:8443
+```
+
+The generated certificate and private key live under `waf/tls/` and are ignored by Git.
+
+For a real deployment, put the trusted PEM certificate chain and private key at:
+
+```text
+waf/tls/server.crt
+waf/tls/server.key
+```
+
+and configure the deployment environment, for example:
+
+```env
+APP_HTTPS_PORT=443
+HTTPS_REDIRECT=on
+WAF_SERVER_NAME=scanner.example.com
+APP_ALLOWED_ORIGINS=https://scanner.example.com
+```
+
+Then recreate the normal stack:
+
+```bash
+docker compose up --build -d
+```
+
+The certificate files are mounted read-only and copied into the WAF at startup. This works with certificates issued by Let's Encrypt or another trusted CA. Certificate issuance and renewal remain external deployment responsibilities; private keys are never committed to the repository.
+
+### File-mounted secrets
+
+GO VIRUS can read sensitive values either from normal environment variables or from files mounted into the backend container. This is useful with Docker secrets, Kubernetes secrets, or a Vault agent that writes secrets to files.
+
+Supported file variables:
+
+```env
+VIRUSTOTAL_API_KEY_FILE=/run/secrets/virustotal
+OPENAI_API_KEY_FILE=/run/secrets/openai
+TWO_FACTOR_ENCRYPTION_KEY_FILE=/run/secrets/two_factor
+```
+
+When a `*_FILE` variable is configured, the file value takes precedence over the plain environment variable. Secret files are not included in the repository.
+
+## Prisma migration workflow
+
+Database V1 is frozen and version-controlled under:
+
+```text
+backend/prisma/migrations/20261022084251_database_v1/
+```
+
+Normal startup generates the Prisma client and runs:
+
+```bash
+npx prisma migrate deploy
+```
+
+before NestJS starts.
+
+Existing local databases created by earlier GO VIRUS versions with `prisma db push` are baselined automatically when the complete 19-table Database V1 schema is detected. Data is not deleted.
+
+Check migration status:
+
+```bash
+docker compose exec backend npx prisma migrate status
+```
+
+Validate the schema:
+
+```bash
+docker compose exec backend npx prisma validate
+```
+
+For future schema changes, create a new migration during development:
+
+```bash
+cd backend
+npx prisma migrate dev --name describe_the_change
+```
+
+Commit both the updated `schema.prisma` and the generated migration directory. Do not use `prisma db push` for normal project evolution.
+
+## Automated smoke test
+
+Run:
+
+```bash
+bash scripts/smoke-test.sh
+```
+
+The test covers Docker startup, PostgreSQL, Prisma, backend health, React build, API proxying, OWASP CRS blocking, HTTP security headers, HTTPS through the WAF, authentication, file upload, SHA-based deduplication, scan reuse, artifact lookup, AI route authorization/context streaming, comments, voting, notifications and privacy rules.
+
+> `docker compose down -v` deletes the local PostgreSQL development volume. Use it only when you intentionally want a clean database.
+
+
+## File scanning providers
+
+GO VIRUS has four scanner modes.
+
+### Development mode
+
+```env
+SCAN_PROVIDER=development
+```
+
+Used by CI and normal development when no antivirus service is required. It returns an `UNKNOWN` placeholder result and never claims to be a real antivirus verdict.
+
+### Local ClamAV mode
+
+```env
+SCAN_PROVIDER=clamav
+CLAMAV_HOST=clamav
+CLAMAV_PORT=3310
+```
+
+ClamAV is part of the normal Compose stack. No profile or separate command is required.
+
+Files are streamed from the backend to `clamd` with the ClamAV `INSTREAM` protocol. The ClamAV TCP port is only exposed inside the Docker network; it is not published to the host.
+
+ClamAV supports both PUBLIC and PRIVATE submissions because scanning stays inside the GO VIRUS Docker environment.
+
+### VirusTotal-only mode
+
+```env
+SCAN_PROVIDER=virustotal
+VIRUSTOTAL_API_KEY=your_key_here
+```
+
+This uses VirusTotal API v3 for public multi-engine scanning. PRIVATE submissions are rejected in this mode because the standard VirusTotal API is treated as a public external scanner.
+
+### Real combined mode
+
+Recommended for normal GO VIRUS operation:
+
+```env
+SCAN_PROVIDER=real
+CLAMAV_HOST=clamav
+CLAMAV_PORT=3310
+VIRUSTOTAL_API_KEY=your_key_here
+```
+
+The whole application starts with one command:
+
+```bash
+docker compose up --build
+```
+
+This starts PostgreSQL, ClamAV, the NestJS backend, and the React frontend together.
+
+Behavior:
+
+- PUBLIC file: local ClamAV scan first, then VirusTotal when an API key is configured.
+- PRIVATE file: local ClamAV only. The file and its hash are not sent to VirusTotal.
+- If VirusTotal returns a pending analysis, the local ClamAV result is saved immediately while the scan remains `RUNNING`.
+- When VirusTotal completes, its per-engine results are added to the same scan without deleting the local ClamAV result.
+- The final overall verdict is calculated from all stored engine results.
+- Uploaded binaries are deleted after the configured scanning handoff finishes; metadata and scan results remain.
+
+VirusTotal is optional in `real` mode. Without `VIRUSTOTAL_API_KEY`, GO VIRUS still performs a real local ClamAV scan.
+
+### Real ClamAV integration test
+
+The repository includes an isolated test that uses separate Docker ports and volumes:
+
+```bash
+bash scripts/test-real-scanner.sh
+```
+
+It starts an isolated copy of the full Compose stack, verifies ClamAV readiness, scans a clean private file, and then checks detection using the harmless EICAR antivirus test file.
+
+### File validation
+
+Validation is enforced in both React and NestJS:
+
+- non-empty file;
+- maximum 25 MB by default;
+- filename maximum 255 characters;
+- backend filename normalization;
+- SHA-256, SHA-1 and MD5 calculated server-side.
+
+### Manual rescan
+
+GO VIRUS does not retain uploaded binaries after scanning. Therefore:
+
+- VirusTotal can request a hash-based re-analysis for a known PUBLIC file.
+- A fresh local ClamAV rescan requires the original binary to be uploaded again.
+- PRIVATE files must be re-uploaded if the user wants a new local ClamAV analysis.
