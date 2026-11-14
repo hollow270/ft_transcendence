@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { PageHeader, StatusNotice } from '../components';
@@ -65,7 +65,7 @@ function DetailRow({
   );
 }
 
-const	MAX_COMMENT_PER_REQ = 2;
+const	MAX_COMMENT_PER_REQ = 10;
 
 export default function ArtifactPage() {
   const { artifactId = '' } = useParams();
@@ -81,7 +81,7 @@ export default function ArtifactPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedHistoryScanId, setSelectedHistoryScanId] =
     useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('detection');
+	const	[ params, setParams ] = useSearchParams();
 
 	const	[ comments, setComments ] = useState<Comment[]>([]);
 	const	[ hasMoreComments, setHasMoreComments ] = useState( false );
@@ -175,6 +175,14 @@ export default function ArtifactPage() {
       total: results.length,
     };
   }, [artifact]);
+
+	const	TABS: Tab[] = [ 'detection', 'details', 'history', 'community', 'ai' ];
+	const	tab: Tab = TABS.find( ( t ) => t === params.get( 'tab' ) ) ?? 'detection';
+
+	function	setTab( next: Tab )
+	{
+		setParams( { tab: next }, { replace: true, state: location.state } );
+	}
 
   async function loadScanHistory() {
     setHistoryLoading(true);
@@ -564,11 +572,7 @@ return (
 		<div className="p-5">
 			<p className="text-xs uppercase tracking-wide text-slate-600">Result source</p>
 			<p className="mt-1 text-sm font-medium text-slate-200">
-			{routeState?.reusedScan === true
-				? 'Fresh cached result'
-				: routeState?.reusedScan === false
-				? 'New scan'
-				: 'Stored report'}
+			{routeState?.reusedScan === true ? 'Fresh cached result' : routeState?.reusedScan === false ? 'New scan' : 'Stored report'}
 			</p>
 		</div>
 		</div>
