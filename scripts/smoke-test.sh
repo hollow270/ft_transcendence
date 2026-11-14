@@ -334,6 +334,34 @@ printf '%s' "$COMMENT" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.body!=="CI smoke-test comment") process.exit(1); console.log("comment ok");});
 '
 
+
+COMMENT_ID=$(printf '%s' "$COMMENT" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.id) process.exit(1); process.stdout.write(j.id);});
+')
+
+EDIT_COMMENT=$(curl -fsS -X POST "$BASE_URL/artifacts/$ARTIFACT_ID/comments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"body":"CI edit-delete comment"}')
+
+EDIT_COMMENT_ID=$(printf '%s' "$EDIT_COMMENT" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.id) process.exit(1); process.stdout.write(j.id);});
+')
+
+curl -fsS -X PATCH "$BASE_URL/artifacts/$ARTIFACT_ID/comments/$EDIT_COMMENT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"body":"CI edited comment"}' \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.body!=="CI edited comment" || !j.editedAt) process.exit(1);});
+'
+
+curl -fsS -X DELETE "$BASE_URL/artifacts/$ARTIFACT_ID/comments/$EDIT_COMMENT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.success!==true) process.exit(1); console.log("comment edit/delete ok");});
+'
+
 curl -fsS -X PUT "$BASE_URL/artifacts/$ARTIFACT_ID/vote"   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d '{"verdict":"SUSPICIOUS"}'   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.verdict!=="SUSPICIOUS") process.exit(1); console.log("vote ok");});
 '
