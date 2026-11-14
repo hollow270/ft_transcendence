@@ -47,8 +47,9 @@ export class AuthController {
       password?: string;
       totpCode?: string;
     },
+    @Headers('user-agent') userAgent?: string,
   ) {
-    return this.auth.login(body);
+    return this.auth.login({ ...body, userAgent });
   }
 
   @UseGuards(SessionAuthGuard)
@@ -102,8 +103,8 @@ export class AuthController {
   @UseGuards(SessionAuthGuard)
   @Get('me')
   me(@Req() request: any) {
-    const { id, username, email, role, status } = request.user;
+    const { id, username, email, role, status, createdAt } = request.user;
 
-    return { id, username, email, role, status };
+    return { id, username, email, role, status, createdAt };
   }
 }

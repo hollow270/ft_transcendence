@@ -337,7 +337,7 @@ export default function SearchPage() {
                       <td className="max-w-xl">
                         <Link
                           to={
-                            '/artifact/' + item.id
+                            '/app/artifact/' + item.id
                           }
                           className="block min-w-0 text-slate-200 hover:text-cyan-300"
                         >

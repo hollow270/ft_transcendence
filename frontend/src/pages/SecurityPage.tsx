@@ -202,7 +202,7 @@ export default function SecurityPage() {
                 </div>
 
                 <div className="rounded-lg border border-slate-800 bg-slate-950 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-600">
+                  <p className="text-xs text-slate-600">
                     Setup key
                   </p>
                   <p className="mt-2 break-all font-mono text-sm tracking-wider text-cyan-300">

@@ -104,6 +104,7 @@ export class AuthService {
     email?: string;
     password?: string;
     totpCode?: string;
+    userAgent?: string;
   }) {
     const email = input.email?.trim().toLowerCase();
     const password = input.password ?? '';
@@ -145,7 +146,7 @@ export class AuthService {
       }
     }
 
-    return this.createSession(user);
+    return this.createSession(user, input.userAgent);
   }
 
   async twoFactorStatus(userId: string) {
@@ -338,6 +339,20 @@ export class AuthService {
     return session.user;
   }
 
+  /** Returns the full session (including user) for the bearer token. */
+  async requireSessionFromAuthorization(authorization?: string) {
+    const token = this.extractBearerToken(authorization);
+
+    if (!token) {
+      throw new UnauthorizedException('authentication required');
+    }
+
+    const session = await this.findValidSession(token);
+    await this.touchSession(session.id);
+
+    return session;
+  }
+
   async optionalUserFromAuthorization(authorization?: string) {
     if (!authorization) {
       return null;
@@ -355,12 +370,15 @@ export class AuthService {
     return session.user;
   }
 
-  private async createSession(user: {
-    id: string;
-    username: string;
-    email: string;
-    role: any;
-  }) {
+  private async createSession(
+    user: {
+      id: string;
+      username: string;
+      email: string;
+      role: any;
+    },
+    userAgent?: string,
+  ) {
     const token = randomBytes(32).toString('base64url');
     const tokenHash = this.hashToken(token);
     const expiresAt = new Date(
@@ -372,6 +390,7 @@ export class AuthService {
         userId: user.id,
         tokenHash,
         expiresAt,
+        userAgent: userAgent?.slice(0, 400) || null,
       },
     });
 
@@ -434,14 +453,14 @@ export class AuthService {
     return createHash('sha256').update(token).digest('hex');
   }
 
-  private async hashPassword(password: string) {
+  async hashPassword(password: string) {
     const salt = randomBytes(16).toString('hex');
     const derived = await scryptAsync(password, salt, 64);
 
     return 'scrypt$' + salt + '$' + derived.toString('hex');
   }
 
-  private async verifyPassword(password: string, stored: string) {
+  async verifyPassword(password: string, stored: string) {
     const [algorithm, salt, expectedHex] = stored.split('$');
 
     if (algorithm !== 'scrypt' || !salt || !expectedHex) {

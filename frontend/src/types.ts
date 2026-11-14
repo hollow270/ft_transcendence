@@ -4,6 +4,7 @@ export type User = {
   email: string;
   role: 'USER' | 'MODERATOR' | 'ADMIN';
   status?: string;
+  createdAt?: string;
 };
 
 export type EngineResult = {
@@ -75,6 +76,8 @@ export type UploadResponse = {
   };
   scan: Scan;
   reusedScan: boolean;
+  /** Only present for anonymous uploads; lets the visitor claim the scan after sign-up. */
+  claimToken?: string;
 };
 
 export type Comment = {
@@ -190,6 +193,7 @@ export type UrlSubmissionResponse = {
   };
   scan: Scan;
   reusedScan: boolean;
+  claimToken?: string;
 };
 
 
@@ -401,4 +405,71 @@ export type AdvancedSearchResponse = {
       | 'MALICIOUS'
       | null;
   };
+};
+
+
+export type Verdict = 'HARMLESS' | 'SUSPICIOUS' | 'MALICIOUS' | 'UNKNOWN';
+
+export type AccountOverview = {
+  user: User & { createdAt: string; twoFactorEnabled: boolean };
+  stats: {
+    submissions: number;
+    files: number;
+    urls: number;
+    comments: number;
+    votes: number;
+    activeApiKeys: number;
+    activeSessions: number;
+    unreadNotifications: number;
+    verdicts: Record<Verdict, number>;
+  };
+  activity: Array<{ date: string; count: number }>;
+  recent: Array<{
+    id: string;
+    artifactId: string;
+    artifactType: 'FILE' | 'URL';
+    displayName: string;
+    visibility: 'PUBLIC' | 'PRIVATE';
+    createdAt: string;
+    size: string | null;
+    latestScan: {
+      id: string;
+      status: string;
+      verdict: Verdict;
+      completedAt: string | null;
+    } | null;
+  }>;
+};
+
+export type AccountSession = {
+  id: string;
+  userAgent: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  current: boolean;
+};
+
+export type AdminUserRow = {
+  id: string;
+  username: string;
+  email: string;
+  role: 'USER' | 'MODERATOR' | 'ADMIN';
+  status: 'ACTIVE' | 'DISABLED';
+  createdAt: string;
+  commentBannedUntil: string | null;
+  twoFactorEnabled: boolean;
+  submissions: number;
+  comments: number;
+  activeSessions: number;
+  lastSeenAt: string | null;
+};
+
+export type AdminUsersResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  totals: { active: number; disabled: number };
+  items: AdminUserRow[];
 };
