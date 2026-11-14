@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   ArtifactType,
+  ReportStatus,
   ScanStatus,
   UserStatus,
   Verdict,
@@ -153,7 +154,10 @@ export class AdminService {
       this.prisma.commentReport.count({
         where: {
           status: {
-            in: ['OPEN', 'REVIEWING'],
+            in: [
+              ReportStatus.OPEN,
+              ReportStatus.REVIEWING,
+            ],
           },
         },
       }),
