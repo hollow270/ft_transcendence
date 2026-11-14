@@ -16,6 +16,36 @@ The database V1 contains 19 application tables for users, 2FA, sessions, file/UR
 
 Database details: `backend/prisma/DATABASE.md`
 
+## Product layer (v2)
+
+GO VIRUS now ships as a full product:
+
+- `/` public landing page with an inline scanner. Guests get a limited report preview (verdict, detection count, first 2 engines); hashes, all engines, AI explanation, votes and history unlock after sign-up.
+- `/login`, `/signup` full-page auth with 2FA. A guest scan is attached to the new account automatically (signed claim token, 24h window).
+- `/app/*` signed-in dashboard: overview stats, scanner, report pages, history, search, AI assistant, notifications, API keys.
+- Account management: profile, email change (password required), password change (signs out other devices), signed-in devices with per-session sign-out, account deletion.
+- Admin user management (`/app/admin/users`): search, filter, change roles, disable/enable, force sign-out. All changes go to `audit_logs`.
+
+New backend routes:
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/account/overview` | Dashboard stats, 30-day activity, recent scans |
+| PATCH | `/account/profile` | Update username / email |
+| POST | `/account/password` | Change password |
+| GET | `/account/sessions` | Active sessions |
+| DELETE | `/account/sessions/:id` | Sign out one session |
+| POST | `/account/sessions/revoke-others` | Sign out all other sessions |
+| POST | `/account/claims` | Attach an anonymous scan to the account |
+| POST | `/account/delete` | Delete account |
+| GET | `/admin/users` | Paginated user list |
+| PATCH | `/admin/users/:id` | Change role / status |
+| POST | `/admin/users/:id/revoke-sessions` | Force sign-out |
+
+Optional env: `CLAIM_TOKEN_SECRET` (keeps guest-scan claim tokens valid across backend restarts).
+
+No database migration is required.
+
 ## First run
 
 ```bash

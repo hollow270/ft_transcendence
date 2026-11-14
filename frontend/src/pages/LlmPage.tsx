@@ -74,7 +74,7 @@ export default function LlmPage() {
                 <div className="mt-6 border-t border-slate-800 pt-5">
                   <div className="mb-3 flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-blue-500" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <span className="text-xs font-semibold text-slate-500">
                       GO VIRUS assistant
                     </span>
                   </div>

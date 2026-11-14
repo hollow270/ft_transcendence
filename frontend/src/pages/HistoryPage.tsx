@@ -174,7 +174,7 @@ export default function HistoryPage() {
                   <tr key={item.id}>
                     <td className="max-w-xl">
                       <Link
-                        to={'/artifact/' + item.artifactId}
+                        to={'/app/artifact/' + item.artifactId}
                         className="block min-w-0 text-slate-200 hover:text-cyan-300"
                       >
                         <span className="block truncate font-medium">

@@ -12,6 +12,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthService } from '../auth/auth.service';
 import { ArtifactsService } from './artifacts.service';
+import { signClaimToken } from '../security/claim-token';
 
 @Controller('artifacts')
 export class ArtifactsController {
@@ -67,12 +68,16 @@ export class ArtifactsController {
     const user =
       await this.auth.optionalUserFromAuthorization(authorization);
 
-    return this.artifacts.submitFile(
+    const result = await this.artifacts.submitFile(
       file,
       user?.id ?? null,
       visibility,
       forceRescan,
     );
+
+    return user
+      ? result
+      : { ...result, claimToken: signClaimToken(result.submission.id) };
   }
 
   @Post('urls')
@@ -87,12 +92,16 @@ export class ArtifactsController {
         authorization,
       );
 
-    return this.artifacts.submitUrl(
+    const result = await this.artifacts.submitUrl(
       url,
       user?.id ?? null,
       visibility,
       forceRescan,
     );
+
+    return user
+      ? result
+      : { ...result, claimToken: signClaimToken(result.submission.id) };
   }
 
   @Get(':artifactId/scans')

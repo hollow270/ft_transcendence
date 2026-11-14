@@ -128,7 +128,7 @@ export default function NotificationsPage() {
                 />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <span className="text-xs font-semibold text-slate-500">
                       {notification.type.replace(/_/g, ' ')}
                     </span>
                     <span className="text-xs text-slate-600">{formatDate(notification.createdAt)}</span>
