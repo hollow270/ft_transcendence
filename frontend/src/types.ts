@@ -300,3 +300,74 @@ export type ModerationReport = {
     displayName: string;
   };
 };
+
+
+export type AdminOverview = {
+  generatedAt: string;
+  users: {
+    registered: number;
+    active: number;
+    onlineNow: number;
+  };
+  submissions: {
+    files: number;
+    urls: number;
+    total: number;
+  };
+  scans: {
+    total: number;
+    completed: number;
+    running: number;
+    failed: number;
+    verdicts: {
+      MALICIOUS: number;
+      SUSPICIOUS: number;
+      HARMLESS: number;
+      UNKNOWN: number;
+    };
+  };
+  api: {
+    requests: number;
+    requests24h: number;
+    errors24h: number;
+    activeKeys: number;
+  };
+  community: {
+    comments: number;
+    openReports: number;
+  };
+  llm: {
+    requests: number;
+    requests24h: number;
+  };
+  recentUsers: Array<{
+    id: string;
+    username: string;
+    email: string;
+    role: 'USER' | 'MODERATOR' | 'ADMIN';
+    status: string;
+    createdAt: string;
+  }>;
+  recentAudit: Array<{
+    id: string;
+    action: string;
+    targetType: string | null;
+    targetId: string | null;
+    metadata: unknown;
+    createdAt: string;
+    actor: {
+      id: string;
+      username: string;
+      role: 'USER' | 'MODERATOR' | 'ADMIN';
+    } | null;
+  }>;
+};
+
+export type AdminActivityPoint = {
+  date: string;
+  users: number;
+  files: number;
+  urls: number;
+  scans: number;
+  apiRequests: number;
+};
