@@ -5,6 +5,7 @@ import ApiKeysPage from './pages/ApiKeysPage';
 import ArtifactPage from './pages/ArtifactPage';
 import HomePage from './pages/HomePage';
 import LlmPage from './pages/LlmPage';
+import ModerationPage from './pages/ModerationPage';
 import NotificationsPage from './pages/NotificationsPage';
 import SecurityPage from './pages/SecurityPage';
 import SearchPage from './pages/SearchPage';
@@ -13,7 +14,6 @@ import UserCommunityPage from './pages/UserCommunityPage';
 import UrlPage from './pages/UrlPage';
 import {
   AdminPage,
-  ModerationPage,
 } from './pages/PlaceholderPages';
 
 export default function App() {
