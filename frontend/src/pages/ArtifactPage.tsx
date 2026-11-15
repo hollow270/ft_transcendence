@@ -315,10 +315,7 @@ export default function ArtifactPage() {
 					<form
 						className="mt-3 space-y-3"
 						onSubmit={(event) =>
-							void saveCommentEdit(
-								event,
-								comment.id,
-							)
+							void saveCommentEdit( event, comment.id, comment.parentId )
 						}
 					>
 						<textarea
@@ -400,18 +397,16 @@ export default function ArtifactPage() {
 									Edit
 									</button>
 									<button
-									type="button"
-									className="text-link"
-									disabled={
-										communityBusy
-									}
-									onClick={() =>
-										void removeComment(
-										comment.id,
-										)
-									}
+										type="button"
+										className="text-link"
+										disabled={
+											communityBusy
+										}
+										onClick={
+											() => void removeComment( comment.id, comment.parentId )
+										}
 									>
-									Delete
+										Delete
 									</button>
 								</>
 							) : (
@@ -544,71 +539,55 @@ export default function ArtifactPage() {
 		}
 	}
 
-  async function saveCommentEdit(
-    event: FormEvent,
-    commentId: string,
-  ) {
-    event.preventDefault();
+	async function saveCommentEdit( event: FormEvent, commentId: string, parentId: string | null )
+	{
+		event.preventDefault();
 
-    if (!token || !editBody.trim()) return;
+		if ( !token || !editBody.trim() )
+			return;
 
-    setCommunityBusy(true);
-    setActionError(null);
+		setCommunityBusy(true);
+		setActionError(null);
 
-    try {
-      await api.editComment(
-        artifactId,
-        commentId,
-        editBody.trim(),
-        token,
-      );
-      setEditingCommentId(null);
-      setEditBody('');
-      await refreshCommunity();
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : 'Could not edit comment',
-      );
-    } finally {
-      setCommunityBusy(false);
-    }
-  }
+		try {
+			await api.editComment( artifactId, commentId, editBody.trim(), token );
+			setEditingCommentId( null );
+			setEditBody( '' );
+			if ( parentId )
+				await refreshCommentReplies( parentId );
+			else
+				await refreshCommunity();
+		} catch ( error ) {
+			setActionError( error instanceof Error ? error.message : 'Could not edit comment' );
+		} finally {
+			setCommunityBusy( false );
+		}
+	}
 
-  async function removeComment(
-    commentId: string,
-  ) {
-    if (!token) return;
+	async function removeComment( commentId: string, parentId: string | null )
+	{
+		if (!token)
+			return;
 
-    if (
-      !window.confirm(
-        'Delete this comment?',
-      )
-    ) {
-      return;
-    }
+		if ( !window.confirm( 'Delete this comment?' ) ) {
+			return;
+		}
 
-    setCommunityBusy(true);
-    setActionError(null);
+		setCommunityBusy(true);
+		setActionError(null);
 
-    try {
-      await api.deleteComment(
-        artifactId,
-        commentId,
-        token,
-      );
-      await refreshCommunity();
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : 'Could not delete comment',
-      );
-    } finally {
-      setCommunityBusy(false);
-    }
-  }
+		try {
+			await api.deleteComment( artifactId, commentId, token );
+			if ( parentId )
+				await refreshCommentReplies( parentId );
+			else
+				await refreshCommunity();
+		} catch (error) {
+			setActionError( error instanceof Error ? error.message : 'Could not delete comment' );
+		} finally {
+			setCommunityBusy( false );
+		}
+	}
 
   async function submitReport(
     event: FormEvent,
