@@ -8,6 +8,7 @@ import type {
   ArtifactScanHistoryItem,
   CommentReportReason,
   DiscussionComment,
+  RepliesPage,
   VoteSummary,
 } from '../types';
 
@@ -84,6 +85,7 @@ export default function ArtifactPage() {
 	const	[ params, setParams ] = useSearchParams();
 
 	const	[ comments, setComments ] = useState<DiscussionComment[]>([]);
+	const	[ repliesRecord, setRepliesRecord ] = useState<Record<string, RepliesPage>>( {} );
 	const	[ loadingMoreComments, setLoadingMoreComments ] = useState( false );
 	const	[ nextCursor, setNextCursor ] = useState<string | null>( null );
 	const	[ totalCount, setTotalCount ] = useState( 0 );
@@ -252,8 +254,27 @@ export default function ArtifactPage() {
 		}
 	}
 
+	async	function	loadMoreReplies( comment: DiscussionComment )
+	{
+		try {
+			setActionError( null );
+
+			const	commentRecord = repliesRecord[ comment.id ];
+			const	moreReplies = await api.replies( artifactId, comment.id, MAX_COMMENT_PER_REQ, commentRecord?.nextCursor ?? undefined );
+
+			const	oldItems = commentRecord?.items ?? [];
+			const	newPage = { items: [ ...oldItems, ...moreReplies.items ], nextCursor: moreReplies.nextCursor };
+			setRepliesRecord( previousRecords => ( { ...previousRecords, [ comment.id ]: newPage } ) );
+		} catch {
+			setActionError( 'could not load more replies' )
+		}
+	}
+
 	function	drawComment( comment: DiscussionComment )
 	{
+		const	currentCommentTree = repliesRecord[ comment.id ];
+		const	loadedReplies = currentCommentTree?.items ?? comment.replies ?? [];
+
 		return (
 			<article
 				key={comment.id}
@@ -447,7 +468,7 @@ export default function ArtifactPage() {
 								disabled={
 									communityBusy
 								}
-								>
+							>
 								Submit report
 							</button>
 							<button
@@ -466,7 +487,14 @@ export default function ArtifactPage() {
 					</form>
 				)}
 				{
-					comment.replies?.map( ( comment ) => drawComment( comment) )
+					loadedReplies.map( ( reply ) => drawComment( reply ) )
+				}
+				{
+					loadedReplies.length < comment._count.replies &&
+						<button className="text-link" type="button" onClick={ () => void loadMoreReplies( comment ) }>
+							Show { comment._count.replies - loadedReplies.length }
+								more { comment._count.replies - loadedReplies.length == 1 ? 'reply' : 'replies' }
+						</button>
 				}
 			</article>
 		);
