@@ -550,13 +550,16 @@ export default function ArtifactPage() {
 		setActionError(null);
 
 		try {
-			await api.editComment( artifactId, commentId, editBody.trim(), token );
+			const	updated = await api.editComment( artifactId, commentId, editBody.trim(), token );
 			setEditingCommentId( null );
 			setEditBody( '' );
 			if ( parentId )
 				await refreshCommentReplies( parentId );
-			else
-				await refreshCommunity();
+			else {
+				setComments( previous =>
+					previous.map( c =>
+						c.id === commentId ? { ...c, body: updated.body, editedAt: updated.editedAt } : c ) );
+			}
 		} catch ( error ) {
 			setActionError( error instanceof Error ? error.message : 'Could not edit comment' );
 		} finally {
