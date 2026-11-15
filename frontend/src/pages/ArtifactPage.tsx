@@ -6,8 +6,8 @@ import { formatBytes, PageHeader, StatusNotice, VERDICT_STYLE, VerdictPill } fro
 import type {
   Artifact,
   ArtifactScanHistoryItem,
-  Comment,
   CommentReportReason,
+  DiscussionComment,
   VoteSummary,
 } from '../types';
 
@@ -83,14 +83,14 @@ export default function ArtifactPage() {
     useState<string | null>(null);
 	const	[ params, setParams ] = useSearchParams();
 
-	const	[ comments, setComments ] = useState<Comment[]>([]);
-	const	[ hasMoreComments, setHasMoreComments ] = useState( false );
+	const	[ comments, setComments ] = useState<DiscussionComment[]>([]);
 	const	[ loadingMoreComments, setLoadingMoreComments ] = useState( false );
-	const	[ fetchedCommentsCount, setFetchedCommentsCount ] = useState( 0 );
+	const	[ nextCursor, setNextCursor ] = useState<string | null>( null );
+	const	[ totalCount, setTotalCount ] = useState( 0 );
   const [votes, setVotes] = useState<VoteSummary | null>(null);
   const [communityAvailable, setCommunityAvailable] = useState(false);
   const [commentBody, setCommentBody] = useState('');
-  const [replyTo, setReplyTo] = useState<Comment | null>(null);
+	const [replyTo, setReplyTo] = useState<DiscussionComment | null>(null);
   const [editingCommentId, setEditingCommentId] =
     useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
@@ -109,6 +109,14 @@ export default function ArtifactPage() {
   const routeState = location.state as
     | { reusedScan?: boolean; submissionVisibility?: 'PUBLIC' | 'PRIVATE' }
     | null;
+
+	const	TABS: Tab[] = [ 'detection', 'details', 'history', 'community', 'ai' ];
+	const	tab: Tab = TABS.find( ( t ) => t === params.get( 'tab' ) ) ?? 'detection';
+
+	function	setTab( next: Tab )
+	{
+		setParams( { tab: next }, { replace: true, state: location.state } );
+	}
 
   useEffect(() => {
     let active = true;
@@ -176,14 +184,6 @@ export default function ArtifactPage() {
     };
   }, [artifact]);
 
-	const	TABS: Tab[] = [ 'detection', 'details', 'history', 'community', 'ai' ];
-	const	tab: Tab = TABS.find( ( t ) => t === params.get( 'tab' ) ) ?? 'detection';
-
-	function	setTab( next: Tab )
-	{
-		setParams( { tab: next }, { replace: true, state: location.state } );
-	}
-
   async function loadScanHistory() {
     setHistoryLoading(true);
 
@@ -213,42 +213,38 @@ export default function ArtifactPage() {
 	async	function	refreshCommunity() {
 
 		try {
-			const	visibleCommentsLimit = Math.max( fetchedCommentsCount, MAX_COMMENT_PER_REQ );
-
 			const [commentData, voteData] = await Promise.all([
-				api.comments( artifactId, visibleCommentsLimit + 1 ),
+				api.discussion( artifactId, MAX_COMMENT_PER_REQ ),
 				api.votes(artifactId),
 			]);
 
-			const	visibleComments = commentData.slice( 0, visibleCommentsLimit );
+			setComments( commentData.items );
+			setNextCursor( commentData.nextCursor );
+			setTotalCount( commentData.totalCount );
 
-			setFetchedCommentsCount( visibleComments.length );
-			setHasMoreComments( commentData.length > visibleCommentsLimit );
-			setComments( visibleComments );
 			setVotes(voteData);
 			setCommunityAvailable(true);
 		} catch {
-			setFetchedCommentsCount( 0 );
-			setHasMoreComments( false );
+			setNextCursor( null );
+			setTotalCount( 0 );
 			setComments([]);
 			setVotes(null);
 			setCommunityAvailable(false);
 		}
 	}
 
-	async	function	loadMoreComments() {
-		
+	async	function	loadMoreComments()
+	{
+		if ( !nextCursor )
+			return ;
 		try {
 			setActionError( null );
 			setLoadingMoreComments( true );
 
-			const	moreComments: Comment[] = await api.comments( artifactId, MAX_COMMENT_PER_REQ + 1, fetchedCommentsCount );
-			const	additionalPageComments = moreComments.slice( 0, MAX_COMMENT_PER_REQ );
+			const	moreComments = await api.discussion( artifactId, MAX_COMMENT_PER_REQ, nextCursor );
 
-			setFetchedCommentsCount( fetchedCommentsCount + additionalPageComments.length );
-
-			setHasMoreComments( moreComments.length > MAX_COMMENT_PER_REQ );
-			setComments( previousComments => [ ...previousComments, ...additionalPageComments ] );
+			setNextCursor( moreComments.nextCursor );
+			setComments( previousComments => [ ...previousComments, ...moreComments.items ] );
 		} catch {
 			setActionError( 'could not load more comments' );
 		} finally {
@@ -986,14 +982,14 @@ export default function ArtifactPage() {
 				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
 					<section className="surface">
 						<div className="surface-header">
-						<h2 className="text-sm font-semibold text-slate-200">Discussion</h2>
+						<h2 className="text-sm font-semibold text-slate-200">Discussion - { totalCount }</h2>
 						</div>
 
 						{user ? (
 						<form className="border-b border-slate-800 p-5" onSubmit={submitComment}>
 							{replyTo && (
 							<div className="mb-3 flex items-center justify-between rounded-md bg-slate-950 px-3 py-2 text-xs text-slate-500">
-								<span>Replying to {replyTo.user.username}</span>
+								<span>Replying to {replyTo.user?.username}</span>
 								<button type="button" className="text-link" onClick={() => setReplyTo(null)}>
 								Cancel
 								</button>
@@ -1017,217 +1013,220 @@ export default function ArtifactPage() {
 						)}
 
                 <div>
-                  {comments.length ? (
-                    comments.map((comment) => (
-                      <article
-                        key={comment.id}
-                        className={
-                          'border-b border-slate-800 px-5 py-4 last:border-b-0 ' +
-                          (comment.parentId ? 'ml-6 border-l border-l-slate-700 sm:ml-10' : '')
-                        }
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <Link
-                            to={'/app/users/' + comment.user.id + '/community'}
-                            className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
-                          >
-                            {comment.user.username}
-                          </Link>
-                          <span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
-                        </div>
-                        {editingCommentId === comment.id ? (
-                          <form
-                            className="mt-3 space-y-3"
-                            onSubmit={(event) =>
-                              void saveCommentEdit(
-                                event,
-                                comment.id,
-                              )
-                            }
-                          >
-                            <textarea
-                              className="app-input min-h-24 resize-y"
-                              value={editBody}
-                              maxLength={4000}
-                              onChange={(event) =>
-                                setEditBody(
-                                  event.target.value,
-                                )
-                              }
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                className="primary-button"
-                                disabled={
-                                  communityBusy ||
-                                  !editBody.trim()
-                                }
-                              >
-                                Save
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={() => {
-                                  setEditingCommentId(
-                                    null,
-                                  );
-                                  setEditBody('');
-                                }}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </form>
-                        ) : (
-                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">
-                            {comment.body}
-                          </p>
-                        )}
+					{comments.length ? ( comments.map((comment) => (
+						<article
+							key={comment.id}
+							className={
+								'border-b border-slate-800 px-5 py-4 last:border-b-0 ' +
+								(comment.parentId ? 'ml-6 border-l border-l-slate-700 sm:ml-10' : '')
+							}
+						>
+							<div className="flex flex-wrap items-center justify-between gap-2">
+								{ comment.user ? 
+									(
+										<Link
+											to={'/app/users/' + comment.user.id + '/community'}
+											className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
+										>
+											{comment.user.username}
+										</Link>
+									) : (
+										<span className="text-slate-500">{ comment.status === 'HIDDEN' ? '[hidden]' : '[deleted]'}</span>
+									)
+								}
+								<span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
+							</div>
+							{editingCommentId === comment.id ? (
+								<form
+									className="mt-3 space-y-3"
+									onSubmit={(event) =>
+										void saveCommentEdit(
+											event,
+											comment.id,
+										)
+									}
+								>
+									<textarea
+									className="app-input min-h-24 resize-y"
+									value={editBody}
+									maxLength={4000}
+									onChange={(event) =>
+										setEditBody(
+										event.target.value,
+										)
+									}
+									/>
+									<div className="flex gap-2">
+										<button
+											className="primary-button"
+											disabled={
+											communityBusy ||
+											!editBody.trim()
+											}
+										>
+											Save
+										</button>
+										<button
+											type="button"
+											className="secondary-button"
+											onClick={() => {
+											setEditingCommentId(
+												null,
+											);
+											setEditBody('');
+											}}
+										>
+											Cancel
+										</button>
+									</div>
+								</form>
+							) : (
+							<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">
+								{comment.body}
+							</p>
+							)}
 
-										{comment.editedAt && (
-											<p className="mt-1 text-xs text-slate-600">
-												Edited {formatDate(comment.editedAt)}
-											</p>
-										)}
+							{comment.editedAt && (
+								<p className="mt-1 text-xs text-slate-600">
+									Edited {formatDate(comment.editedAt)}
+								</p>
+							)}
 
-										{user && (
-											<div className="mt-2 flex flex-wrap gap-3 text-xs">
+							{user && comment.user && (
+								<div className="mt-2 flex flex-wrap gap-3 text-xs">
+									<button
+										type="button"
+										className="text-link"
+										onClick={() =>
+											setReplyTo(comment)
+										}
+									>
+										Reply
+									</button>
+
+									{user.id ===
+										comment.user.id ? (
+											<>
 												<button
 													type="button"
 													className="text-link"
-													onClick={() =>
-														setReplyTo(comment)
-													}
+													onClick={() => {
+														setEditingCommentId(
+															comment.id,
+														);
+														setEditBody(
+															comment.body ?? '',
+														);
+														setReportTargetId(
+															null,
+														);
+													}}
 												>
-												Reply
+												Edit
 												</button>
-
-												{user.id ===
-													comment.user.id ? (
-														<>
-															<button
-																type="button"
-																className="text-link"
-																onClick={() => {
-																	setEditingCommentId(
-																		comment.id,
-																	);
-																	setEditBody(
-																		comment.body,
-																	);
-																	setReportTargetId(
-																		null,
-																	);
-																}}
-															>
-															Edit
-															</button>
-															<button
-															type="button"
-															className="text-link"
-															disabled={
-																communityBusy
-															}
-															onClick={() =>
-																void removeComment(
-																comment.id,
-																)
-															}
-															>
-															Delete
-															</button>
-														</>
-													) : (
-													<button
-														type="button"
-														className="text-link"
-														onClick={() => {
-															setReportTargetId(
-																reportTargetId ===
-																comment.id
-																? null
-																: comment.id,
-															);
-															setEditingCommentId(
-																null,
-															);
-														}}
-													>
-														Report
-													</button>
+												<button
+												type="button"
+												className="text-link"
+												disabled={
+													communityBusy
+												}
+												onClick={() =>
+													void removeComment(
+													comment.id,
 													)
 												}
-											</div>
-										)}
-
-										{user &&
-										reportTargetId ===
-											comment.id && (
-											<form
-												className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
-												onSubmit={(event) =>
-													void submitReport(
-														event,
-														comment.id,
-													)
-												}
-											>
-												<select
-													className="gv-compact-select"
-													value={reportReason}
-													onChange={(event) =>
-														setReportReason(
-															event.target
-															.value as CommentReportReason,
-														)
-													}
 												>
-													<option value="SPAM">Spam</option>
-													<option value="ABUSIVE">Abusive</option>
-													<option value="DANGEROUS_MISINFORMATION">Dangerous misinformation</option>
-													<option value="OTHER">Other</option>
-												</select>
+												Delete
+												</button>
+											</>
+										) : (
+										<button
+											type="button"
+											className="text-link"
+											onClick={() => {
+												setReportTargetId(
+													reportTargetId ===
+													comment.id
+													? null
+													: comment.id,
+												);
+												setEditingCommentId(
+													null,
+												);
+											}}
+										>
+											Report
+										</button>
+										)
+									}
+								</div>
+							)}
 
-												<textarea
-													className="app-input min-h-20 resize-y"
-													placeholder="Optional details for moderators…"
-													value={reportDetails}
-													maxLength={2000}
-													onChange={(event) =>
-														setReportDetails(
-															event.target.value,
-														)
-													}
-												/>
+							{user && reportTargetId === comment.id && (
+								<form
+									className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+									onSubmit={(event) =>
+										void submitReport(
+											event,
+											comment.id,
+										)
+									}
+								>
+									<select
+										className="gv-compact-select"
+										value={reportReason}
+										onChange={(event) =>
+											setReportReason(
+												event.target
+												.value as CommentReportReason,
+											)
+										}
+									>
+										<option value="SPAM">Spam</option>
+										<option value="ABUSIVE">Abusive</option>
+										<option value="DANGEROUS_MISINFORMATION">Dangerous misinformation</option>
+										<option value="OTHER">Other</option>
+									</select>
 
-												<div className="flex gap-2">
-													<button
-														className="primary-button"
-														disabled={
-															communityBusy
-														}
-														>
-														Submit report
-													</button>
-													<button
-														type="button"
-														className="secondary-button"
-														onClick={() => {
-															setReportTargetId(
-																null,
-															);
-															setReportDetails('');
-														}}
-														>
-														Cancel
-													</button>
-												</div>
-											</form>
-										)}
+									<textarea
+										className="app-input min-h-20 resize-y"
+										placeholder="Optional details for moderators…"
+										value={reportDetails}
+										maxLength={2000}
+										onChange={(event) =>
+											setReportDetails(
+												event.target.value,
+											)
+										}
+									/>
 
-									</article>
-								))
+									<div className="flex gap-2">
+										<button
+											className="primary-button"
+											disabled={
+												communityBusy
+											}
+											>
+											Submit report
+										</button>
+										<button
+											type="button"
+											className="secondary-button"
+											onClick={() => {
+												setReportTargetId(
+													null,
+												);
+												setReportDetails('');
+											}}
+											>
+											Cancel
+										</button>
+									</div>
+								</form>
+							)}
+
+						</article>
+							))
 
 							) : (
 								<div className="empty-state">
@@ -1237,7 +1236,14 @@ export default function ArtifactPage() {
 							)}
 						</div>
 						<div className="mt-3 flex justify-end">
-							{hasMoreComments && <button className="primary-button" disabled={loadingMoreComments} type="button" onClick={loadMoreComments}>Load more comments</button>}
+							{
+								nextCursor &&
+									<button className="primary-button"
+										disabled={loadingMoreComments}
+										type="button"
+										onClick={loadMoreComments}>Load more comments
+									</button>
+							}
 						</div>
 					</section>
 
