@@ -252,6 +252,226 @@ export default function ArtifactPage() {
 		}
 	}
 
+	function	drawComment( comment: DiscussionComment )
+	{
+		return (
+			<article
+				key={comment.id}
+				className={
+					'border-b border-slate-800 px-5 py-4 last:border-b-0 ' +
+					(comment.parentId ? 'ml-6 border-l border-l-slate-700 sm:ml-10' : '')
+				}
+			>
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					{ comment.user ? 
+						(
+							<Link
+								to={'/app/users/' + comment.user.id + '/community'}
+								className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
+							>
+								{comment.user.username}
+							</Link>
+						) : (
+							<span className="text-slate-500">{ comment.status === 'HIDDEN' ? '[hidden]' : '[deleted]'}</span>
+						)
+					}
+					<span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
+				</div>
+				{editingCommentId === comment.id ? (
+					<form
+						className="mt-3 space-y-3"
+						onSubmit={(event) =>
+							void saveCommentEdit(
+								event,
+								comment.id,
+							)
+						}
+					>
+						<textarea
+						className="app-input min-h-24 resize-y"
+						value={editBody}
+						maxLength={4000}
+						onChange={(event) =>
+							setEditBody(
+							event.target.value,
+							)
+						}
+						/>
+						<div className="flex gap-2">
+							<button
+								className="primary-button"
+								disabled={
+								communityBusy ||
+								!editBody.trim()
+								}
+							>
+								Save
+							</button>
+							<button
+								type="button"
+								className="secondary-button"
+								onClick={() => {
+								setEditingCommentId(
+									null,
+								);
+								setEditBody('');
+								}}
+							>
+								Cancel
+							</button>
+						</div>
+					</form>
+				) : (
+				<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">
+					{comment.body}
+				</p>
+				)}
+
+				{comment.editedAt && (
+					<p className="mt-1 text-xs text-slate-600">
+						Edited {formatDate(comment.editedAt)}
+					</p>
+				)}
+
+				{user && comment.user && (
+					<div className="mt-2 flex flex-wrap gap-3 text-xs">
+						<button
+							type="button"
+							className="text-link"
+							onClick={() =>
+								setReplyTo(comment)
+							}
+						>
+							Reply
+						</button>
+
+						{user.id ===
+							comment.user.id ? (
+								<>
+									<button
+										type="button"
+										className="text-link"
+										onClick={() => {
+											setEditingCommentId(
+												comment.id,
+											);
+											setEditBody(
+												comment.body ?? '',
+											);
+											setReportTargetId(
+												null,
+											);
+										}}
+									>
+									Edit
+									</button>
+									<button
+									type="button"
+									className="text-link"
+									disabled={
+										communityBusy
+									}
+									onClick={() =>
+										void removeComment(
+										comment.id,
+										)
+									}
+									>
+									Delete
+									</button>
+								</>
+							) : (
+							<button
+								type="button"
+								className="text-link"
+								onClick={() => {
+									setReportTargetId(
+										reportTargetId ===
+										comment.id
+										? null
+										: comment.id,
+									);
+									setEditingCommentId(
+										null,
+									);
+								}}
+							>
+								Report
+							</button>
+							)
+						}
+					</div>
+				)}
+
+				{user && reportTargetId === comment.id && (
+					<form
+						className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+						onSubmit={(event) =>
+							void submitReport(
+								event,
+								comment.id,
+							)
+						}
+					>
+						<select
+							className="gv-compact-select"
+							value={reportReason}
+							onChange={(event) =>
+								setReportReason(
+									event.target
+									.value as CommentReportReason,
+								)
+							}
+						>
+							<option value="SPAM">Spam</option>
+							<option value="ABUSIVE">Abusive</option>
+							<option value="DANGEROUS_MISINFORMATION">Dangerous misinformation</option>
+							<option value="OTHER">Other</option>
+						</select>
+
+						<textarea
+							className="app-input min-h-20 resize-y"
+							placeholder="Optional details for moderators…"
+							value={reportDetails}
+							maxLength={2000}
+							onChange={(event) =>
+								setReportDetails(
+									event.target.value,
+								)
+							}
+						/>
+
+						<div className="flex gap-2">
+							<button
+								className="primary-button"
+								disabled={
+									communityBusy
+								}
+								>
+								Submit report
+							</button>
+							<button
+								type="button"
+								className="secondary-button"
+								onClick={() => {
+									setReportTargetId(
+										null,
+									);
+									setReportDetails('');
+								}}
+								>
+								Cancel
+							</button>
+						</div>
+					</form>
+				)}
+				{
+					comment.replies?.map( ( comment ) => drawComment( comment) )
+				}
+			</article>
+		);
+	}
+
   async function submitComment(event: FormEvent) {
     event.preventDefault();
     if (!token || !commentBody.trim()) return;
@@ -1012,228 +1232,13 @@ export default function ArtifactPage() {
 						</div>
 						)}
 
-                <div>
-					{comments.length ? ( comments.map((comment) => (
-						<article
-							key={comment.id}
-							className={
-								'border-b border-slate-800 px-5 py-4 last:border-b-0 ' +
-								(comment.parentId ? 'ml-6 border-l border-l-slate-700 sm:ml-10' : '')
-							}
-						>
-							<div className="flex flex-wrap items-center justify-between gap-2">
-								{ comment.user ? 
-									(
-										<Link
-											to={'/app/users/' + comment.user.id + '/community'}
-											className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
-										>
-											{comment.user.username}
-										</Link>
-									) : (
-										<span className="text-slate-500">{ comment.status === 'HIDDEN' ? '[hidden]' : '[deleted]'}</span>
-									)
-								}
-								<span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
-							</div>
-							{editingCommentId === comment.id ? (
-								<form
-									className="mt-3 space-y-3"
-									onSubmit={(event) =>
-										void saveCommentEdit(
-											event,
-											comment.id,
-										)
-									}
-								>
-									<textarea
-									className="app-input min-h-24 resize-y"
-									value={editBody}
-									maxLength={4000}
-									onChange={(event) =>
-										setEditBody(
-										event.target.value,
-										)
-									}
-									/>
-									<div className="flex gap-2">
-										<button
-											className="primary-button"
-											disabled={
-											communityBusy ||
-											!editBody.trim()
-											}
-										>
-											Save
-										</button>
-										<button
-											type="button"
-											className="secondary-button"
-											onClick={() => {
-											setEditingCommentId(
-												null,
-											);
-											setEditBody('');
-											}}
-										>
-											Cancel
-										</button>
-									</div>
-								</form>
-							) : (
-							<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">
-								{comment.body}
-							</p>
-							)}
-
-							{comment.editedAt && (
-								<p className="mt-1 text-xs text-slate-600">
-									Edited {formatDate(comment.editedAt)}
-								</p>
-							)}
-
-							{user && comment.user && (
-								<div className="mt-2 flex flex-wrap gap-3 text-xs">
-									<button
-										type="button"
-										className="text-link"
-										onClick={() =>
-											setReplyTo(comment)
-										}
-									>
-										Reply
-									</button>
-
-									{user.id ===
-										comment.user.id ? (
-											<>
-												<button
-													type="button"
-													className="text-link"
-													onClick={() => {
-														setEditingCommentId(
-															comment.id,
-														);
-														setEditBody(
-															comment.body ?? '',
-														);
-														setReportTargetId(
-															null,
-														);
-													}}
-												>
-												Edit
-												</button>
-												<button
-												type="button"
-												className="text-link"
-												disabled={
-													communityBusy
-												}
-												onClick={() =>
-													void removeComment(
-													comment.id,
-													)
-												}
-												>
-												Delete
-												</button>
-											</>
-										) : (
-										<button
-											type="button"
-											className="text-link"
-											onClick={() => {
-												setReportTargetId(
-													reportTargetId ===
-													comment.id
-													? null
-													: comment.id,
-												);
-												setEditingCommentId(
-													null,
-												);
-											}}
-										>
-											Report
-										</button>
-										)
-									}
-								</div>
-							)}
-
-							{user && reportTargetId === comment.id && (
-								<form
-									className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
-									onSubmit={(event) =>
-										void submitReport(
-											event,
-											comment.id,
-										)
-									}
-								>
-									<select
-										className="gv-compact-select"
-										value={reportReason}
-										onChange={(event) =>
-											setReportReason(
-												event.target
-												.value as CommentReportReason,
-											)
-										}
-									>
-										<option value="SPAM">Spam</option>
-										<option value="ABUSIVE">Abusive</option>
-										<option value="DANGEROUS_MISINFORMATION">Dangerous misinformation</option>
-										<option value="OTHER">Other</option>
-									</select>
-
-									<textarea
-										className="app-input min-h-20 resize-y"
-										placeholder="Optional details for moderators…"
-										value={reportDetails}
-										maxLength={2000}
-										onChange={(event) =>
-											setReportDetails(
-												event.target.value,
-											)
-										}
-									/>
-
-									<div className="flex gap-2">
-										<button
-											className="primary-button"
-											disabled={
-												communityBusy
-											}
-											>
-											Submit report
-										</button>
-										<button
-											type="button"
-											className="secondary-button"
-											onClick={() => {
-												setReportTargetId(
-													null,
-												);
-												setReportDetails('');
-											}}
-											>
-											Cancel
-										</button>
-									</div>
-								</form>
-							)}
-
-						</article>
-							))
-
-							) : (
-								<div className="empty-state">
-								<p className="text-sm font-semibold text-slate-300">No comments yet</p>
-								<p className="mt-1 text-sm text-slate-500">Be the first to add context to this artifact.</p>
-								</div>
-							)}
+					<div>
+					{comments.length ? ( comments.map( ( comment ) => drawComment( comment ) ) ) : (
+						<div className="empty-state">
+						<p className="text-sm font-semibold text-slate-300">No comments yet</p>
+						<p className="mt-1 text-sm text-slate-500">Be the first to add context to this artifact.</p>
+						</div>
+					)}
 						</div>
 						<div className="mt-3 flex justify-end">
 							{
