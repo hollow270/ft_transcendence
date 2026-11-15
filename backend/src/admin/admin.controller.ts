@@ -1,7 +1,12 @@
 import {
+  Body,
   Controller,
   Get,
+  Param,
+  Patch,
+  Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -9,6 +14,7 @@ import { Response } from 'express';
 import { SessionAuthGuard } from '../auth/auth.guard';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
+import { AdminUsersService } from './admin-users.service';
 
 @Controller('admin')
 @UseGuards(
@@ -19,7 +25,36 @@ export class AdminController {
   constructor(
     private readonly admin:
       AdminService,
+    private readonly adminUsers: AdminUsersService,
   ) {}
+
+  @Get('users')
+  users(
+    @Query('q') q?: string,
+    @Query('role') role?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.adminUsers.list({ q, role, status, page, pageSize });
+  }
+
+  @Patch('users/:userId')
+  updateUser(
+    @Req() request: any,
+    @Param('userId') userId: string,
+    @Body() body: { role?: string; status?: string },
+  ) {
+    return this.adminUsers.update(request.user.id, userId, body ?? {});
+  }
+
+  @Post('users/:userId/revoke-sessions')
+  revokeUserSessions(
+    @Req() request: any,
+    @Param('userId') userId: string,
+  ) {
+    return this.adminUsers.revokeSessions(request.user.id, userId);
+  }
 
   @Get('overview')
   overview() {
