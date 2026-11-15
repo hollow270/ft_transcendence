@@ -6,9 +6,18 @@ import {
 import { Server, Socket } from 'socket.io';
 import { AuthService } from '../auth/auth.service';
 
+const socketOrigins = (
+  process.env.APP_ALLOWED_ORIGINS ??
+  'http://localhost:5173,http://localhost:8080'
+)
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: socketOrigins,
+    methods: ['GET', 'POST'],
   },
 })
 export class NotificationsGateway implements OnGatewayConnection {
