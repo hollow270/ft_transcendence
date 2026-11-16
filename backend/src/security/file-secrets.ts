@@ -9,10 +9,6 @@ const FILE_SECRET_NAMES = [
 
 export function loadFileSecrets() {
   for (const name of FILE_SECRET_NAMES) {
-    if (process.env[name]?.trim()) {
-      continue;
-    }
-
     const filePath =
       process.env[name + '_FILE']?.trim();
 
