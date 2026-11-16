@@ -86,6 +86,7 @@ export default function ArtifactPage() {
 
 	const	[ comments, setComments ] = useState<DiscussionComment[]>([]);
 	const	[ repliesRecord, setRepliesRecord ] = useState<Record<string, RepliesPage>>( {} );
+	const	[ collapsedIdsRecord, setCollapsedIdsRecord ] = useState<Record<string, boolean>>( {} );
 	const	[ loadingMoreComments, setLoadingMoreComments ] = useState( false );
 	const	[ nextCursor, setNextCursor ] = useState<string | null>( null );
 	const	[ totalCount, setTotalCount ] = useState( 0 );
@@ -284,6 +285,16 @@ export default function ArtifactPage() {
 		}
 	}
 
+	function	toggleCollapse( commentId: string )
+	{
+		if ( collapsedIdsRecord[ commentId ] === undefined )
+			setCollapsedIdsRecord( { ...collapsedIdsRecord, [ commentId ]: true } );
+		else if ( collapsedIdsRecord[ commentId ] === true )
+			setCollapsedIdsRecord( { ...collapsedIdsRecord, [ commentId ]: false } );
+		else
+			setCollapsedIdsRecord( { ...collapsedIdsRecord, [ commentId ]: true } );
+	}
+
 	function	drawComment( comment: DiscussionComment )
 	{
 		const	currentCommentTree = repliesRecord[ comment.id ];
@@ -291,6 +302,13 @@ export default function ArtifactPage() {
 		const	hasMoreReplies = currentCommentTree ? currentCommentTree.nextCursor !== null
 			: loadedReplies.length < comment._count.replies;
 		const	remainingReplies = comment._count.replies - loadedReplies.length;
+		let		isCollapsed;
+		if ( collapsedIdsRecord[ comment.id ] === undefined )
+			isCollapsed = false;
+		else if ( collapsedIdsRecord[ comment.id ] === true )
+			isCollapsed = true;
+		else
+			isCollapsed = false;
 
 		return (
 			<article
@@ -301,246 +319,255 @@ export default function ArtifactPage() {
 				}
 			>
 				<div className="flex flex-wrap items-center justify-between gap-2">
-					{ comment.user ? 
-						(
-							<Link
-								to={'/app/users/' + comment.user.id + '/community'}
-								className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
-							>
-								{comment.user.username}
-							</Link>
-						) : (
-							<span className="text-slate-500">{ comment.status === 'HIDDEN' ? '[hidden]' : '[deleted]'}</span>
-						)
-					}
-					<span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
-				</div>
-				{editingCommentId === comment.id ? (
-					<form
-						className="mt-3 space-y-3"
-						onSubmit={(event) =>
-							void saveCommentEdit( event, comment.id, comment.parentId )
-						}
-					>
-						<textarea
-						className="app-input min-h-24 resize-y"
-						value={editBody}
-						maxLength={4000}
-						onChange={(event) =>
-							setEditBody(
-							event.target.value,
+					<div className="flex items-center gap-2">
+						<button type="button" className="text-link" onClick={ () => toggleCollapse( comment.id ) }>
+							{ isCollapsed ? '[+]' : '[-]' }
+						</button>
+						{ comment.user ? 
+							(
+								<Link
+									to={'/app/users/' + comment.user.id + '/community'}
+									className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
+								>
+									{comment.user.username}
+								</Link>
+							) : (
+								<span className="text-slate-500">{ comment.status === 'HIDDEN' ? '[hidden]' : '[deleted]'}</span>
 							)
 						}
-						/>
-						<div className="flex gap-2">
-							<button
-								className="primary-button"
-								disabled={
-								communityBusy ||
-								!editBody.trim()
+					</div>
+					<span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
+				</div>
+				{ !isCollapsed &&
+					<>
+						{editingCommentId === comment.id ? (
+							<form
+								className="mt-3 space-y-3"
+								onSubmit={(event) =>
+									void saveCommentEdit( event, comment.id, comment.parentId )
 								}
 							>
-								Save
-							</button>
-							<button
-								type="button"
-								className="secondary-button"
-								onClick={() => {
-								setEditingCommentId(
-									null,
-								);
-								setEditBody('');
-								}}
-							>
-								Cancel
-							</button>
-						</div>
-					</form>
-				) : (
-				<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">
-					{comment.body}
-				</p>
-				)}
+								<textarea
+								className="app-input min-h-24 resize-y"
+								value={editBody}
+								maxLength={4000}
+								onChange={(event) =>
+									setEditBody(
+									event.target.value,
+									)
+								}
+								/>
+								<div className="flex gap-2">
+									<button
+										className="primary-button"
+										disabled={
+										communityBusy ||
+										!editBody.trim()
+										}
+									>
+										Save
+									</button>
+									<button
+										type="button"
+										className="secondary-button"
+										onClick={() => {
+										setEditingCommentId(
+											null,
+										);
+										setEditBody('');
+										}}
+									>
+										Cancel
+									</button>
+								</div>
+							</form>
+						) : (
+						<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">
+							{comment.body}
+						</p>
+						)}
 
-				{comment.editedAt && (
-					<p className="mt-1 text-xs text-slate-600">
-						Edited {formatDate(comment.editedAt)}
-					</p>
-				)}
+						{comment.editedAt && (
+							<p className="mt-1 text-xs text-slate-600">
+								Edited {formatDate(comment.editedAt)}
+							</p>
+						)}
 
-				{user && comment.user && (
-					<div className="mt-2 flex flex-wrap gap-3 text-xs">
-						<button
-							type="button"
-							className="text-link"
-							onClick={() => {
-								setReplyTo( comment );
-								setReplyBody( '' );
-							}}
-						>
-							Reply
-						</button>
+						{user && comment.user && (
+							<div className="mt-2 flex flex-wrap gap-3 text-xs">
+								<button
+									type="button"
+									className="text-link"
+									onClick={() => {
+										setReplyTo( comment );
+										setReplyBody( '' );
+									}}
+								>
+									Reply
+								</button>
 
-						{user.id ===
-							comment.user.id ? (
-								<>
+								{user.id ===
+									comment.user.id ? (
+										<>
+											<button
+												type="button"
+												className="text-link"
+												onClick={() => {
+													setEditingCommentId(
+														comment.id,
+													);
+													setEditBody(
+														comment.body ?? '',
+													);
+													setReportTargetId(
+														null,
+													);
+												}}
+											>
+											Edit
+											</button>
+											<button
+												type="button"
+												className="text-link"
+												disabled={
+													communityBusy
+												}
+												onClick={
+													() => void removeComment( comment.id, comment.parentId )
+												}
+											>
+												Delete
+											</button>
+										</>
+									) : (
 									<button
 										type="button"
 										className="text-link"
 										onClick={() => {
-											setEditingCommentId(
-												comment.id,
-											);
-											setEditBody(
-												comment.body ?? '',
-											);
 											setReportTargetId(
+												reportTargetId ===
+												comment.id
+												? null
+												: comment.id,
+											);
+											setEditingCommentId(
 												null,
 											);
 										}}
 									>
-									Edit
+										Report
+									</button>
+									)
+								}
+							</div>
+						)}
+
+						{replyTo?.id === comment.id && (
+							<form
+								className="mt-3 space-y-3"
+								onSubmit={ ( event ) => void submitReply( event, comment.id ) }
+							>
+								<textarea
+									className="app-input min-h-24 resize-y"
+									placeholder="Write a reply…"
+									value={ replyBody }
+									maxLength={ 4000 }
+									onChange={ ( event ) => setReplyBody( event.target.value ) }
+								/>
+								<div className="flex gap-2">
+									<button
+										className="primary-button"
+										disabled={ communityBusy || !replyBody.trim() }
+									>
+										Reply
 									</button>
 									<button
 										type="button"
-										className="text-link"
+										className="secondary-button"
+										onClick={ () => {
+											setReplyTo( null );
+											setReplyBody( '' );
+										}}
+									>
+										Cancel
+									</button>
+								</div>
+							</form>
+						)}
+
+						{user && reportTargetId === comment.id && (
+							<form
+								className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+								onSubmit={(event) =>
+									void submitReport(
+										event,
+										comment.id,
+									)
+								}
+							>
+								<select
+									className="gv-compact-select"
+									value={reportReason}
+									onChange={(event) =>
+										setReportReason(
+											event.target
+											.value as CommentReportReason,
+										)
+									}
+								>
+									<option value="SPAM">Spam</option>
+									<option value="ABUSIVE">Abusive</option>
+									<option value="DANGEROUS_MISINFORMATION">Dangerous misinformation</option>
+									<option value="OTHER">Other</option>
+								</select>
+
+								<textarea
+									className="app-input min-h-20 resize-y"
+									placeholder="Optional details for moderators…"
+									value={reportDetails}
+									maxLength={2000}
+									onChange={(event) =>
+										setReportDetails(
+											event.target.value,
+										)
+									}
+								/>
+
+								<div className="flex gap-2">
+									<button
+										className="primary-button"
 										disabled={
 											communityBusy
 										}
-										onClick={
-											() => void removeComment( comment.id, comment.parentId )
-										}
 									>
-										Delete
+										Submit report
 									</button>
-								</>
-							) : (
-							<button
-								type="button"
-								className="text-link"
-								onClick={() => {
-									setReportTargetId(
-										reportTargetId ===
-										comment.id
-										? null
-										: comment.id,
-									);
-									setEditingCommentId(
-										null,
-									);
-								}}
-							>
-								Report
-							</button>
-							)
+									<button
+										type="button"
+										className="secondary-button"
+										onClick={() => {
+											setReportTargetId(
+												null,
+											);
+											setReportDetails('');
+										}}
+										>
+										Cancel
+									</button>
+								</div>
+							</form>
+						)}
+						{
+							loadedReplies.map( ( reply ) => drawComment( reply ) )
 						}
-					</div>
-				)}
-
-				{replyTo?.id === comment.id && (
-					<form
-						className="mt-3 space-y-3"
-						onSubmit={ ( event ) => void submitReply( event, comment.id ) }
-					>
-						<textarea
-							className="app-input min-h-24 resize-y"
-							placeholder="Write a reply…"
-							value={ replyBody }
-							maxLength={ 4000 }
-							onChange={ ( event ) => setReplyBody( event.target.value ) }
-						/>
-						<div className="flex gap-2">
-							<button
-								className="primary-button"
-								disabled={ communityBusy || !replyBody.trim() }
-							>
-								Reply
-							</button>
-							<button
-								type="button"
-								className="secondary-button"
-								onClick={ () => {
-									setReplyTo( null );
-									setReplyBody( '' );
-								}}
-							>
-								Cancel
-							</button>
-						</div>
-					</form>
-				)}
-
-				{user && reportTargetId === comment.id && (
-					<form
-						className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
-						onSubmit={(event) =>
-							void submitReport(
-								event,
-								comment.id,
-							)
+						{
+							hasMoreReplies &&
+								<button className="text-link" type="button" onClick={ () => void loadMoreReplies( comment ) }>
+									{ currentCommentTree ? 'Show more replies'
+										: `Show ${ remainingReplies } more ${ remainingReplies === 1 ? 'reply' : 'replies' }` }
+								</button>
 						}
-					>
-						<select
-							className="gv-compact-select"
-							value={reportReason}
-							onChange={(event) =>
-								setReportReason(
-									event.target
-									.value as CommentReportReason,
-								)
-							}
-						>
-							<option value="SPAM">Spam</option>
-							<option value="ABUSIVE">Abusive</option>
-							<option value="DANGEROUS_MISINFORMATION">Dangerous misinformation</option>
-							<option value="OTHER">Other</option>
-						</select>
-
-						<textarea
-							className="app-input min-h-20 resize-y"
-							placeholder="Optional details for moderators…"
-							value={reportDetails}
-							maxLength={2000}
-							onChange={(event) =>
-								setReportDetails(
-									event.target.value,
-								)
-							}
-						/>
-
-						<div className="flex gap-2">
-							<button
-								className="primary-button"
-								disabled={
-									communityBusy
-								}
-							>
-								Submit report
-							</button>
-							<button
-								type="button"
-								className="secondary-button"
-								onClick={() => {
-									setReportTargetId(
-										null,
-									);
-									setReportDetails('');
-								}}
-								>
-								Cancel
-							</button>
-						</div>
-					</form>
-				)}
-				{
-					loadedReplies.map( ( reply ) => drawComment( reply ) )
-				}
-				{
-					hasMoreReplies &&
-						<button className="text-link" type="button" onClick={ () => void loadMoreReplies( comment ) }>
-							{ currentCommentTree ? 'Show more replies'
-								: `Show ${ remainingReplies } more ${ remainingReplies === 1 ? 'reply' : 'replies' }` }
-						</button>
+					</>
 				}
 			</article>
 		);
