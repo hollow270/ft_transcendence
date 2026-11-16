@@ -246,7 +246,7 @@ export default function ModerationPage() {
                       <Link
                         className="text-link inline-block"
                         to={
-                          '/artifact/' +
+                          '/app/artifact/' +
                           report.artifact.id
                         }
                       >

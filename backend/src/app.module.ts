@@ -4,9 +4,11 @@ import {
   ThrottlerGuard,
   ThrottlerModule,
 } from '@nestjs/throttler';
+import { AccountModule } from './account/account.module';
 import { AdminController } from './admin/admin.controller';
 import { AdminGuard } from './admin/admin.guard';
 import { AdminService } from './admin/admin.service';
+import { AdminUsersService } from './admin/admin-users.service';
 import { AiModule } from './ai/ai.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { PublicApiController } from './api-keys/public-api.controller';
@@ -41,6 +43,7 @@ import { UsersModule } from './users/users.module';
     ]),
     PrismaModule,
     AuthModule,
+    AccountModule,
     AiModule,
     ApiKeysModule,
     UsersModule,
@@ -57,6 +60,7 @@ import { UsersModule } from './users/users.module';
   ],
   providers: [
     AdminService,
+    AdminUsersService,
     AdminGuard,
     ArtifactsService,
     FileValidationService,
