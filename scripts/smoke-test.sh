@@ -59,7 +59,7 @@ if [ "$frontend_ready" -ne 1 ]; then
   exit 1
 fi
 
-grep -q "Transcendence Scanner" /tmp/frontend.html
+grep -q "GO VIRUS" /tmp/frontend.html
 echo "frontend dev server ok"
 
 curl -fsS "$FRONTEND_URL/api/health"   | node -e '
