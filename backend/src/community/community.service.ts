@@ -16,445 +16,482 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 
+const	VISIBLE_COMMENTS = {
+	OR: [
+		{
+			status: CommentStatus.ACTIVE
+		},
+		{
+			replies: {
+				some: {
+					status: CommentStatus.ACTIVE
+				}
+			}
+		}
+	]
+};
+
+const	COMMENT_FIELDS = {
+	id: true,
+	parentId: true,
+	status: true,
+	body: true,
+	createdAt: true,
+	editedAt: true,
+	user: {
+		select: {
+			id: true,
+			username: true,
+			role: true
+		}
+	},
+	_count: {
+		select: {
+			replies: {
+				where: {
+					...VISIBLE_COMMENTS
+				}
+			}
+		}
+	}
+};
+
 @Injectable()
-export class CommunityService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly notifications:
-      NotificationsService,
-  ) {}
+export class CommunityService
+{
+	constructor( private readonly prisma: PrismaService, private readonly notifications: NotificationsService, ) {}
 
-  async listComments(artifactId: string) {
-    await this.ensurePublicArtifact(artifactId);
+	async listComments( artifactId: string, limit?: number, offset?: number ) {
 
-    return this.prisma.comment.findMany({
-      where: {
-        artifactId,
-        status: CommentStatus.ACTIVE,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-      select: {
-        id: true,
-        parentId: true,
-        body: true,
-        createdAt: true,
-        editedAt: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-            role: true,
-          },
-        },
-      },
-    });
-  }
+		await this.ensurePublicArtifact(artifactId);
 
-  async createComment(
-    artifactId: string,
-    userId: string,
-    input: { body?: string; parentId?: string },
-  ) {
-    await this.ensurePublicArtifact(artifactId);
+		return this.prisma.comment.findMany({
+			where: {
+				artifactId,
+				status: CommentStatus.ACTIVE,
+			},
+			orderBy: [
+				{ createdAt: 'asc' },
+				{ id: 'asc' }
+			],
+			select: {
+				id: true,
+				parentId: true,
+				body: true,
+				createdAt: true,
+				editedAt: true,
+				user: {
+					select: {
+						id: true,
+						username: true,
+						role: true,
+					},
+				},
+			},
+			take: limit,
+			skip: offset,
+		});
+	}
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        status: true,
-        commentBannedUntil: true,
-      },
-    });
+	async getDiscussion( artifactId: string, limit: number, cursor?: string )
+	{
+		await this.ensurePublicArtifact(artifactId);
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      throw new ForbiddenException('user cannot comment');
-    }
+		const	[rows, totalCount] = await Promise.all( [ this.prisma.comment.findMany(
+			{
+				where: {
+					artifactId,
+					parentId: null,
+					...VISIBLE_COMMENTS
+				},
+				orderBy: [
+					{ createdAt: 'desc' },
+					{ id: 'desc' }
+				],
+				take: limit + 1,
+				cursor: cursor ? { id: cursor } : undefined,
+				skip: cursor ? 1 : 0,
+				select: {
+					...COMMENT_FIELDS,
+					replies: {
+						where: {
+							...VISIBLE_COMMENTS
+						},
+						orderBy: [
+							{ createdAt: 'asc' },
+							{ id: 'asc' }
+						],
+						take: 3,
+						select: COMMENT_FIELDS
+					}
+				}
+			}
+		), this.prisma.comment.count(
+			{
+				where: {
+					artifactId,
+					status: CommentStatus.ACTIVE
+				}
+			}
+		) ] );
 
-    if (
-      user.commentBannedUntil &&
-      user.commentBannedUntil > new Date()
-    ) {
-      throw new ForbiddenException('commenting is temporarily disabled');
-    }
+		const	hasMore = rows.length > limit;
+		const	items = hasMore ? rows.slice( 0, limit ) : rows;
 
-    const body = input.body?.trim();
+		let		maskedItems = items.map( mask );
+		for ( let i = 0; i < maskedItems.length; i++ ) {
+			maskedItems[i].replies = maskedItems[i].replies.map( mask );
+		}
 
-    if (!body || body.length > 4000) {
-      throw new BadRequestException(
-        'comment body must contain between 1 and 4000 characters',
-      );
-    }
+		const	nextCursor = hasMore ? items[items.length - 1].id : null;
 
-    if (input.parentId) {
-      const parent = await this.prisma.comment.findFirst({
-        where: {
-          id: input.parentId,
-          artifactId,
-          status: CommentStatus.ACTIVE,
-        },
-        select: {
-          id: true,
-          userId: true,
-        },
-      });
+		return { totalCount, items: maskedItems, nextCursor };
+	}
 
-      if (!parent) {
-        throw new BadRequestException(
-          'parent comment does not belong to this artifact',
-        );
-      }
-    }
+	async getReplies( artifactId: string, commentId: string, limit: number, cursor?: string )
+	{
+		await this.ensurePublicArtifact( artifactId );
 
-    const parent = input.parentId
-      ? await this.prisma.comment.findFirst({
-          where: {
-            id: input.parentId,
-            artifactId,
-            status: CommentStatus.ACTIVE,
-          },
-          select: {
-            id: true,
-            userId: true,
-          },
-        })
-      : null;
+		const	rows= await this.prisma.comment.findMany(
+			{
+				where: {
+					artifactId,
+					parentId: commentId,
+					...VISIBLE_COMMENTS
+				},
+				orderBy: [
+					{ createdAt: 'asc' },
+					{ id: 'asc' }
+				],
+				take: limit + 1,
+				cursor: cursor ? { id: cursor } : undefined,
+				skip: cursor ? 1 : 0,
+				select: COMMENT_FIELDS
+			}
+		);
 
-    const comment =
-      await this.prisma.comment.create({
-        data: {
-          artifactId,
-          userId,
-          parentId: input.parentId ?? null,
-          body,
-        },
-        select: {
-          id: true,
-          artifactId: true,
-          parentId: true,
-          body: true,
-          createdAt: true,
-          user: {
-            select: {
-              id: true,
-              username: true,
-            },
-          },
-        },
-      });
+		const	hasMore = rows.length > limit;
+		const	items = hasMore ? rows.slice( 0, limit ) : rows;
+		const	maskedItems = items.map( mask );
+		const	nextCursor = hasMore ? items[items.length - 1].id : null;
 
-    await this.notifications.createResourceEvent({
-      userId,
-      type:
-        NotificationType.RESOURCE_CREATED,
-      entityType: 'comment',
-      entityId: comment.id,
-      artifactId,
-      commentId: comment.id,
-      message: 'Your comment was created.',
-    });
+		return ( { items: maskedItems, nextCursor } );
+	}
 
-    if (parent) {
-      await this.notifications.createCommentReply({
-        recipientUserId: parent.userId,
-        actorUserId: userId,
-        artifactId,
-        commentId: comment.id,
-      });
-    }
+	async createComment( artifactId: string, userId: string, input: { body: string; parentId?: string }, )
+	{
+		await this.ensurePublicArtifact(artifactId);
+		await this.assertCanComment( userId );
 
-    return comment;
-  }
+		const body = input.body.trim();
 
-  async editComment(
-    artifactId: string,
-    commentId: string,
-    userId: string,
-    bodyInput?: string,
-  ) {
-    await this.ensurePublicArtifact(artifactId);
+		if ( !body ) {
+			throw new BadRequestException( 'comment body must contain between 1 and 4000 characters', );
+		}
 
-    const body = bodyInput?.trim();
+		const parent = input.parentId ? await this.prisma.comment.findFirst	(
+			{ 
+				where: {
+					id: input.parentId,
+					artifactId,
+					status: CommentStatus.ACTIVE,
+				},
+				select: {
+					id: true,
+					userId: true,
+				},
+			}
+		) : null;
 
-    if (!body || body.length > 4000) {
-      throw new BadRequestException(
-        'comment body must contain between 1 and 4000 characters',
-      );
-    }
+		if ( input.parentId && !parent ) {
+			throw new BadRequestException( 'parent comment nonexistent' );
+		}
 
-    const comment =
-      await this.prisma.comment.findFirst({
-        where: {
-          id: commentId,
-          artifactId,
-          userId,
-          status: CommentStatus.ACTIVE,
-        },
-      });
+		const comment =
+		await this.prisma.comment.create(
+			{
+				data: {
+					artifactId,
+					userId,
+					parentId: input.parentId ?? null,
+					body,
+				},
+				select: {
+					id: true,
+					artifactId: true,
+					parentId: true,
+					body: true,
+					createdAt: true,
+					user: {
+						select: {
+							id: true,
+							username: true,
+						},
+					},
+				},
+			}
+		);
 
-    if (!comment) {
-      throw new NotFoundException(
-        'comment not found or not editable by this user',
-      );
-    }
+		await this.notifications.createResourceEvent(
+			{
+				userId,
+				type: NotificationType.RESOURCE_CREATED,
+				entityType: 'comment',
+				entityId: comment.id,
+				artifactId,
+				commentId: comment.id,
+				message: 'Your comment was created.',
+			}
+		);
 
-    const updated =
-      await this.prisma.comment.update({
-        where: {
-          id: comment.id,
-        },
-        data: {
-          body,
-          editedAt: new Date(),
-        },
-        select: {
-          id: true,
-          parentId: true,
-          body: true,
-          createdAt: true,
-          editedAt: true,
-          user: {
-            select: {
-              id: true,
-              username: true,
-              role: true,
-            },
-          },
-        },
-      });
+		if (parent) {
+			await this.notifications.createCommentReply(
+				{
+					recipientUserId: parent.userId,
+					actorUserId: userId,
+					artifactId,
+					commentId: comment.id,
+				}
+			);
+		}
 
-    await this.notifications.createResourceEvent({
-      userId,
-      type:
-        NotificationType.RESOURCE_UPDATED,
-      entityType: 'comment',
-      entityId: comment.id,
-      artifactId,
-      commentId: comment.id,
-      message: 'Your comment was updated.',
-    });
+		return ( comment );
+	}
 
-    return updated;
-  }
+	async editComment( artifactId: string, commentId: string, userId: string, bodyInput: string, )
+	{
+		await this.ensurePublicArtifact(artifactId);
+		await this.assertCanComment( userId );
 
-  async deleteComment(
-    artifactId: string,
-    commentId: string,
-    userId: string,
-  ) {
-    await this.ensurePublicArtifact(artifactId);
+		const body = bodyInput.trim();
 
-    const comment =
-      await this.prisma.comment.findFirst({
-        where: {
-          id: commentId,
-          artifactId,
-          userId,
-          status: CommentStatus.ACTIVE,
-        },
-      });
+		if ( !body ) {
+			throw new BadRequestException( 'comment body must contain between 1 and 4000 characters', );
+		}
 
-    if (!comment) {
-      throw new NotFoundException(
-        'comment not found or not deletable by this user',
-      );
-    }
+		const comment = await this.prisma.comment.findFirst(
+			{
+				where: {
+					id: commentId,
+					artifactId,
+					userId,
+					status: CommentStatus.ACTIVE,
+				},
+			}
+		);
 
-    await this.prisma.comment.update({
-      where: {
-        id: comment.id,
-      },
-      data: {
-        status: CommentStatus.DELETED,
-        body: '[deleted]',
-        deletedAt: new Date(),
-      },
-    });
+		if (!comment) {
+			throw new NotFoundException( 'comment not found or not editable by this user', );
+		}
 
-    await this.notifications.createResourceEvent({
-      userId,
-      type:
-        NotificationType.RESOURCE_DELETED,
-      entityType: 'comment',
-      entityId: comment.id,
-      artifactId,
-      commentId: comment.id,
-      message: 'Your comment was deleted.',
-    });
+		const updated = await this.prisma.comment.update(
+			{
+				where: {
+					id: comment.id,
+				},
+				data: {
+					body,
+					editedAt: new Date(),
+				},
+				select: {
+					id: true,
+					parentId: true,
+					body: true,
+					createdAt: true,
+					editedAt: true,
+					user: {
+						select: {
+							id: true,
+							username: true,
+							role: true,
+						},
+					},
+				},
+			}
+		);
 
-    return {
-      success: true,
-    };
-  }
+		await this.notifications.createResourceEvent(
+			{
+				userId,
+				type: NotificationType.RESOURCE_UPDATED,
+				entityType: 'comment',
+				entityId: comment.id,
+				artifactId,
+				commentId: comment.id,
+				message: 'Your comment was updated.',
+			}
+		);
 
-  async reportComment(
-    artifactId: string,
-    commentId: string,
-    reporterId: string,
-    input: {
-      reason?: string;
-      details?: string;
-    },
-  ) {
-    await this.ensurePublicArtifact(artifactId);
+		return updated;
+	}
 
-    const comment =
-      await this.prisma.comment.findFirst({
-        where: {
-          id: commentId,
-          artifactId,
-          status: CommentStatus.ACTIVE,
-        },
-        select: {
-          id: true,
-          userId: true,
-        },
-      });
+	async deleteComment( artifactId: string, commentId: string, userId: string, )
+	{
+		await this.ensurePublicArtifact(artifactId);
 
-    if (!comment) {
-      throw new NotFoundException(
-        'comment not found',
-      );
-    }
+		const comment = await this.prisma.comment.findFirst(
+			{
+				where: {
+					id: commentId,
+					artifactId,
+					userId,
+					status: CommentStatus.ACTIVE,
+				},
+			}
+		);
 
-    if (comment.userId === reporterId) {
-      throw new BadRequestException(
-        'you cannot report your own comment',
-      );
-    }
+		if (!comment) {
+			throw new NotFoundException( 'comment not found or not deletable by this user', );
+		}
 
-    const reason = (
-      input.reason ?? ''
-    ).toUpperCase() as ReportReason;
+		await this.prisma.comment.update(
+			{
+				where: {
+					id: comment.id,
+				},
+				data: {
+					status: CommentStatus.DELETED,
+					body: '[deleted]',
+					deletedAt: new Date(),
+				},
+			}
+		);
 
-    if (
-      !Object.values(ReportReason).includes(
-        reason,
-      )
-    ) {
-      throw new BadRequestException(
-        'reason must be SPAM, ABUSIVE, DANGEROUS_MISINFORMATION or OTHER',
-      );
-    }
+		await this.notifications.createResourceEvent(
+			{
+				userId,
+				type: NotificationType.RESOURCE_DELETED,
+				entityType: 'comment',
+				entityId: comment.id,
+				artifactId,
+				commentId: comment.id,
+				message: 'Your comment was deleted.',
+			}
+		);
 
-    const details =
-      input.details?.trim() || null;
+		return { success: true, };
+	}
 
-    if (
-      details &&
-      details.length > 2000
-    ) {
-      throw new BadRequestException(
-        'report details must contain at most 2000 characters',
-      );
-    }
+	async reportComment( artifactId: string, commentId: string, reporterId: string, input: { reason: ReportReason; details?: string; }, )
+	{
+		await this.ensurePublicArtifact(artifactId);
 
-    try {
-      return await this.prisma.commentReport.create({
-        data: {
-          commentId: comment.id,
-          reporterId,
-          reason,
-          details,
-        },
-        select: {
-          id: true,
-          commentId: true,
-          reason: true,
-          details: true,
-          status: true,
-          createdAt: true,
-        },
-      });
-    } catch (error) {
-      if (
-        error instanceof
-          Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new BadRequestException(
-          'you already reported this comment',
-        );
-      }
+		const comment =
+			await this.prisma.comment.findFirst(
+				{
+					where: {
+						id: commentId,
+						artifactId,
+						status: CommentStatus.ACTIVE,
+					},
+					select: {
+						id: true,
+						userId: true,
+					},
+				}
+			)
+		;
 
-      throw error;
-    }
-  }
+		if (!comment) {
+			throw new NotFoundException( 'comment not found', );
+		}
 
-  async vote(
-    artifactId: string,
-    userId: string,
-    verdictInput?: string,
-  ) {
-    await this.ensurePublicArtifact(artifactId);
+		if (comment.userId === reporterId) {
+			throw new BadRequestException( 'you cannot report your own comment', );
+		}
 
-    const verdict = (verdictInput ?? '').toUpperCase();
+		const details = input.details?.trim() || null;
 
-    if (
-      verdict !== Verdict.HARMLESS &&
-      verdict !== Verdict.SUSPICIOUS &&
-      verdict !== Verdict.MALICIOUS
-    ) {
-      throw new BadRequestException(
-        'verdict must be HARMLESS, SUSPICIOUS or MALICIOUS',
-      );
-    }
+		if ( details && details.length > 2000 ) {
+			throw new BadRequestException( 'report details must contain at most 2000 characters', );
+		}
 
-    const previousVote =
-      await this.prisma.communityVote.findUnique({
-        where: {
-          artifactId_userId: {
-            artifactId,
-            userId,
-          },
-        },
-        select: {
-          verdict: true,
-        },
-      });
+		try {
+			return await this.prisma.commentReport.create(
+				{
+					data: {
+						commentId: comment.id,
+						reporterId,
+						reason: input.reason,
+						details,
+					},
+					select: {
+						id: true,
+						commentId: true,
+						reason: true,
+						details: true,
+						status: true,
+						createdAt: true,
+					},
+				}
+			);
+		} catch (error) {
+			if ( error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' ) {
+				throw new BadRequestException( 'you already reported this comment', );
+			}
 
-    const vote = await this.prisma.communityVote.upsert({
-      where: {
-        artifactId_userId: {
-          artifactId,
-          userId,
-        },
-      },
-      update: {
-        verdict: verdict as Verdict,
-      },
-      create: {
-        artifactId,
-        userId,
-        verdict: verdict as Verdict,
-      },
-    });
+			throw error;
+		}
+	}
 
-    await this.notifications.createResourceEvent({
-      userId,
-      type: previousVote
-        ? NotificationType.RESOURCE_UPDATED
-        : NotificationType.RESOURCE_CREATED,
-      entityType: 'community_vote',
-      entityId:
-        artifactId + ':' + userId,
-      artifactId,
-      message: previousVote
-        ? 'Your community verdict was updated.'
-        : 'Your community verdict was created.',
-      metadata: {
-        verdict: vote.verdict,
-      },
-    });
+	async vote( artifactId: string, userId: string, verdictInput: Verdict, )
+	{
+		await this.ensurePublicArtifact(artifactId);
 
-    return {
-      artifactId: vote.artifactId,
-      userId: vote.userId,
-      verdict: vote.verdict,
-      updatedAt: vote.updatedAt,
-    };
-  }
+		const previousVote =
+		await this.prisma.communityVote.findUnique({
+			where: {
+			artifactId_userId: {
+				artifactId,
+				userId,
+			},
+			},
+			select: {
+			verdict: true,
+			},
+		});
+
+		const vote = await this.prisma.communityVote.upsert({
+		where: {
+			artifactId_userId: {
+			artifactId,
+			userId,
+			},
+		},
+		update: {
+			verdict: verdictInput,
+		},
+		create: {
+			artifactId,
+			userId,
+			verdict: verdictInput,
+		},
+		});
+
+		await this.notifications.createResourceEvent({
+		userId,
+		type: previousVote
+			? NotificationType.RESOURCE_UPDATED
+			: NotificationType.RESOURCE_CREATED,
+		entityType: 'community_vote',
+		entityId:
+			artifactId + ':' + userId,
+		artifactId,
+		message: previousVote
+			? 'Your community verdict was updated.'
+			: 'Your community verdict was created.',
+		metadata: {
+			verdict: vote.verdict,
+		},
+		});
+
+		return {
+		artifactId: vote.artifactId,
+		userId: vote.userId,
+		verdict: vote.verdict,
+		updatedAt: vote.updatedAt,
+		};
+	}
 
   async voteSummary(artifactId: string) {
     await this.ensurePublicArtifact(artifactId);
@@ -496,4 +533,34 @@ export class CommunityService {
       throw new NotFoundException('public artifact not found');
     }
   }
+
+	private async assertCanComment( userId: string )
+	{
+		const	user = await this.prisma.user.findUnique(
+			{
+				where: {
+					id: userId,
+				},
+				select: {
+					id: true,
+					status: true,
+					commentBannedUntil: true,
+				}
+			}
+		);
+
+		if ( !user || user.status !== UserStatus.ACTIVE ) {
+			throw new ForbiddenException( 'user cannot comment' );
+		}
+
+		if ( user.commentBannedUntil && user.commentBannedUntil > new Date() ) {
+			throw new ForbiddenException( 'user is banned from comment services' );
+		}
+	}
 }
+
+function mask<T extends { status: CommentStatus }>( comment: T )
+{
+	return ( comment.status === CommentStatus.ACTIVE ? comment : { ...comment, body: null, user: null } );
+}
+
