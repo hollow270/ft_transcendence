@@ -62,7 +62,7 @@ export default function UrlPage() {
         token,
       );
 
-      navigate('/artifact/' + result.artifact.id, {
+      navigate('/app/artifact/' + result.artifact.id, {
         state: {
           reusedScan: result.reusedScan,
           submissionVisibility:
