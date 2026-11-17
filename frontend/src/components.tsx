@@ -207,12 +207,16 @@ export function FullScreenLoader() {
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, signedOut } = useAuth();
   const location = useLocation();
 
   if (loading) return <FullScreenLoader />;
 
   if (!user) {
+    // Deliberate sign-out: don't remember the page that was open, otherwise the
+    // next person to sign in would be sent back to it instead of /app.
+    if (signedOut) return <Navigate to="/" replace />;
+
     const next = location.pathname + location.search;
     return <Navigate to={'/login?next=' + encodeURIComponent(next)} replace />;
   }

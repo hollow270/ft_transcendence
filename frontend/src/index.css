@@ -296,7 +296,7 @@ button:disabled {
 .shell-link-active {
   color: #fff;
   background: rgba(69, 97, 245, 0.16);
-  box-shadow: inset 2px 0 0 var(--beam);
+   box-shadow: inset 2px 0 0 var(--beam), inset -2px 0 0 var(--beam);
 }
 
 .shell-link-active svg {
