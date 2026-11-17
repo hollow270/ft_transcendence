@@ -16,6 +16,8 @@ type AuthContextValue = {
   token: string | null;
   user: User | null;
   loading: boolean;
+  /** True after the user deliberately signed out (or deleted their account) in this page session. */
+  signedOut: boolean;
   signIn: (email: string, password: string, totpCode?: string) => Promise<SignInResult>;
   /** Creates the account and signs straight in. */
   register: (username: string, email: string, password: string) => Promise<SignInResult>;
@@ -34,11 +36,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(Boolean(token));
 
-  const forgetSession = useCallback(() => {
+  const [signedOut, setSignedOut] = useState(false);
+
+  // Drops the local session silently (e.g. the stored token expired).
+  const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
   }, []);
+
+  // A deliberate sign-out: also remembers it, so protected pages send the visitor
+  // home instead of to /login?next=<the page they just left>.
+  const forgetSession = useCallback(() => {
+    setSignedOut(true);
+    clearSession();
+  }, [clearSession]);
 
   useEffect(() => {
     if (!token) {
@@ -51,9 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api
       .me(token)
       .then(setUser)
-      .catch(forgetSession)
+      .catch(clearSession)
       .finally(() => setLoading(false));
-  }, [token, forgetSession]);
+  }, [token, clearSession]);
 
   const signIn = useCallback(
     async (email: string, password: string, totpCode?: string): Promise<SignInResult> => {
@@ -66,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (result.requiresTwoFactor) return 'TWO_FACTOR_REQUIRED';
 
       localStorage.setItem(TOKEN_KEY, result.token);
+      setSignedOut(false);
       setUser(result.user);
       setToken(result.token);
       return 'SIGNED_IN';
@@ -78,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       user,
       loading,
+      signedOut,
       signIn,
       async register(username, email, password) {
         await api.register({ username, email, password });
@@ -93,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       forgetSession,
     }),
-    [token, user, loading, signIn, forgetSession],
+    [token, user, loading, signedOut, signIn, forgetSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

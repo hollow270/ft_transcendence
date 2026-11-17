@@ -3,7 +3,10 @@ import { Observable, Subscriber } from 'rxjs';
 import { PrismaService } from '../prisma.service';
 import { AiContextService } from './ai-context.service';
 import { AiProviderService } from './ai-provider.service';
-import { ASSISTANT_SYSTEM_PROMPT } from './prompts/assistant.prompt';
+import {
+  ASSISTANT_SYSTEM_PROMPT,
+  SCAN_FOLLOW_UP_SYSTEM_PROMPT,
+} from './prompts/assistant.prompt';
 import { SCAN_EXPLANATION_SYSTEM_PROMPT } from './prompts/scan-explanation.prompt';
 import {
   AiChatMessage,
@@ -27,20 +30,59 @@ export class AiService {
     private readonly prisma: PrismaService,
   ) {}
 
-  streamGeneralChat(userId: string, prompt: string): Observable<AiStreamEvent> {
+  streamGeneralChat(
+    userId: string,
+    prompt: string,
+    scanId?: string,
+  ): Observable<AiStreamEvent> {
     return new Observable<AiStreamEvent>((subscriber) => {
       const controller = new AbortController();
-      const messages: AiChatMessage[] = [
-        { role: 'system', content: ASSISTANT_SYSTEM_PROMPT },
-        { role: 'user', content: prompt },
-      ];
 
-      void this.executeStream(
-        messages,
-        subscriber,
-        controller.signal,
-        { userId },
-      );
+      void (async () => {
+        try {
+          // Asked from a scan report: give the model that scan's evidence so
+          // "explain the result" refers to the report on screen.
+          if (scanId) {
+            const scanData =
+              await this.context.getAuthorizedCompletedScan(userId, scanId);
+            const evidence = this.context.formatScanContextPrompt(scanData);
+
+            await this.executeStream(
+              [
+                { role: 'system', content: SCAN_FOLLOW_UP_SYSTEM_PROMPT },
+                {
+                  role: 'user',
+                  content: `${evidence}\n\nUser question:\n${prompt}`,
+                },
+              ],
+              subscriber,
+              controller.signal,
+              {
+                userId,
+                artifactId: scanData.artifactId,
+                scanId: scanData.scanId,
+              },
+            );
+            return;
+          }
+
+          await this.executeStream(
+            [
+              { role: 'system', content: ASSISTANT_SYSTEM_PROMPT },
+              { role: 'user', content: prompt },
+            ],
+            subscriber,
+            controller.signal,
+            { userId },
+          );
+        } catch (error: any) {
+          this.emit(subscriber, {
+            event: 'error',
+            message: error?.message ?? 'Unable to answer this question.',
+          });
+          subscriber.complete();
+        }
+      })();
 
       return () => controller.abort();
     });
