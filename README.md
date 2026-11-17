@@ -25,11 +25,19 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Secure application entry point:
+Protected HTTP entry point:
 
 ```text
 http://localhost:8080
 ```
+
+HTTPS entry point:
+
+```text
+https://localhost:8443
+```
+
+Without a custom certificate the WAF generates a local self-signed certificate automatically.
 
 Local development frontend:
 
@@ -73,6 +81,7 @@ That single command starts:
 - ClamAV
 - NestJS backend
 - React frontend
+- OWASP CRS / ModSecurity WAF with HTTP and HTTPS listeners
 
 The default scanner mode in `.env.example` is `real`, so ClamAV is used automatically. VirusTotal is added for PUBLIC files when `VIRUSTOTAL_API_KEY` is configured.
 
@@ -139,11 +148,14 @@ Keep `TWO_FACTOR_ENCRYPTION_KEY` private and stable. Changing or losing it makes
 
 The normal Compose stack now includes an OWASP Core Rule Set / ModSecurity reverse-proxy WAF.
 
-Use the secure entry point:
+Use the protected entry points:
 
 ```text
 http://localhost:8080
+https://localhost:8443
 ```
+
+The WAF accepts TLS 1.2 and TLS 1.3 only.
 
 The direct development ports remain available only on the local loopback interface:
 
@@ -169,10 +181,56 @@ Default local limits:
 
 ```env
 HTTP_RATE_LIMIT_PER_MINUTE=300
-APP_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080
+APP_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,https://localhost:8443,https://127.0.0.1:8443
 ```
 
 For a real deployment, set `APP_ALLOWED_ORIGINS` and `WAF_SERVER_NAME` to the deployment hostname instead of keeping the local defaults.
+
+### HTTPS / TLS certificates
+
+The WAF always has an HTTPS listener on container port `8443`.
+
+If `waf/tls/server.crt` and `waf/tls/server.key` are absent, the WAF image creates a self-signed local certificate so the HTTPS path can still be tested.
+
+For a browser-trusted local certificate on macOS, install `mkcert` once and run:
+
+```bash
+brew install mkcert
+bash scripts/setup-local-tls.sh
+docker compose up --build -d
+```
+
+Then open:
+
+```text
+https://localhost:8443
+```
+
+The generated certificate and private key live under `waf/tls/` and are ignored by Git.
+
+For a real deployment, put the trusted PEM certificate chain and private key at:
+
+```text
+waf/tls/server.crt
+waf/tls/server.key
+```
+
+and configure the deployment environment, for example:
+
+```env
+APP_HTTPS_PORT=443
+HTTPS_REDIRECT=on
+WAF_SERVER_NAME=scanner.example.com
+APP_ALLOWED_ORIGINS=https://scanner.example.com
+```
+
+Then recreate the normal stack:
+
+```bash
+docker compose up --build -d
+```
+
+The certificate files are mounted read-only and copied into the WAF at startup. This works with certificates issued by Let's Encrypt or another trusted CA. Certificate issuance and renewal remain external deployment responsibilities; private keys are never committed to the repository.
 
 ### File-mounted secrets
 
@@ -220,7 +278,7 @@ Run:
 bash scripts/smoke-test.sh
 ```
 
-The test covers Docker startup, PostgreSQL, Prisma, backend health, React build, API proxying, authentication, file upload, SHA-based deduplication, scan reuse, artifact lookup, AI route authorization/context streaming, comments, voting, notifications and privacy rules.
+The test covers Docker startup, PostgreSQL, Prisma, backend health, React build, API proxying, OWASP CRS blocking, HTTP security headers, HTTPS through the WAF, authentication, file upload, SHA-based deduplication, scan reuse, artifact lookup, AI route authorization/context streaming, comments, voting, notifications and privacy rules.
 
 > `docker compose down -v` deletes the local PostgreSQL development volume. Use it only when you intentionally want a clean database.
 
