@@ -32,7 +32,7 @@ export class AiController {
     @Res() res: Response,
   ): void {
     this.pipeSse(
-      this.aiService.streamGeneralChat(req.user.id, dto.prompt),
+      this.aiService.streamGeneralChat(req.user.id, dto.prompt, dto.scanId),
       req,
       res,
     );
