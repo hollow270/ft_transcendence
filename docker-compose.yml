@@ -125,7 +125,8 @@ services:
       - "${APP_HTTPS_PORT:-8443}:8443"
     volumes:
       - ./waf/security-headers.conf.template:/etc/nginx/templates/conf.d/security-headers.conf.template:ro
-      - ./waf/tls:/etc/nginx/conf
+      - ./waf/11-use-custom-certificate.sh:/docker-entrypoint.d/11-use-custom-certificate.sh:ro
+      - ./waf/tls:/run/go-virus-tls:ro
     depends_on:
       frontend:
         condition: service_healthy
