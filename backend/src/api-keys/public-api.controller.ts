@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
   Query,
@@ -38,7 +39,7 @@ export class PublicApiController {
   @Get('artifacts/:artifactId')
   async artifact(
     @Req() request: any,
-    @Param('artifactId') artifactId: string,
+    @Param('artifactId', ParseUUIDPipe) artifactId: string,
   ) {
     const artifact =
       await this.artifacts.getArtifact(
@@ -53,7 +54,7 @@ export class PublicApiController {
   @Put('artifacts/:artifactId/rescan')
   async rescanArtifact(
     @Req() request: any,
-    @Param('artifactId') artifactId: string,
+    @Param('artifactId', ParseUUIDPipe) artifactId: string,
   ) {
     const result =
       await this.artifacts.rescanArtifact(
@@ -68,7 +69,7 @@ export class PublicApiController {
   @Delete('submissions/:submissionId')
   async deleteSubmission(
     @Req() request: any,
-    @Param('submissionId') submissionId: string,
+    @Param('submissionId', ParseUUIDPipe) submissionId: string,
   ) {
     const result =
       await this.artifacts.deleteApiSubmission(

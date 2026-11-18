@@ -146,9 +146,27 @@ export type Notification = {
   type: string;
   message: string | null;
   artifactId: string | null;
+  commentId?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  actorUserId?: string | null;
+  metadata?: unknown;
   createdAt: string;
   readAt: string | null;
 };
+
+export type CommentContext =
+  | { available: false }
+  | {
+      available: true;
+      targetId: string;
+      root: DiscussionComment;
+      levels: {
+        parentId: string;
+        items: DiscussionComment[];
+        nextCursor: string | null;
+      }[];
+    };
 
 
 export type UserCommunitySubmission = {

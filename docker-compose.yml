@@ -22,6 +22,12 @@ services:
       - clamav_data:/var/lib/clamav
     expose:
       - "3310"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/3310 && echo PING >&3 && read -r -t 5 reply <&3 && [ \"$$reply\" = PONG ]"]
+      interval: 10s
+      timeout: 8s
+      retries: 60
+      start_period: 10m
     restart: unless-stopped
 
   backend:
@@ -34,6 +40,9 @@ services:
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-25}
       SCANNER_HTTP_TIMEOUT_MS: ${SCANNER_HTTP_TIMEOUT_MS:-30000}
       SCANNER_REFRESH_COOLDOWN_MS: ${SCANNER_REFRESH_COOLDOWN_MS:-60000}
+      SCAN_BACKGROUND_POLL_MS: ${SCAN_BACKGROUND_POLL_MS:-30000}
+      SCAN_BACKGROUND_POLL_BATCH: ${SCAN_BACKGROUND_POLL_BATCH:-3}
+      SCAN_MAX_RUNNING_MS: ${SCAN_MAX_RUNNING_MS:-3600000}
       CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
       CLAMAV_PORT: ${CLAMAV_PORT:-3310}
       CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-30000}
@@ -58,7 +67,7 @@ services:
       postgres:
         condition: service_healthy
       clamav:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test:
         [

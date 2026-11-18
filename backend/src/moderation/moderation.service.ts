@@ -9,6 +9,7 @@ import {
   NotificationType,
   ReportStatus,
 } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 
 type ResolveAction =
@@ -21,6 +22,7 @@ type ResolveAction =
 export class ModerationService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async listReports(
@@ -219,6 +221,28 @@ export class ModerationService {
     const result =
       await this.prisma.$transaction(
         async (tx) => {
+          const claimed =
+            await tx.commentReport.updateMany({
+              where: {
+                id: report.id,
+                status: {
+                  in: [
+                    ReportStatus.OPEN,
+                    ReportStatus.REVIEWING,
+                  ],
+                },
+              },
+              data: {
+                reviewedById: moderatorId,
+              },
+            });
+
+          if (claimed.count !== 1) {
+            throw new BadRequestException(
+              'report is already closed',
+            );
+          }
+
           if (
             action === 'HIDE_COMMENT'
           ) {
@@ -331,29 +355,6 @@ export class ModerationService {
               },
             });
 
-          await tx.notification.create({
-            data: {
-              userId:
-                report.comment.userId,
-              actorUserId:
-                moderatorId,
-              type:
-                NotificationType.COMMENT_MODERATED,
-              artifactId:
-                report.comment.artifactId,
-              commentId:
-                report.commentId,
-              entityType:
-                'comment_report',
-              entityId:
-                report.id,
-              message:
-                action === 'NO_ACTION'
-                  ? 'A report involving your comment was reviewed with no moderation action.'
-                  : 'A moderator reviewed a report involving your comment.',
-            },
-          });
-
           await tx.auditLog.create({
             data: {
               actorUserId:
@@ -382,6 +383,20 @@ export class ModerationService {
           return updated;
         },
       );
+
+    await this.notifications.createResourceEvent({
+      userId: report.comment.userId,
+      actorUserId: moderatorId,
+      type: NotificationType.COMMENT_MODERATED,
+      artifactId: report.comment.artifactId,
+      commentId: report.commentId,
+      entityType: 'comment_report',
+      entityId: report.id,
+      message:
+        action === 'NO_ACTION'
+          ? 'A report involving your comment was reviewed with no moderation action.'
+          : 'A moderator reviewed a report involving your comment.',
+    });
 
     return {
       id: result.id,

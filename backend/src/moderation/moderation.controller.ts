@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -34,7 +35,7 @@ export class ModerationController {
 
   @Post('reports/:reportId/resolve')
   resolveReport(
-    @Param('reportId')
+    @Param('reportId', ParseUUIDPipe)
     reportId: string,
     @Req() request: any,
     @Body()

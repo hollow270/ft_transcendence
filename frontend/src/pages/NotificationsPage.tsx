@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { io } from 'socket.io-client';
-import { api } from '../api';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { PageHeader, StatusNotice } from '../components';
+import { notificationTarget } from '../notificationTarget';
+import { useNotifications } from '../notifications';
 import type { Notification } from '../types';
 
 function formatDate(value?: string | null) {
@@ -10,61 +11,52 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleString();
 }
 
-export default function NotificationsPage() {
-  const { token, user } = useAuth();
-  const [items, setItems] = useState<Notification[]>([]);
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const [error, setError] = useState<string | null>(null);
+const rowClass = (notification: Notification) =>
+  'flex w-full gap-4 border-b border-slate-800 px-5 py-4 text-left last:border-b-0 hover:bg-slate-800/30 ' +
+  (notification.readAt ? 'opacity-65' : '');
 
-  useEffect(() => {
-    if (!token || !user) {
-      setItems([]);
-      return;
-    }
-
-    api.notifications(token).then(setItems).catch((caught) => {
-      setError(caught instanceof Error ? caught.message : 'Could not load notifications');
-    });
-
-    const socket = io(window.location.origin, {
-      path: '/socket.io',
-      auth: { token },
-      transports: ['websocket', 'polling'],
-    });
-
-    socket.on('notification', (notification: Notification) => {
-      setItems((current) => [
-        notification,
-        ...current.filter((item) => item.id !== notification.id),
-      ]);
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [token, user]);
-
-  const unread = useMemo(
-    () => items.filter((notification) => !notification.readAt).length,
-    [items],
+function NotificationBody({
+  notification,
+  actionLabel,
+}: {
+  notification: Notification;
+  actionLabel?: string;
+}) {
+  return (
+    <>
+      <span
+        className={
+          'mt-1 h-2 w-2 shrink-0 rounded-full ' +
+          (notification.readAt ? 'bg-slate-700' : 'bg-blue-500')
+        }
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-slate-500">
+            {notification.type.replace(/_/g, ' ')}
+          </span>
+          <span className="text-xs text-slate-600">{formatDate(notification.createdAt)}</span>
+        </span>
+        <span className="mt-1.5 block text-sm text-slate-300">
+          {notification.message ?? 'New notification'}
+        </span>
+        {actionLabel && (
+          <span className="mt-1.5 block text-xs font-medium text-blue-400">{actionLabel} →</span>
+        )}
+      </span>
+    </>
   );
+}
 
-  const visibleItems = filter === 'unread'
-    ? items.filter((notification) => !notification.readAt)
-    : items;
+export default function NotificationsPage() {
+  const { user } = useAuth();
+  const { items, unread, error, markRead, markAllRead } = useNotifications();
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
-  async function markRead(notification: Notification) {
-    if (!token || notification.readAt) return;
-
-    try {
-      const updated = await api.markNotificationRead(notification.id, token);
-      setItems((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
-    } catch {
-      // Notification acknowledgement should not block the page.
-    }
-  }
+  const visibleItems = useMemo(
+    () => (filter === 'unread' ? items.filter((notification) => !notification.readAt) : items),
+    [items, filter],
+  );
 
   if (!user) {
     return (
@@ -101,6 +93,13 @@ export default function NotificationsPage() {
               Unread
             </button>
           </div>
+          <button
+            className="secondary-button"
+            disabled={unread === 0}
+            onClick={() => void markAllRead()}
+          >
+            Mark all as read
+          </button>
         </div>
 
         {error && (
@@ -111,34 +110,28 @@ export default function NotificationsPage() {
 
         {visibleItems.length ? (
           <div>
-            {visibleItems.map((notification) => (
-              <button
-                key={notification.id}
-                className={
-                  'flex w-full gap-4 border-b border-slate-800 px-5 py-4 text-left last:border-b-0 hover:bg-slate-800/30 ' +
-                  (notification.readAt ? 'opacity-65' : '')
-                }
-                onClick={() => void markRead(notification)}
-              >
-                <span
-                  className={
-                    'mt-1 h-2 w-2 shrink-0 rounded-full ' +
-                    (notification.readAt ? 'bg-slate-700' : 'bg-blue-500')
-                  }
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-slate-500">
-                      {notification.type.replace(/_/g, ' ')}
-                    </span>
-                    <span className="text-xs text-slate-600">{formatDate(notification.createdAt)}</span>
-                  </span>
-                  <span className="mt-1.5 block text-sm text-slate-300">
-                    {notification.message ?? 'New notification'}
-                  </span>
-                </span>
-              </button>
-            ))}
+            {visibleItems.map((notification) => {
+              const target = notificationTarget(notification);
+
+              return target ? (
+                <Link
+                  key={notification.id}
+                  to={target.to}
+                  className={rowClass(notification)}
+                  onClick={() => void markRead(notification)}
+                >
+                  <NotificationBody notification={notification} actionLabel={target.label} />
+                </Link>
+              ) : (
+                <button
+                  key={notification.id}
+                  className={rowClass(notification)}
+                  onClick={() => void markRead(notification)}
+                >
+                  <NotificationBody notification={notification} />
+                </button>
+              );
+            })}
           </div>
         ) : (
           <div className="empty-state">

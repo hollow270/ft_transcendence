@@ -31,6 +31,9 @@ const	VISIBLE_COMMENTS = {
 	]
 };
 
+const	MAX_THREAD_DEPTH = 100;
+const	MAX_PREFIX = 100;
+
 const	COMMENT_FIELDS = {
 	id: true,
 	parentId: true,
@@ -290,6 +293,109 @@ export class CommunityService
 		return ( myVotes );
 	}
 
+	async getCommentContext( artifactId: string, commentId: string, limit: number, viewerId: string | null )
+	{
+		await this.ensurePublicArtifact( artifactId );
+
+		const	chain: { id: string; parentId: string | null; createdAt: Date }[] = [];
+		let		currentId: string | null = commentId;
+
+		for ( let depth = 0; currentId && depth < MAX_THREAD_DEPTH; depth++ ) {
+			const	row: { id: string; parentId: string | null; createdAt: Date } | null =
+				await this.prisma.comment.findFirst( {
+					where: { id: currentId, artifactId },
+					select: { id: true, parentId: true, createdAt: true }
+				} );
+
+			if ( !row )
+				throw new NotFoundException( 'comment not found' );
+			chain.push( row );
+			currentId = row.parentId;
+		}
+		if ( currentId )
+			throw new NotFoundException( 'comment not found' );
+
+		chain.reverse();
+
+		const	root = await this.prisma.comment.findFirst( {
+			where: { id: chain[0].id, artifactId, ...VISIBLE_COMMENTS },
+			select: COMMENT_FIELDS
+		} );
+
+		if ( !root )
+			return ( { available: false as const } );
+
+		const	levels: { parentId: string; items: { id: string }[]; nextCursor: string | null }[] = [];
+
+		for ( let i = 0; i < chain.length - 1; i++ ) {
+			const	parent = chain[i];
+			const	child = chain[i + 1];
+			const	where = { artifactId, parentId: parent.id, ...VISIBLE_COMMENTS };
+			const	orderBy = [ { createdAt: 'asc' as const }, { id: 'asc' as const } ];
+
+			const	childIsVisible = await this.prisma.comment.findFirst( {
+				where: { id: child.id, artifactId, parentId: parent.id, ...VISIBLE_COMMENTS },
+				select: { id: true }
+			} );
+
+			if ( !childIsVisible )
+				return ( { available: false as const } );
+
+			const	preceding = await this.prisma.comment.count( {
+				where: {
+					AND: [
+						{ artifactId, parentId: parent.id },
+						VISIBLE_COMMENTS,
+						{
+							OR: [
+								{ createdAt: { lt: child.createdAt } },
+								{ createdAt: child.createdAt, id: { lt: child.id } }
+							]
+						}
+					]
+				}
+			} );
+
+			const	startAtChild = preceding > MAX_PREFIX;
+			const	window = ( startAtChild ? 0 : preceding ) + 1 + limit;
+			const	rows = await this.prisma.comment.findMany( {
+				where,
+				orderBy,
+				take: window + 1,
+				cursor: startAtChild ? { id: child.id } : undefined,
+				select: COMMENT_FIELDS
+			} );
+
+			const	hasMore = rows.length > window;
+			const	items = hasMore ? rows.slice( 0, window ) : rows;
+
+			levels.push( {
+				parentId: parent.id,
+				items: items.map( mask ),
+				nextCursor: hasMore ? items[items.length - 1].id : null
+			} );
+		}
+
+		const	maskedRoot = mask( root );
+		const	commentIds = [ maskedRoot.id ];
+		for ( let i = 0; i < levels.length; i++ ) {
+			for ( let j = 0; j < levels[i].items.length; j++ )
+				commentIds.push( levels[i].items[j].id );
+		}
+
+		const	myVotes = await this.getMyVotes( viewerId, commentIds );
+
+		return ( {
+			available: true as const,
+			targetId: commentId,
+			root: { ...maskedRoot, myVote: myVotes[ maskedRoot.id ] ?? 0 },
+			levels: levels.map( ( level ) => ( {
+				...level,
+				items: level.items.map( ( item ) => ( { ...item, myVote: myVotes[ item.id ] ?? 0 } ) )
+			} ) )
+		} );
+	}
+
 	async createComment( artifactId: string, userId: string, input: { body: string; parentId?: string }, )
 	{
 		await this.ensurePublicArtifact(artifactId);
@@ -360,6 +466,29 @@ export class CommunityService
 			await this.notifications.createCommentReply(
 				{
 					recipientUserId: parent.userId,
+					actorUserId: userId,
+					artifactId,
+					commentId: comment.id,
+				}
+			);
+		} else {
+			const	owners = await this.prisma.submission.findMany(
+				{
+					where: {
+						artifactId,
+						visibility: Visibility.PUBLIC,
+						userId: { not: null },
+					},
+					select: {
+						userId: true,
+					},
+					distinct: [ 'userId' ],
+				}
+			);
+
+			await this.notifications.createCommentReceived(
+				{
+					recipientUserIds: owners.map( ( owner ) => owner.userId as string ),
 					actorUserId: userId,
 					artifactId,
 					commentId: comment.id,

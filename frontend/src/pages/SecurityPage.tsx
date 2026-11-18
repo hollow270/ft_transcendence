@@ -14,6 +14,7 @@ export default function SecurityPage() {
     otpauthUri: string;
   } | null>(null);
   const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,15 +86,16 @@ export default function SecurityPage() {
 
   async function disable(event: FormEvent) {
     event.preventDefault();
-    if (!token || code.length !== 6) return;
+    if (!token || code.length !== 6 || !password) return;
 
     setBusy(true);
     setError(null);
     setMessage(null);
 
     try {
-      await api.disableTwoFactor(code, token);
+      await api.disableTwoFactor(code, password, token);
       setCode('');
+      setPassword('');
       setMessage('Two-factor authentication has been disabled.');
       await loadStatus();
     } catch (err) {
@@ -269,9 +271,18 @@ export default function SecurityPage() {
                     Two-factor authentication is protecting your account.
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
-                    To disable it, confirm with a current code from your authenticator app.
+                    To disable it, confirm with your password and a current code from your authenticator app.
                   </p>
                 </div>
+
+                <input
+                  className="app-input max-w-xs"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Current password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
 
                 <input
                   className="app-input max-w-xs"
@@ -291,7 +302,7 @@ export default function SecurityPage() {
 
                 <button
                   className="secondary-button"
-                  disabled={busy || code.length !== 6}
+                  disabled={busy || code.length !== 6 || !password}
                 >
                   {busy ? 'Disabling…' : 'Disable 2FA'}
                 </button>
