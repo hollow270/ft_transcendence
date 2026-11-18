@@ -199,6 +199,12 @@ export default function UrlPage() {
               </button>
             </div>
 
+            {visibility === 'PUBLIC' && (
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm leading-6 text-slate-400">
+                Public scans keep the full address, including everything after the ?, and anyone can search for it. Use a private scan for links that contain tokens or personal data.
+              </div>
+            )}
+
             {visibility === 'PRIVATE' &&
               scanner?.provider !== 'development' && (
                 <div className="rounded-lg border border-sky-900 bg-sky-950/20 px-4 py-3 text-sm leading-6 text-sky-200">

@@ -81,10 +81,12 @@ export class AuthController {
   disableTwoFactor(
     @Req() request: any,
     @Body('code') code?: string,
+    @Body('password') password?: string,
   ) {
     return this.auth.disableTwoFactor(
       request.user.id,
       code,
+      password,
     );
   }
 

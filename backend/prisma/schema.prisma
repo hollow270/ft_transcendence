@@ -86,6 +86,7 @@ enum ModerationActionType {
 enum NotificationType {
   SCAN_COMPLETED
   COMMENT_REPLY
+  COMMENT_RECEIVED
   COMMENT_MODERATED
   RESOURCE_CREATED
   RESOURCE_UPDATED
@@ -133,6 +134,7 @@ model UserTwoFactor {
   userId          String   @id @db.Uuid @map("user_id")
   secretEncrypted String   @map("secret_encrypted")
   enabled         Boolean  @default(false)
+  lastUsedStep    Int?     @map("last_used_step")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
