@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -42,7 +43,7 @@ export class AdminController {
   @Patch('users/:userId')
   updateUser(
     @Req() request: any,
-    @Param('userId') userId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
     @Body() body: { role?: string; status?: string },
   ) {
     return this.adminUsers.update(request.user.id, userId, body ?? {});
@@ -51,7 +52,7 @@ export class AdminController {
   @Post('users/:userId/revoke-sessions')
   revokeUserSessions(
     @Req() request: any,
-    @Param('userId') userId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
   ) {
     return this.adminUsers.revokeSessions(request.user.id, userId);
   }

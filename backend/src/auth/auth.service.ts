@@ -26,6 +26,12 @@ const scryptAsync = promisify(scrypt) as (
   keyLength: number,
 ) => Promise<Buffer>;
 
+export const USERNAME_PATTERN = /^[a-zA-Z0-9._-]{3,50}$/;
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const DUMMY_PASSWORD_HASH =
+  'scrypt$' + '00'.repeat(16) + '$' + '00'.repeat(64);
+
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
@@ -39,13 +45,13 @@ export class AuthService {
     const email = input.email?.trim().toLowerCase();
     const password = input.password ?? '';
 
-    if (!username || username.length < 3 || username.length > 50) {
+    if (!username || !USERNAME_PATTERN.test(username)) {
       throw new BadRequestException(
-        'username must contain between 3 and 50 characters',
+        'username must be 3–50 characters: letters, numbers, dot, dash or underscore',
       );
     }
 
-    if (!email || !email.includes('@')) {
+    if (!email || !EMAIL_PATTERN.test(email) || email.length > 255) {
       throw new BadRequestException('a valid email is required');
     }
 
@@ -120,10 +126,15 @@ export class AuthService {
       },
     });
 
+    const passwordMatches = await this.verifyPassword(
+      password,
+      user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+    );
+
     if (
       !user ||
       user.status !== UserStatus.ACTIVE ||
-      !(await this.verifyPassword(password, user.passwordHash))
+      !passwordMatches
     ) {
       throw new UnauthorizedException('invalid credentials');
     }
@@ -139,7 +150,7 @@ export class AuthService {
         user.twoFactor.secretEncrypted,
       );
 
-      if (!this.verifyTotp(secret, input.totpCode)) {
+      if (!(await this.consumeTotp(user.id, secret, input.totpCode))) {
         throw new UnauthorizedException(
           'invalid two-factor authentication code',
         );
@@ -244,7 +255,7 @@ export class AuthService {
       record.secretEncrypted,
     );
 
-    if (!code || !this.verifyTotp(secret, code)) {
+    if (!code || !(await this.consumeTotp(userId, secret, code))) {
       throw new BadRequestException(
         'invalid authenticator code',
       );
@@ -276,20 +287,29 @@ export class AuthService {
   async disableTwoFactor(
     userId: string,
     code?: string,
+    password?: string,
   ) {
     const record = await this.prisma.userTwoFactor.findUnique({
       where: { userId },
+      include: { user: { select: { passwordHash: true } } },
     });
 
     if (!record?.enabled) {
       return { enabled: false };
     }
 
+    if (
+      !password ||
+      !(await this.verifyPassword(password, record.user.passwordHash))
+    ) {
+      throw new BadRequestException('current password is incorrect');
+    }
+
     const secret = this.decryptTwoFactorSecret(
       record.secretEncrypted,
     );
 
-    if (!code || !this.verifyTotp(secret, code)) {
+    if (!code || !(await this.consumeTotp(userId, secret, code))) {
       throw new BadRequestException(
         'invalid authenticator code',
       );
@@ -361,13 +381,41 @@ export class AuthService {
     const token = this.extractBearerToken(authorization);
 
     if (!token) {
-      throw new UnauthorizedException('invalid authorization header');
+      return null;
     }
 
-    const session = await this.findValidSession(token);
-    await this.touchSession(session.id);
+    try {
+      const session = await this.findValidSession(token);
+      await this.touchSession(session.id);
 
-    return session.user;
+      return session.user;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
+  async findActiveUserByAuthorization(authorization: string) {
+    const token = this.extractBearerToken(authorization);
+
+    if (!token) {
+      return null;
+    }
+
+    try {
+      const session = await this.findValidSession(token);
+
+      return session.user;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   private async createSession(
@@ -558,20 +606,18 @@ export class AuthService {
     ]).toString('utf8');
   }
 
-  private verifyTotp(secret: string, input: string) {
+  private findTotpStep(secret: string, input: string) {
     const code = input.replace(/\s+/g, '');
 
     if (!/^\d{6}$/.test(code)) {
-      return false;
+      return null;
     }
 
     const nowStep = Math.floor(Date.now() / 1000 / 30);
 
     for (let offset = -1; offset <= 1; offset += 1) {
-      const expected = this.totpForCounter(
-        secret,
-        nowStep + offset,
-      );
+      const step = nowStep + offset;
+      const expected = this.totpForCounter(secret, step);
 
       if (
         timingSafeEqual(
@@ -579,11 +625,36 @@ export class AuthService {
           Buffer.from(expected),
         )
       ) {
-        return true;
+        return step;
       }
     }
 
-    return false;
+    return null;
+  }
+
+  private async consumeTotp(
+    userId: string,
+    secret: string,
+    input: string,
+  ) {
+    const step = this.findTotpStep(secret, input);
+
+    if (step === null) {
+      return false;
+    }
+
+    const claimed = await this.prisma.userTwoFactor.updateMany({
+      where: {
+        userId,
+        OR: [
+          { lastUsedStep: null },
+          { lastUsedStep: { lt: step } },
+        ],
+      },
+      data: { lastUsedStep: step },
+    });
+
+    return claimed.count === 1;
   }
 
   private totpForCounter(
