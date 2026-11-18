@@ -7,8 +7,8 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom';
-import { api } from './api';
 import { useAuth } from './auth';
+import { useNotifications } from './notifications';
 import type { User } from './types';
 
 /* ------------------------------------------------------------------ */
@@ -123,7 +123,7 @@ export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
 
 export const VERDICT_STYLE: Record<string, { label: string; className: string; dot: string }> = {
   HARMLESS: {
-    label: 'Clean',
+    label: 'No detections',
     className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
     dot: 'bg-emerald-400',
   },
@@ -441,27 +441,18 @@ function AccountMenu() {
 }
 
 export function AppShell() {
-  const { token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState(false);
   const [drawer, setDrawer] = useState(false);
-  const [unread, setUnread] = useState(0);
+  const { unread } = useNotifications();
 
   useEffect(() => {
     setSearch(new URLSearchParams(location.search).get('q') ?? '');
     setDrawer(false);
   }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    if (!token) return;
-    api
-      .notifications(token)
-      .then((items) => setUnread(items.filter((item) => !item.readAt).length))
-      .catch(() => setUnread(0));
-  }, [token, location.pathname]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

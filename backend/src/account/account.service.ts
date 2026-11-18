@@ -12,12 +12,15 @@ import {
   UserStatus,
   Verdict,
 } from '@prisma/client';
-import { AuthService } from '../auth/auth.service';
+import {
+  AuthService,
+  EMAIL_PATTERN,
+  USERNAME_PATTERN,
+} from '../auth/auth.service';
 import { PrismaService } from '../prisma.service';
 import { verifyClaimToken } from '../security/claim-token';
 
 const CLAIM_WINDOW_MS = 24 * 60 * 60 * 1000;
-const USERNAME_PATTERN = /^[a-zA-Z0-9._-]{3,50}$/;
 
 @Injectable()
 export class AccountService {
@@ -219,7 +222,7 @@ export class AccountService {
 
     if (input.email !== undefined) {
       const email = input.email.trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) {
+      if (!EMAIL_PATTERN.test(email) || email.length > 255) {
         throw new BadRequestException('a valid email is required');
       }
       if (email !== user.email) {

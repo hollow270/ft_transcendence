@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Req,
   UseGuards,
@@ -39,7 +40,7 @@ export class ApiKeysController {
   @Delete(':apiKeyId')
   revoke(
     @Req() request: any,
-    @Param('apiKeyId') apiKeyId: string,
+    @Param('apiKeyId', ParseUUIDPipe) apiKeyId: string,
   ) {
     return this.apiKeys.revoke(
       request.user.id,
