@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
 } from '@nestjs/common';
@@ -62,7 +63,7 @@ export class AccountController {
 
   @Delete('sessions/:sessionId')
   async revokeSession(
-    @Param('sessionId') sessionId: string,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
     @Headers('authorization') authorization?: string,
   ) {
     const session = await this.session(authorization);

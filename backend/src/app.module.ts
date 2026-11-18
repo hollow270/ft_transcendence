@@ -15,6 +15,7 @@ import { PublicApiController } from './api-keys/public-api.controller';
 import { AppController } from './app.controller';
 import { ArtifactsController } from './artifacts/artifacts.controller';
 import { ArtifactsService } from './artifacts/artifacts.service';
+import { ScanPollerService } from './artifacts/scan-poller.service';
 import { FileValidationService } from './artifacts/file-validation.service';
 import { AuthModule } from './auth/auth.module';
 import { CommunityController } from './community/community.controller';
@@ -63,6 +64,7 @@ import { UsersModule } from './users/users.module';
     AdminUsersService,
     AdminGuard,
     ArtifactsService,
+    ScanPollerService,
     FileValidationService,
     CommunityService,
     ModerationService,
