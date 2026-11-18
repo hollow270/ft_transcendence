@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Req,
   UseGuards,
@@ -21,9 +22,14 @@ export class NotificationsController {
     return this.notifications.listForUser(request.user.id);
   }
 
+  @Patch('read-all')
+  markAllRead(@Req() request: any) {
+    return this.notifications.markAllRead(request.user.id);
+  }
+
   @Patch(':notificationId/read')
   markRead(
-    @Param('notificationId') notificationId: string,
+    @Param('notificationId', ParseUUIDPipe) notificationId: string,
     @Req() request: any,
   ) {
     return this.notifications.markRead(

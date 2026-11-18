@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -108,6 +108,10 @@ export default function ArtifactPage() {
     useState<CommentReportReason>('SPAM');
   const [reportDetails, setReportDetails] = useState('');
   const [communityBusy, setCommunityBusy] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [commentNotice, setCommentNotice] = useState<string | null>(null);
+  const scrolledForRef = useRef<string | null>(null);
+  const highlightTimerRef = useRef<number | undefined>(undefined);
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiAnswer, setAiAnswer] = useState('');
@@ -119,11 +123,17 @@ export default function ArtifactPage() {
     | null;
 
 	const	TABS: Tab[] = [ 'detection', 'details', 'history', 'community', 'ai' ];
-	const	tab: Tab = TABS.find( ( t ) => t === params.get( 'tab' ) ) ?? 'detection';
+	const	targetCommentId = params.get( 'comment' );
+	const	targetScanId = params.get( 'scan' );
+	const	tab: Tab = TABS.find( ( t ) => t === params.get( 'tab' ) )
+		?? ( targetCommentId ? 'community' : 'detection' );
 
 	function	setTab( next: Tab )
 	{
-		setParams( { tab: next }, { replace: true, state: location.state } );
+		const	nextParams = new URLSearchParams( params );
+
+		nextParams.set( 'tab', next );
+		setParams( nextParams, { replace: true, state: location.state } );
 	}
 
   useEffect(() => {
@@ -148,18 +158,49 @@ export default function ArtifactPage() {
     return () => {
       active = false;
     };
-  }, [artifactId, token]);
+  }, [artifactId, token, targetScanId]);
 
   useEffect(() => {
     if (!artifactId) return;
-    void loadScanHistory();
-  }, [artifactId, token]);
+    void loadScanHistory(true);
+  }, [artifactId, token, targetScanId]);
 
-	useEffect( () => {
-		if ( !artifactId )
-			return ;
-		void refreshCommunity();
-	}, [ artifactId, token, sort ] );
+  useEffect(() => {
+    if (!artifactId) return;
+    let active = true;
+
+    void (async () => {
+      setCommentNotice(null);
+      const available = await refreshCommunity();
+      if (active && available && targetCommentId) {
+        await locateComment(targetCommentId, () => active);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [artifactId, token, targetCommentId, sort]);
+
+  useEffect(() => {
+    if (!highlightId) {
+      scrolledForRef.current = null;
+      return;
+    }
+    if (tab !== 'community' || scrolledForRef.current === highlightId) return;
+
+    const element = document.getElementById('comment-' + highlightId);
+    if (!element) return;
+
+    scrolledForRef.current = highlightId;
+    element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(() => {
+      setHighlightId((current) => (current === highlightId ? null : current));
+    }, 5000);
+  }, [highlightId, tab, comments, repliesRecord]);
+
+  useEffect(() => () => window.clearTimeout(highlightTimerRef.current), []);
 
   useEffect(() => {
     setAiAnswer('');
@@ -197,7 +238,7 @@ export default function ArtifactPage() {
     };
   }, [artifact]);
 
-  async function loadScanHistory() {
+  async function loadScanHistory(applyScanLink = false) {
     setHistoryLoading(true);
 
     try {
@@ -210,6 +251,16 @@ export default function ArtifactPage() {
         }
         return history[0]?.id ?? null;
       });
+
+      if (
+        applyScanLink &&
+        targetScanId &&
+        history[0]?.id !== targetScanId &&
+        history.some((scan) => scan.id === targetScanId)
+      ) {
+        setSelectedHistoryScanId(targetScanId);
+        setTab('history');
+      }
     } catch (error) {
       setScanHistory([]);
       setSelectedHistoryScanId(null);
@@ -223,7 +274,7 @@ export default function ArtifactPage() {
     }
   }
 
-	async	function	refreshCommunity() {
+	async	function	refreshCommunity(): Promise<boolean> {
 
 		try {
 			const [commentData, voteData] = await Promise.all([
@@ -237,12 +288,14 @@ export default function ArtifactPage() {
 
 			setVotes(voteData);
 			setCommunityAvailable(true);
+			return ( true );
 		} catch {
 			setNextCursor( null );
 			setTotalCount( 0 );
 			setComments([]);
 			setVotes(null);
 			setCommunityAvailable(false);
+			return ( false );
 		}
 	}
 
@@ -257,7 +310,11 @@ export default function ArtifactPage() {
 			const	moreComments = await api.discussion( artifactId, MAX_COMMENT_PER_REQ, nextCursor, sort, token );
 
 			setNextCursor( moreComments.nextCursor );
-			setComments( previousComments => [ ...previousComments, ...moreComments.items ] );
+			setComments( previousComments => {
+					const	knownIds = new Set( previousComments.map( ( comment ) => comment.id ) );
+
+					return ( [ ...previousComments, ...moreComments.items.filter( ( comment ) => !knownIds.has( comment.id ) ) ] );
+				} );
 		} catch {
 			setActionError( 'could not load more comments' );
 		} finally {
@@ -291,6 +348,43 @@ export default function ArtifactPage() {
 			setRepliesRecord( previousRecords => ( { ...previousRecords, [ commentId ]: newReplies } ) );
 		} catch {
 			setActionError( 'could not load replies' );
+		}
+	}
+
+	async	function	locateComment( commentId: string, isActive: () => boolean )
+	{
+		try {
+			const	context = await api.commentContext( artifactId, commentId, MAX_COMMENT_PER_REQ, token );
+
+			if ( !isActive() )
+				return ;
+			if ( !context.available ) {
+				setCommentNotice( 'That comment is no longer visible. It may have been deleted or removed by a moderator.' );
+				return ;
+			}
+
+			setRepliesRecord( previousRecords => {
+				const	nextRecords = { ...previousRecords };
+
+				for ( const level of context.levels )
+					nextRecords[ level.parentId ] = { items: level.items, nextCursor: level.nextCursor };
+				return ( nextRecords );
+			} );
+			setComments( previousComments =>
+				previousComments.some( ( comment ) => comment.id === context.root.id )
+					? previousComments : [ context.root, ...previousComments ] );
+			setCollapsedIdsRecord( previousRecord => {
+				const	nextRecord = { ...previousRecord };
+
+				for ( const level of context.levels )
+					nextRecord[ level.parentId ] = false;
+				return ( nextRecord );
+			} );
+			scrolledForRef.current = null;
+			setHighlightId( context.targetId );
+		} catch {
+			if ( isActive() )
+				setCommentNotice( 'Could not load that comment.' );
 		}
 	}
 
@@ -351,9 +445,11 @@ export default function ArtifactPage() {
 		return (
 			<article
 				key={comment.id}
+				id={'comment-' + comment.id}
 				className={
-					'border-b border-slate-800 px-5 py-4 last:border-b-0 ' +
-					(comment.parentId ? 'ml-6 border-l border-l-slate-700 sm:ml-10' : '')
+					'border-b border-slate-800 px-5 py-4 transition-colors last:border-b-0 ' +
+					(comment.parentId ? 'ml-6 border-l border-l-slate-700 sm:ml-10 ' : '') +
+					(highlightId === comment.id ? 'bg-blue-950/30 ring-2 ring-inset ring-blue-500/60' : '')
 				}
 			>
 				<div className="flex flex-wrap items-center justify-between gap-2">
@@ -1405,6 +1501,12 @@ export default function ArtifactPage() {
 						<div className="surface-header">
 						<h2 className="text-sm font-semibold text-slate-200">Discussion - { totalCount }</h2>
 						</div>
+
+						{commentNotice && (
+							<div role="status" className="border-b border-amber-900 bg-amber-950/30 px-5 py-3 text-sm text-amber-200">
+								{commentNotice}
+							</div>
+						)}
 
 						{user ? (
 						<form className="border-b border-slate-800 p-5" onSubmit={submitComment}>

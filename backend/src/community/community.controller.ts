@@ -9,6 +9,8 @@ import { PatchCommentDto } from './dto/patch-comment.dto';
 import { PostReportDto } from './dto/post-report.dto';
 import { PutVoteDto } from './dto/put-vote.dto';
 
+const	DEFAULT_COMMENT_LIMIT = 100;
+
 @Controller('artifacts/:artifactId')
 export class CommunityController
 {
@@ -43,7 +45,7 @@ export class CommunityController
 		else if ( offset !== undefined )
 			throw new BadRequestException( 'bad request params' );
 
-		return this.community.listComments( artifactId );
+		return this.community.listComments( artifactId, DEFAULT_COMMENT_LIMIT );
 	}
 
 	@Get( 'discussion' )
@@ -65,6 +67,17 @@ export class CommunityController
 		const	viewer = await this.auth.optionalUserFromAuthorization( authorization );
 
 		return ( this.community.getReplies( artifactId, commentId, query.limit, query.cursor, viewer?.id ?? null ) );
+	}
+
+	@Get( 'comments/:commentId/context' )
+	async getCommentContext( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
+		@Param( 'commentId', ParseUUIDPipe ) commentId: string,
+		@Query() query: DiscussionQueryDto,
+		@Headers( 'authorization' ) authorization?: string )
+	{
+		const	viewer = await this.auth.optionalUserFromAuthorization( authorization );
+
+		return ( this.community.getCommentContext( artifactId, commentId, query.limit, viewer?.id ?? null ) );
 	}
 
 	@UseGuards(SessionAuthGuard)

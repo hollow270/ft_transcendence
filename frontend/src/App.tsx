@@ -18,6 +18,7 @@ import SecurityPage from './pages/SecurityPage';
 import SettingsPage from './pages/SettingsPage';
 import UrlPage from './pages/UrlPage';
 import UserCommunityPage from './pages/UserCommunityPage';
+import { NotificationsProvider } from './notifications';
 
 /** Keeps old links (/artifact/:id, /history, ...) working by moving them under /app. */
 function LegacyRedirect() {
@@ -41,7 +42,9 @@ export default function App() {
             path="app"
             element={
               <RequireAuth>
-                <AppShell />
+                <NotificationsProvider>
+                  <AppShell />
+                </NotificationsProvider>
               </RequireAuth>
             }
           >

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -16,6 +17,8 @@ const socketOrigins = (
   .map((value) => value.trim())
   .filter(Boolean);
 
+const SESSION_CHECK_MS = 60_000;
+
 @WebSocketGateway({
   cors: {
     origin: socketOrigins,
@@ -28,6 +31,8 @@ export class NotificationsGateway
     OnGatewayConnection,
     OnGatewayDisconnect
 {
+  private readonly logger = new Logger(NotificationsGateway.name);
+
   @WebSocketServer()
   server!: Server;
 
@@ -44,6 +49,12 @@ export class NotificationsGateway
     }, 5000);
 
     timer.unref();
+
+    const sessionTimer = setInterval(() => {
+      void this.revalidateClients();
+    }, SESSION_CHECK_MS);
+
+    sessionTimer.unref();
   }
 
   async handleConnection(client: Socket) {
@@ -62,6 +73,7 @@ export class NotificationsGateway
 
       client.data.userId = user.id;
       client.data.role = user.role;
+      client.data.authorization = authorization;
       await client.join(`user:${user.id}`);
 
       if (user.role === 'ADMIN') {
@@ -75,6 +87,41 @@ export class NotificationsGateway
   handleDisconnect(client: Socket) {
     client.data.userId = undefined;
     client.data.role = undefined;
+    client.data.authorization = undefined;
+  }
+
+  private async revalidateClients() {
+    for (const client of this.server.sockets.sockets.values()) {
+      const authorization = client.data.authorization;
+
+      if (!authorization) {
+        continue;
+      }
+
+      try {
+        const user =
+          await this.auth.findActiveUserByAuthorization(authorization);
+
+        if (!user) {
+          client.disconnect(true);
+          continue;
+        }
+
+        client.data.role = user.role;
+
+        if (user.role === 'ADMIN') {
+          await client.join('admins');
+        } else {
+          await client.leave('admins');
+        }
+      } catch (error) {
+        this.logger.warn(
+          `could not revalidate socket ${client.id}: ${
+            error instanceof Error ? error.message : error
+          }`,
+        );
+      }
+    }
   }
 
   emitAdminMetricsChanged(

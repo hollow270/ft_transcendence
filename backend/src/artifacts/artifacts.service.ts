@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -1235,34 +1236,11 @@ export class ArtifactsService {
       return this.formatScan(latest);
     }
 
-    if (
-      scan.providerCheckedAt &&
-      Date.now() -
-        scan.providerCheckedAt.getTime() <
-        Number(
-          process.env.SCANNER_REFRESH_COOLDOWN_MS ??
-            60000,
-        )
-    ) {
+    const persisted = await this.refreshRunningScan(scan);
+
+    if (!persisted) {
       return this.formatScan(scan);
     }
-
-    const result = await this.scanning.poll(
-      scan.provider!,
-      scan.providerAnalysisId!,
-    );
-
-    const persisted =
-      await this.applyScannerResult(
-        scan.id,
-        result,
-      );
-
-    await this.notifyIfCompleted(
-      persisted,
-      scan.submission?.userId ?? null,
-      artifactId,
-    );
 
     return this.formatScan(persisted);
   }
@@ -1595,15 +1573,204 @@ export class ArtifactsService {
     artifactId: string,
   ) {
     if (
-      userId &&
-      scan.status === ScanStatus.COMPLETED
+      !userId ||
+      scan.status !== ScanStatus.COMPLETED
     ) {
-      await this.notifications.createScanCompleted(
-        userId,
-        artifactId,
-        scan.id,
-      );
+      return;
     }
+
+    const existing =
+      await this.prisma.notification.findFirst({
+        where: {
+          userId,
+          type: NotificationType.SCAN_COMPLETED,
+          entityType: 'scan',
+          entityId: scan.id,
+        },
+        select: { id: true },
+      });
+
+    if (existing) {
+      return;
+    }
+
+    await this.notifications.createScanCompleted(
+      userId,
+      artifactId,
+      scan.id,
+    );
+  }
+
+  private async notifyScanFailed(
+    scanId: string,
+    userId: string | null,
+    artifactId: string,
+  ) {
+    if (!userId) {
+      return;
+    }
+
+    await this.notifications.createResourceEvent({
+      userId,
+      type: NotificationType.RESOURCE_UPDATED,
+      entityType: 'scan',
+      entityId: scanId,
+      artifactId,
+      message: 'Your scan could not be completed.',
+    });
+  }
+
+  private async refreshRunningScan(scan: {
+    id: string;
+    artifactId: string;
+    provider: string | null;
+    providerAnalysisId: string | null;
+    submission: { userId: string | null } | null;
+  }) {
+    if (!scan.provider || !scan.providerAnalysisId) {
+      return null;
+    }
+
+    const cooldownMs = Number(
+      process.env.SCANNER_REFRESH_COOLDOWN_MS ?? 60000,
+    );
+
+    const claimed = await this.prisma.scan.updateMany({
+      where: {
+        id: scan.id,
+        status: ScanStatus.RUNNING,
+        OR: [
+          { providerCheckedAt: null },
+          {
+            providerCheckedAt: {
+              lt: new Date(Date.now() - cooldownMs),
+            },
+          },
+        ],
+      },
+      data: { providerCheckedAt: new Date() },
+    });
+
+    if (claimed.count !== 1) {
+      return null;
+    }
+
+    const result = await this.scanning.poll(
+      scan.provider,
+      scan.providerAnalysisId,
+    );
+
+    const persisted = await this.applyScannerResult(
+      scan.id,
+      result,
+    );
+
+    await this.notifyIfCompleted(
+      persisted,
+      scan.submission?.userId ?? null,
+      scan.artifactId,
+    );
+
+    return persisted;
+  }
+
+  async pollRunningScans(options: {
+    batchSize: number;
+    maxRunningMs: number;
+  }) {
+    const log = new Logger('ScanPoller');
+    const summary = { polled: 0, completed: 0, failed: 0, expired: 0 };
+    const include = {
+      submission: { select: { userId: true } },
+    } as const;
+
+    const expired = await this.prisma.scan.findMany({
+      where: {
+        status: ScanStatus.RUNNING,
+        createdAt: {
+          lt: new Date(Date.now() - options.maxRunningMs),
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+      include,
+    });
+
+    for (const scan of expired) {
+      try {
+        const marked = await this.prisma.scan.updateMany({
+          where: { id: scan.id, status: ScanStatus.RUNNING },
+          data: {
+            status: ScanStatus.FAILED,
+            providerStatus: 'timeout',
+            providerCheckedAt: new Date(),
+            errorMessage:
+              'The scan did not finish in time. Please try again.',
+          },
+        });
+
+        if (marked.count === 1) {
+          summary.expired++;
+          await this.notifyScanFailed(
+            scan.id,
+            scan.submission?.userId ?? null,
+            scan.artifactId,
+          );
+        }
+      } catch (error) {
+        log.warn(
+          `could not expire scan ${scan.id}: ${
+            error instanceof Error ? error.message : error
+          }`,
+        );
+      }
+    }
+
+    const cooldownMs = Number(
+      process.env.SCANNER_REFRESH_COOLDOWN_MS ?? 60000,
+    );
+    const due = await this.prisma.scan.findMany({
+      where: {
+        status: ScanStatus.RUNNING,
+        provider: { not: null },
+        providerAnalysisId: { not: null },
+        OR: [
+          { providerCheckedAt: null },
+          {
+            providerCheckedAt: {
+              lt: new Date(Date.now() - cooldownMs),
+            },
+          },
+        ],
+      },
+      orderBy: {
+        providerCheckedAt: { sort: 'asc', nulls: 'first' },
+      },
+      take: options.batchSize,
+      include,
+    });
+
+    for (const scan of due) {
+      try {
+        const persisted = await this.refreshRunningScan(scan);
+
+        if (persisted) {
+          summary.polled++;
+          if (persisted.status === ScanStatus.COMPLETED) {
+            summary.completed++;
+          }
+        }
+      } catch (error) {
+        summary.failed++;
+        log.warn(
+          `poll failed for scan ${scan.id}: ${
+            error instanceof Error ? error.message : error
+          }`,
+        );
+      }
+    }
+
+    return summary;
   }
 
   private async findLatestAccessibleScan(
