@@ -38,6 +38,7 @@ const	COMMENT_FIELDS = {
 	body: true,
 	createdAt: true,
 	editedAt: true,
+	score: true,
 	user: {
 		select: {
 			id: true,
@@ -93,9 +94,15 @@ export class CommunityService
 		});
 	}
 
-	async getDiscussion( artifactId: string, limit: number, cursor?: string )
+	async getDiscussion( artifactId: string, limit: number, cursor: string | undefined, sort: 'new' | 'top', viewerId: string | null )
 	{
 		await this.ensurePublicArtifact(artifactId);
+
+		let		order: Prisma.CommentOrderByWithRelationInput[];
+		if ( sort === 'top' )
+			order = [ { score: 'desc' }, { createdAt: 'desc' }, { id: 'desc' } ];
+		else
+			order = [ { createdAt: 'desc' }, { id: 'desc' } ];
 
 		const	[rows, totalCount] = await Promise.all( [ this.prisma.comment.findMany(
 			{
@@ -104,10 +111,7 @@ export class CommunityService
 					parentId: null,
 					...VISIBLE_COMMENTS
 				},
-				orderBy: [
-					{ createdAt: 'desc' },
-					{ id: 'desc' }
-				],
+				orderBy: order,
 				take: limit + 1,
 				cursor: cursor ? { id: cursor } : undefined,
 				skip: cursor ? 1 : 0,
@@ -143,12 +147,26 @@ export class CommunityService
 			maskedItems[i].replies = maskedItems[i].replies.map( mask );
 		}
 
+		const	commentIds: string[] = [];
+		for ( let i = 0; i < maskedItems.length; i++ ) {
+			commentIds.push( maskedItems[i].id );
+			for ( let j = 0; j < maskedItems[i].replies.length; j++ )
+				commentIds.push( maskedItems[i].replies[j].id );
+		}
+
+		const	myVotes = await this.getMyVotes( viewerId, commentIds );
+		const	votedItems = maskedItems.map( ( comment ) => ( {
+			...comment,
+			myVote: myVotes[ comment.id ] ?? 0,
+			replies: comment.replies.map( ( reply ) => ( { ...reply, myVote: myVotes[ reply.id ] ?? 0 } ) )
+		} ) );
+
 		const	nextCursor = hasMore ? items[items.length - 1].id : null;
 
-		return { totalCount, items: maskedItems, nextCursor };
+		return { totalCount, items: votedItems, nextCursor };
 	}
 
-	async getReplies( artifactId: string, commentId: string, limit: number, cursor?: string )
+	async getReplies( artifactId: string, commentId: string, limit: number, cursor: string | undefined, viewerId: string | null )
 	{
 		await this.ensurePublicArtifact( artifactId );
 
@@ -173,9 +191,103 @@ export class CommunityService
 		const	hasMore = rows.length > limit;
 		const	items = hasMore ? rows.slice( 0, limit ) : rows;
 		const	maskedItems = items.map( mask );
+		const	myVotes = await this.getMyVotes( viewerId, maskedItems.map( ( comment ) => comment.id ) );
+		const	votedItems = maskedItems.map( ( comment ) => ( { ...comment, myVote: myVotes[ comment.id ] ?? 0 } ) );
 		const	nextCursor = hasMore ? items[items.length - 1].id : null;
 
-		return ( { items: maskedItems, nextCursor } );
+		return ( { items: votedItems, nextCursor } );
+	}
+
+	async voteComment( artifactId: string, commentId: string, userId: string, value: number )
+	{
+		await this.ensurePublicArtifact( artifactId );
+
+		const	comment = await this.prisma.comment.findFirst(
+			{
+				where: {
+					id: commentId,
+					artifactId,
+					status: CommentStatus.ACTIVE
+				},
+				select: {
+					id: true
+				}
+			}
+		);
+
+		if ( !comment )
+			throw new NotFoundException( 'comment not found' );
+
+		return ( this.prisma.$transaction( async ( tx ) => {
+
+			const	previousVote = await tx.commentVote.findUnique(
+				{
+					where: {
+						commentId_userId: { commentId, userId }
+					},
+					select: {
+						value: true
+					}
+				}
+			);
+			const	previousValue = previousVote ? previousVote.value : 0;
+
+			if ( value === 0 )
+				await tx.commentVote.deleteMany( { where: { commentId, userId } } );
+			else {
+				await tx.commentVote.upsert(
+					{
+						where: {
+							commentId_userId: { commentId, userId }
+						},
+						update: { value },
+						create: { commentId, userId, value }
+					}
+				);
+			}
+
+			const	updated = await tx.comment.update(
+				{
+					where: {
+						id: commentId
+					},
+					data: {
+						score: { increment: value - previousValue }
+					},
+					select: {
+						score: true
+					}
+				}
+			);
+
+			return ( { commentId, score: updated.score, myVote: value } );
+		} ) );
+	}
+
+	private async getMyVotes( viewerId: string | null, commentIds: string[] )
+	{
+		const	myVotes: Record<string, number> = {};
+
+		if ( !viewerId || commentIds.length === 0 )
+			return ( myVotes );
+
+		const	votes = await this.prisma.commentVote.findMany(
+			{
+				where: {
+					userId: viewerId,
+					commentId: { in: commentIds }
+				},
+				select: {
+					commentId: true,
+					value: true
+				}
+			}
+		);
+
+		for ( let i = 0; i < votes.length; i++ )
+			myVotes[ votes[i].commentId ] = votes[i].value;
+
+		return ( myVotes );
 	}
 
 	async createComment( artifactId: string, userId: string, input: { body: string; parentId?: string }, )
