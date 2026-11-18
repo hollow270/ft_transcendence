@@ -24,6 +24,8 @@ import type {
   VoteSummary,
 	Discussion,
 	RepliesPage,
+	CommentVoteResult,
+	CommentSort
 } from './types';
 
 const API_BASE = '/api';
@@ -395,7 +397,7 @@ export const api = {
 		return request<Comment[]>( params ? `${ url }?${ params }` : url, );
 	},
 
-	discussion( artifactId: string, limit?: number, cursor?: string )
+	discussion( artifactId: string, limit?: number, cursor?: string, sort?: CommentSort, token?: string | null )
 	{
 		const	url = `/artifacts/${ encodeURIComponent( artifactId ) }/discussion`;
 		const	params = new URLSearchParams();
@@ -404,11 +406,13 @@ export const api = {
 			params.set( 'limit', String( limit ) );
 		if ( cursor !== undefined )
 			params.set( 'cursor', cursor );
+		if ( sort !== undefined )
+			params.set( 'sort', sort );
 
-		return ( request<Discussion>( params ? `${ url }?${ params }` : url ) );
+		return ( request<Discussion>( params ? `${ url }?${ params }` : url, {}, token ) );
 	},
 
-	replies( artifactId: string, commentId: string, limit?: number, cursor?: string)
+	replies( artifactId: string, commentId: string, limit?: number, cursor?: string, token?: string | null )
 	{
 		const	url = `/artifacts/${ encodeURIComponent( artifactId ) }/comments/${ encodeURIComponent( commentId ) }/replies`
 		const	params = new URLSearchParams();
@@ -418,7 +422,14 @@ export const api = {
 		if ( cursor !== undefined )
 			params.set( 'cursor', cursor );
 
-		return ( request<RepliesPage>( params ? `${ url }?${ params }` : url ) );
+		return ( request<RepliesPage>( params ? `${ url }?${ params }` : url, {}, token ) );
+	},
+
+	voteComment( artifactId: string, commentId: string, value: number, token: string )
+	{
+		const	url = `/artifacts/${ encodeURIComponent( artifactId ) }/comments/${ encodeURIComponent( commentId ) }/vote`;
+
+		return ( request<CommentVoteResult>( url, { method: 'PUT', body: JSON.stringify( { value } ) }, token ) );
 	},
 
   createComment(

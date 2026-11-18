@@ -111,6 +111,7 @@ model User {
   submissions            Submission[]
   comments               Comment[]
   communityVotes         CommunityVote[]
+	commentVotes           CommentVote[]
   commentReports         CommentReport[]      @relation("CommentReportReporter")
   reviewedCommentReports CommentReport[]      @relation("CommentReportReviewer")
   moderationActions      ModerationAction[]   @relation("ModerationActionModerator")
@@ -316,6 +317,7 @@ model Comment {
   updatedAt  DateTime      @updatedAt @map("updated_at")
   editedAt   DateTime?     @map("edited_at")
   deletedAt  DateTime?     @map("deleted_at")
+	score      Int           @default(0)
 
   artifact          Artifact           @relation(fields: [artifactId], references: [id], onDelete: Cascade)
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -324,8 +326,10 @@ model Comment {
   reports           CommentReport[]
   moderationActions ModerationAction[]
   notifications     Notification[]
+	votes             CommentVote[]
 
   @@index([artifactId, createdAt])
+	@@index([artifactId, score])
   @@index([userId])
   @@index([parentId])
   @@index([status])
@@ -346,6 +350,22 @@ model CommunityVote {
   @@id([artifactId, userId])
   @@index([verdict])
   @@map("community_votes")
+}
+
+// 12b. One up or down vote per user per comment.
+model CommentVote {
+	commentId	String		@db.Uuid @map("comment_id")
+	userId		String		@db.Uuid @map("user_id")
+	value		Int
+	createdAt	DateTime	@default(now()) @map("created_at")
+	updatedAt	DateTime	@updatedAt @map("updated_at")
+
+	comment		Comment		@relation(fields: [commentId], references: [id], onDelete: Cascade)
+	user		User		@relation(fields: [userId], references: [id], onDelete: Cascade)
+
+	@@id([commentId, userId])
+	@@index([userId])
+	@@map("comment_votes")
 }
 
 // 13. User reports submitted against comments.
