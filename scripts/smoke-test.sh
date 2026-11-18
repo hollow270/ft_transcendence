@@ -139,6 +139,15 @@ grep -qi '^x-content-type-options: nosniff' /tmp/waf-https-headers.txt
 
 echo "HTTPS WAF entrypoint ok"
 
+
+curl -kfsS -D /tmp/waf-app-headers.txt   "$HTTPS_WAF_URL/"   -o /tmp/waf-app.html
+
+grep -q 'id="root"' /tmp/waf-app.html
+grep -q '/src/main.tsx' /tmp/waf-app.html
+grep -qi "script-src 'self' 'unsafe-inline'" /tmp/waf-app-headers.txt
+
+echo "Vite app HTML through HTTPS ok"
+
 docker compose exec -T frontend npm run build
 echo "frontend production build ok"
 
