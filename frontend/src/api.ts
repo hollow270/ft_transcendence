@@ -24,6 +24,7 @@ import type {
   VoteSummary,
 	Discussion,
 	RepliesPage,
+	CommentContext,
 } from './types';
 
 const API_BASE = '/api';
@@ -218,12 +219,12 @@ export const api = {
     );
   },
 
-  disableTwoFactor(code: string, token: string) {
+  disableTwoFactor(code: string, password: string, token: string) {
     return request<{ enabled: boolean }>(
       '/auth/2fa/disable',
       {
         method: 'POST',
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code, password }),
       },
       token,
     );
@@ -406,6 +407,18 @@ export const api = {
 			params.set( 'cursor', cursor );
 
 		return ( request<Discussion>( params ? `${ url }?${ params }` : url ) );
+	},
+
+	commentContext( artifactId: string, commentId: string, limit?: number )
+	{
+		const	url = `/artifacts/${ encodeURIComponent( artifactId ) }/comments/${ encodeURIComponent( commentId ) }/context`;
+		const	params = new URLSearchParams();
+
+		if ( limit !== undefined )
+			params.set( 'limit', String( limit ) );
+
+		const	query = params.toString();
+		return ( request<CommentContext>( query ? `${ url }?${ query }` : url ) );
 	},
 
 	replies( artifactId: string, commentId: string, limit?: number, cursor?: string)
@@ -757,6 +770,14 @@ export const api = {
 
   notifications(token: string) {
     return request<Notification[]>('/notifications', {}, token);
+  },
+
+  markAllNotificationsRead(token: string) {
+    return request<{ updated: number }>(
+      '/notifications/read-all',
+      { method: 'PATCH' },
+      token,
+    );
   },
 
   markNotificationRead(notificationId: string, token: string) {

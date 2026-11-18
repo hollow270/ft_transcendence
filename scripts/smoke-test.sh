@@ -190,7 +190,8 @@ TWOFA_SECRET=$(printf '%s' "$TWOFA_SETUP" | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.secret || !j.otpauthUri) process.exit(1); process.stdout.write(j.secret);});
 ')
 
-TWOFA_CODE=$(SECRET="$TWOFA_SECRET" node -e '
+totp_code() {
+  SECRET="$1" OFFSET="$2" node -e '
 const crypto=require("crypto");
 const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const secret=process.env.SECRET || "";
@@ -200,13 +201,16 @@ for(const ch of secret.replace(/=+$/g,"").toUpperCase()){
   current=(current<<5)|idx; bits+=5;
   if(bits>=8){out.push((current>>>(bits-8))&255); bits-=8;}
 }
-const counter=Math.floor(Date.now()/1000/30);
+const counter=Math.floor(Date.now()/1000/30)+Number(process.env.OFFSET);
 const b=Buffer.alloc(8); b.writeBigUInt64BE(BigInt(counter));
 const h=crypto.createHmac("sha1",Buffer.from(out)).update(b).digest();
 const o=h[h.length-1]&15;
 const n=((h[o]&127)<<24)|(h[o+1]<<16)|(h[o+2]<<8)|h[o+3];
 process.stdout.write(String(n%1000000).padStart(6,"0"));
-')
+'
+}
+
+TWOFA_CODE=$(totp_code "$TWOFA_SECRET" 0)
 
 curl -fsS -X POST "$BASE_URL/auth/2fa/enable" \
   -H "Authorization: Bearer $TWOFA_TOKEN" \
@@ -223,12 +227,37 @@ curl -fsS -X POST "$BASE_URL/auth/login" \
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.requiresTwoFactor!==true || j.token) process.exit(1);});
 '
 
+TWOFA_REPLAY_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"twofa@example.com\",\"password\":\"password123\",\"totpCode\":\"$TWOFA_CODE\"}")
+
+if [ "$TWOFA_REPLAY_CODE" != "401" ]; then
+  echo "reused two-factor code should return 401, got $TWOFA_REPLAY_CODE"
+  exit 1
+fi
+
+echo "two-factor code reuse rejected ok"
+
+TWOFA_LOGIN_CODE=$(totp_code "$TWOFA_SECRET" 1)
+
 curl -fsS -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"twofa@example.com\",\"password\":\"password123\",\"totpCode\":\"$TWOFA_CODE\"}" \
+  -d "{\"email\":\"twofa@example.com\",\"password\":\"password123\",\"totpCode\":\"$TWOFA_LOGIN_CODE\"}" \
   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.requiresTwoFactor!==false || !j.token) process.exit(1); console.log("two-factor authentication flow ok");});
 '
+
+TWOFA_DISABLE_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/auth/2fa/disable" \
+  -H "Authorization: Bearer $TWOFA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"$TWOFA_LOGIN_CODE\"}")
+
+if [ "$TWOFA_DISABLE_CODE" != "400" ]; then
+  echo "disabling two-factor without the password should return 400, got $TWOFA_DISABLE_CODE"
+  exit 1
+fi
+
+echo "two-factor disable requires password ok"
 
 printf 'hello ft_transcendence\n' >/tmp/sample.txt
 
@@ -679,8 +708,8 @@ echo "database tables ok: $TABLE_COUNT"
 
 MIGRATION_COUNT=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM \"_prisma_migrations\" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;"')
 
-if [ "$MIGRATION_COUNT" -ne 1 ]; then
-  echo "Expected exactly 1 applied Prisma migration, found $MIGRATION_COUNT"
+if [ "$MIGRATION_COUNT" -ne 2 ]; then
+  echo "Expected exactly 2 applied Prisma migrations, found $MIGRATION_COUNT"
   exit 1
 fi
 

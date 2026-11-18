@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UploadedFile,
@@ -106,7 +107,7 @@ export class ArtifactsController {
 
   @Get(':artifactId/scans')
   async getArtifactScanHistory(
-    @Param('artifactId') artifactId: string,
+    @Param('artifactId', ParseUUIDPipe) artifactId: string,
     @Headers('authorization') authorization?: string,
   ) {
     const user =
@@ -120,7 +121,7 @@ export class ArtifactsController {
 
   @Post(':artifactId/rescan')
   async rescanArtifact(
-    @Param('artifactId') artifactId: string,
+    @Param('artifactId', ParseUUIDPipe) artifactId: string,
     @Headers('authorization') authorization?: string,
   ) {
     const user =
@@ -134,7 +135,7 @@ export class ArtifactsController {
 
   @Post(':artifactId/refresh')
   async refreshArtifactScan(
-    @Param('artifactId') artifactId: string,
+    @Param('artifactId', ParseUUIDPipe) artifactId: string,
     @Headers('authorization') authorization?: string,
   ) {
     const user =
@@ -148,7 +149,7 @@ export class ArtifactsController {
 
   @Get(':artifactId')
   async getArtifact(
-    @Param('artifactId') artifactId: string,
+    @Param('artifactId', ParseUUIDPipe) artifactId: string,
     @Headers('authorization') authorization?: string,
   ) {
     const user =

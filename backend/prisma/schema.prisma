@@ -132,6 +132,7 @@ model UserTwoFactor {
   userId          String   @id @db.Uuid @map("user_id")
   secretEncrypted String   @map("secret_encrypted")
   enabled         Boolean  @default(false)
+  lastUsedStep    Int?     @map("last_used_step")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
