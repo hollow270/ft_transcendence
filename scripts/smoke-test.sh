@@ -594,4 +594,13 @@ if [ "$TABLE_COUNT" -lt 19 ]; then
 fi
 
 echo "database tables ok: $TABLE_COUNT"
+
+MIGRATION_COUNT=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM \"_prisma_migrations\" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;"')
+
+if [ "$MIGRATION_COUNT" -ne 1 ]; then
+  echo "Expected exactly 1 applied Prisma migration, found $MIGRATION_COUNT"
+  exit 1
+fi
+
+echo "Prisma migration history ok"
 echo "SMOKE TEST PASSED"
