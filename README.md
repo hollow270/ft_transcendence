@@ -246,29 +246,44 @@ TWO_FACTOR_ENCRYPTION_KEY_FILE=/run/secrets/two_factor
 
 When a `*_FILE` variable is configured, the file value takes precedence over the plain environment variable. Secret files are not included in the repository.
 
-## Prisma development workflow
+## Prisma migration workflow
 
-The backend container currently runs:
+Database V1 is frozen and version-controlled under:
 
-```bash
-npx prisma generate
-npx prisma db push
-npm run start:dev
+```text
+backend/prisma/migrations/20261022084251_database_v1/
 ```
 
-Validate manually:
+Normal startup generates the Prisma client and runs:
+
+```bash
+npx prisma migrate deploy
+```
+
+before NestJS starts.
+
+Existing local databases created by earlier GO VIRUS versions with `prisma db push` are baselined automatically when the complete 19-table Database V1 schema is detected. Data is not deleted.
+
+Check migration status:
+
+```bash
+docker compose exec backend npx prisma migrate status
+```
+
+Validate the schema:
 
 ```bash
 docker compose exec backend npx prisma validate
 ```
 
-Verify tables:
+For future schema changes, create a new migration during development:
 
 ```bash
-docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\\dt"'
+cd backend
+npx prisma migrate dev --name describe_the_change
 ```
 
-For now, `prisma db push` is used while the schema is still evolving. Once Database V1 is frozen, switch to versioned Prisma migrations.
+Commit both the updated `schema.prisma` and the generated migration directory. Do not use `prisma db push` for normal project evolution.
 
 ## Automated smoke test
 
