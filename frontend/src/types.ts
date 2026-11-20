@@ -334,6 +334,7 @@ export type AdminOverview = {
   };
   community: {
     comments: number;
+    votes: number;
     openReports: number;
   };
   llm: {
