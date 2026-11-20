@@ -533,7 +533,6 @@ export function AppShell() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search hashes, file names, domains"
-              aria-label="Search"
             />
             <kbd className="hidden sm:inline" aria-hidden="true">Ctrl K</kbd>
           </form>
