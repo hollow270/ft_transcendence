@@ -152,7 +152,7 @@ export default function SearchPage() {
   const items = result?.items ?? [];
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title="Search"
         description="Search public GO VIRUS artifacts with filters, sorting and pagination."
@@ -307,7 +307,7 @@ export default function SearchPage() {
         </div>
 
         {error ? (
-          <div className="m-5 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          <div role="alert" className="m-5 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
             {error}
           </div>
         ) : loading && !result ? (
@@ -451,6 +451,6 @@ export default function SearchPage() {
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }

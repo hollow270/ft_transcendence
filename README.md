@@ -1,119 +1,215 @@
+*This project has been created as part of the 42 curriculum by [login 1], [login 2], [login 3], [login 4].*
+
 # GO VIRUS / ft_transcendence
 
-GO VIRUS is the current ft_transcendence application: a VirusTotal-inspired security scanner with community and AI-assisted scan explanations.
+## Description
 
-## Current stack
+GO VIRUS is a web application for checking whether a file or a link is dangerous. A visitor uploads a file or pastes a URL, the platform scans it with several antivirus engines and shows one clear verdict together with the result of every engine. A signed-in user can keep a private history, discuss results with the community, ask an AI assistant to explain a report in plain language, and automate everything through a public API.
 
-- React + Vite + Tailwind CSS frontend
-- NestJS backend
-- Prisma ORM
-- PostgreSQL 16
-- Socket.IO / WebSockets
-- OpenAI-compatible streamed LLM integration
-- Docker Compose
+Main goals:
 
-The database V1 contains 19 application tables for users, 2FA, sessions, file/URL artifacts, submissions, scans, scan engines/results, comments, votes, reports, moderation, notifications, API usage, LLM usage and audit logs.
+- give people a fast, understandable second opinion on a suspicious file or link;
+- keep private scans private: private files are scanned locally with ClamAV and are never sent to an external service;
+- turn scan results into shared knowledge through comments, votes, reports and moderation;
+- show the whole thing as a secure, accessible and observable product (WAF, Vault, 2FA, audit trail, analytics).
 
-Database details: `backend/prisma/DATABASE.md`
+Key features:
 
-## Product layer (v2)
+- file and URL scanning with ClamAV and VirusTotal, SHA-256 deduplication and a shared public result cache;
+- guest scan on the landing page with a limited report, attached to the account after sign-up;
+- community layer: nested comments, harmless/suspicious/malicious votes, comment votes, reports and a moderation queue;
+- AI assistant that explains a scan and answers cybersecurity questions, streamed over Server-Sent Events;
+- live notifications over WebSockets;
+- public REST API with hashed API keys and per-key rate limits;
+- administrator dashboard with platform analytics and user management;
+- TOTP two-factor authentication, session management, account deletion;
+- HTTPS-only access behind an OWASP CRS / ModSecurity WAF, secrets held in HashiCorp Vault.
 
-GO VIRUS now ships as a full product:
+## Instructions
 
-- `/` public landing page with an inline scanner. Guests get a limited report preview (verdict, detection count, first 2 engines); hashes, all engines, AI explanation, votes and history unlock after sign-up.
-- `/login`, `/signup` full-page auth with 2FA. A guest scan is attached to the new account automatically (signed claim token, 24h window).
-- `/app/*` signed-in dashboard: overview stats, scanner, report pages, history, search, AI assistant, notifications, API keys.
-- Account management: profile, email change (password required), password change (signs out other devices), signed-in devices with per-session sign-out, account deletion.
-- Admin user management (`/app/admin/users`): search, filter, change roles, disable/enable, force sign-out. All changes go to `audit_logs`.
-
-New backend routes:
-
-| Method | Route | Purpose |
-|---|---|---|
-| GET | `/account/overview` | Dashboard stats, 30-day activity, recent scans |
-| PATCH | `/account/profile` | Update username / email |
-| POST | `/account/password` | Change password |
-| GET | `/account/sessions` | Active sessions |
-| DELETE | `/account/sessions/:id` | Sign out one session |
-| POST | `/account/sessions/revoke-others` | Sign out all other sessions |
-| POST | `/account/claims` | Attach an anonymous scan to the account |
-| POST | `/account/delete` | Delete account |
-| GET | `/admin/users` | Paginated user list |
-| PATCH | `/admin/users/:id` | Change role / status |
-| POST | `/admin/users/:id/revoke-sessions` | Force sign-out |
-
-Optional env: `CLAIM_TOKEN_SECRET` (keeps guest-scan claim tokens valid across backend restarts).
-
-No database migration is required.
-
-## First run
+Requirements: Docker with the Compose plugin, `git`, `curl`. Node.js is optional (it is only used for the accessibility audit).
 
 ```bash
-git clone https://github.com/kamrene2771/ft_transcendence_docker.git
-cd ft_transcendence_docker
+git clone https://github.com/hollow270/ft_transcendence.git
+cd ft_transcendence
 cp .env.example .env
 docker compose up --build
 ```
 
-Protected HTTP entry point:
-
-```text
-http://localhost:8080
-```
-
-HTTPS entry point:
+Open the application at:
 
 ```text
 https://localhost:8443
 ```
 
-Without a custom certificate the WAF generates a local self-signed certificate automatically.
+The WAF generates a self-signed certificate when none is provided, so the browser shows a warning the first time. For a trusted local certificate run `bash scripts/setup-local-tls.sh` (needs `mkcert`). Plain HTTP is not published.
 
-Local development frontend:
+Optional keys in `.env`: `VIRUSTOTAL_API_KEY` (adds VirusTotal for public files) and `OPENAI_API_KEY` (enables the AI assistant). Everything else works with the defaults. Both keys, together with the 2FA and claim-token secrets, are moved into Vault at startup.
 
-```text
-http://localhost:5173
-```
-
-Local development backend:
-
-```text
-http://localhost:3000
-```
-
-Health check:
-
-```text
-http://localhost:3000/health
-```
-
-Expected:
-
-```json
-{
-  "status": "ok",
-  "database": "connected"
-}
-```
-
-## One-command full stack
-
-GO VIRUS now uses one Compose stack. There are no Docker Compose profiles for the normal application.
+Local development (hot reload for the frontend):
 
 ```bash
-cp .env.example .env
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
-That single command starts:
+Direct local ports, bound to the loopback interface only:
 
-- PostgreSQL
-- ClamAV
-- NestJS backend
-- React frontend
-- OWASP CRS / ModSecurity WAF with HTTP and HTTPS listeners
+```text
+127.0.0.1:5173  frontend
+127.0.0.1:3000  backend (GET /health)
+127.0.0.1:5432  PostgreSQL
+```
 
-The default scanner mode in `.env.example` is `real`, so ClamAV is used automatically. VirusTotal is added for PUBLIC files when `VIRUSTOTAL_API_KEY` is configured.
+Validation:
+
+```bash
+bash scripts/smoke-test.sh
+node scripts/accessibility-audit.mjs
+```
+
+`docker compose down -v` deletes the local database and Vault volumes. Use it only when you want a clean start.
+
+## Resources
+
+- NestJS: https://docs.nestjs.com
+- Prisma: https://www.prisma.io/docs
+- React: https://react.dev, Vite: https://vite.dev, Tailwind CSS: https://tailwindcss.com/docs
+- Socket.IO: https://socket.io/docs/v4
+- OWASP Core Rule Set: https://coreruleset.org, ModSecurity: https://github.com/owasp-modsecurity/ModSecurity
+- HashiCorp Vault (KV v2, AppRole): https://developer.hashicorp.com/vault/docs
+- ClamAV: https://docs.clamav.net, VirusTotal API v3: https://docs.virustotal.com
+- OpenAI API: https://platform.openai.com/docs
+- WCAG 2.1: https://www.w3.org/TR/WCAG21/
+- RFC 6238 (TOTP): https://datatracker.ietf.org/doc/html/rfc6238
+
+How AI was used: an AI coding assistant helped with code review, refactoring, writing tests and drafting documentation. Every generated change was read, run and validated by the team before being kept, and the team can explain all of the code. The product itself uses an LLM as a feature (scan explanations and the cybersecurity assistant); that integration is described in the AI configuration section.
+
+## Team Information
+
+| Member | 42 login | Role |
+|---|---|---|
+| [name] | [login] | Product Owner, [other roles] |
+| [name] | [login] | Project Manager / Scrum Master |
+| [name] | [login] | Technical Lead, Developer |
+| [name] | [login] | Developer |
+
+Git author names found in the repository history: Khalil Amrene, Youssef HAJBI, hollow270, nizarfreeman.
+
+## Project Management
+
+- Work organisation: [how tasks were split and followed, for example weekly planning and short syncs].
+- Tools: GitHub for the repository, branches and pull requests; Docker Compose for the shared environment; `scripts/smoke-test.sh` as the shared definition of done.
+- Communication: [channel used by the team].
+
+## Technical Stack
+
+| Area | Technology | Why |
+|---|---|---|
+| Frontend | React 18, Vite, Tailwind CSS, React Router | fast component UI with a small build; one design system for every page |
+| Backend | NestJS 11, TypeScript | modular structure, guards, validation and WebSocket gateway in one framework |
+| Database | PostgreSQL 16 with Prisma 6 | relational data (artifacts, scans, comments) with versioned migrations |
+| Real time | Socket.IO | rooms per user and for admins, live notifications |
+| Scanning | ClamAV, VirusTotal API v3 | local private scans plus multi-engine public scans |
+| LLM | OpenAI-compatible API with SSE streaming | scan explanations and a cybersecurity assistant |
+| Edge security | OWASP CRS + ModSecurity on nginx | blocking WAF, TLS 1.2/1.3, security headers, CSP |
+| Secrets | HashiCorp Vault (KV v2, AppRole) | API keys and encryption keys never sit in the backend environment |
+| Packaging | Docker Compose | one command starts the full stack |
+
+## Database Schema
+
+PostgreSQL, 20 tables, 5 migrations. Full column-level description: `backend/prisma/DATABASE.md`.
+
+```text
+users ──< user_sessions
+users ──1 user_2fa
+users ──< submissions >── artifacts ──1 file_artifacts | url_artifacts
+artifacts ──< scans ──< scan_engine_results >── scan_engines
+artifacts ──< comments ──< comment_votes, comment_reports, moderation_actions
+artifacts ──< community_votes >── users
+users ──< notifications, api_keys ──< api_request_logs
+llm_usage_logs (anonymous), audit_logs
+```
+
+| Table | Purpose |
+|---|---|
+| `users`, `user_2fa`, `user_sessions` | accounts and roles, encrypted TOTP secret, 7-day sessions |
+| `artifacts`, `file_artifacts`, `url_artifacts` | the real file (unique SHA-256) or URL (normalised) |
+| `submissions` | who submitted an artifact, public or private, web or API |
+| `scans`, `scan_engines`, `scan_engine_results` | each analysis and the verdict of every engine |
+| `comments`, `comment_votes`, `community_votes` | discussion, comment votes and community verdict |
+| `comment_reports`, `moderation_actions` | moderation workflow |
+| `notifications` | scan, reply, vote, moderation and system events |
+| `api_keys`, `api_request_logs` | hashed public API keys and usage |
+| `llm_usage_logs` | anonymous LLM usage counters (no user reference since the last migration) |
+| `audit_logs` | security and administration trail |
+
+## Features List
+
+| Feature | What it does | Main files |
+|---|---|---|
+| Scan a file | upload with real progress, preview and validation, ClamAV and VirusTotal, deduplicated by SHA-256 | `frontend/src/scanner.tsx`, `backend/src/artifacts` |
+| Scan a URL | normalised URL submission and report | `frontend/src/pages/UrlPage.tsx` |
+| History | own submissions, filters, delete a submission | `frontend/src/pages/HistoryPage.tsx` |
+| Search | public artifacts by hash, name or domain with filters | `frontend/src/pages/SearchPage.tsx` |
+| Community | comments, replies, votes, reports | `backend/src/community` |
+| Moderation | report queue, hide or delete comments, ban | `backend/src/moderation` |
+| AI assistant | scan explanation and cybersecurity questions over SSE | `backend/src/ai` |
+| Notifications | stored and pushed live over Socket.IO | `backend/src/notifications` |
+| Public API | `/api/v1` with API keys, see `docs/PUBLIC_API.md` | `backend/src/api-keys` |
+| Account | profile, password, sessions, 2FA, deletion | `backend/src/account`, `backend/src/auth` |
+| Administration | analytics dashboard, verdict distribution, user management | `frontend/src/pages/AdminPage.tsx` |
+| Legal pages | privacy policy and terms of service | `frontend/src/pages/LegalPages.tsx` |
+
+Account and admin routes:
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/account/overview` | dashboard stats, 30-day activity, recent scans |
+| PATCH | `/account/profile` | update username / email |
+| POST | `/account/password` | change password |
+| GET | `/account/sessions` | active sessions |
+| DELETE | `/account/sessions/:id` | sign out one session |
+| POST | `/account/sessions/revoke-others` | sign out all other sessions |
+| POST | `/account/claims` | attach an anonymous scan to the account |
+| POST | `/account/delete` | delete account |
+| DELETE | `/artifacts/submissions/:id` | delete one of your own submissions |
+| GET | `/admin/users` | paginated user list |
+| PATCH | `/admin/users/:id` | change role / status |
+| POST | `/admin/users/:id/revoke-sessions` | force sign-out |
+
+## Modules
+
+Twelve modules, 19 points (14 required).
+
+| Module | Type | Points | Where and why |
+|---|---|---:|---|
+| Web framework (frontend and backend) | Major | 2 | React + Vite and NestJS |
+| Real-time features with WebSockets | Major | 2 | Socket.IO gateway, live notifications for every account event |
+| Public API | Major | 2 | `/api/v1`, hashed keys, per-key rate limit, 6 endpoints, `docs/PUBLIC_API.md` |
+| LLM interface | Major | 2 | streamed explanations and assistant, rate limited, anonymous usage logs |
+| WAF / ModSecurity and HashiCorp Vault | Major | 2 | OWASP CRS blocking WAF in front of everything, Vault for every secret |
+| Advanced analytics dashboard | Major | 2 | admin dashboard: activity, verdict distribution, platform metrics |
+| Accessibility (WCAG 2.1 AA) | Major | 2 | contrast-checked palette, skip link, landmarks, labels, live regions, keyboard support; `scripts/accessibility-audit.mjs` |
+| ORM | Minor | 1 | Prisma with versioned migrations |
+| Notification system | Minor | 1 | stored and live notifications on create, update and delete actions |
+| Advanced search | Minor | 1 | filters, sorting and pagination over public artifacts |
+| File upload and management | Minor | 1 | validation, progress, preview, deduplication, delete own submission |
+| Two-factor authentication | Minor | 1 | TOTP with encrypted secrets and replay protection |
+
+Per-module evidence is listed in `docs/FEATURE_AUDIT.md`.
+
+## Individual Contributions
+
+| Member | Contributions |
+|---|---|
+| [name] | [features, files and challenges handled] |
+| [name] | [features, files and challenges handled] |
+| [name] | [features, files and challenges handled] |
+| [name] | [features, files and challenges handled] |
+
+---
+
+# Operations guide
 
 ## AI configuration
 
@@ -124,10 +220,10 @@ The AI module supports:
 - Server-Sent Events streaming;
 - authorization checks before private scan evidence is exposed;
 - prompt-injection-resistant scan evidence formatting;
-- LLM usage metrics in `llm_usage_logs`;
-- no storage of user prompts or generated answers.
+- anonymous LLM usage metrics in `llm_usage_logs` (model, token counts, outcome; no user, prompt or answer is stored);
+- a per-client rate limit on both AI routes.
 
-Set the key only in your local `.env`:
+Set the key only in your local `.env`. At startup it is moved into Vault (see Secrets with Vault) and the backend reads it from there:
 
 ```bash
 OPENAI_API_KEY=your_key_here
@@ -135,6 +231,8 @@ OPENAI_MODEL=gpt-4o-mini
 ```
 
 `OPENAI_BASE_URL` is optional for a compatible gateway/provider.
+
+`LLM_RATE_LIMIT_PER_MINUTE` (default `10`) limits `POST /ai/ask` and `POST /ai/scans/explain` per client. The frontend shows a friendly message when the limit is reached.
 
 Do **not** commit `.env`.
 
@@ -157,7 +255,7 @@ Generate a stable local encryption key once:
 openssl rand -hex 32
 ```
 
-Put the generated value in your local `.env`:
+Put the generated value in your local `.env` (it is stored in Vault at startup; when left empty a key is generated automatically on the first start):
 
 ```env
 TWO_FACTOR_ENCRYPTION_KEY=your_generated_value
@@ -176,53 +274,39 @@ Keep `TWO_FACTOR_ENCRYPTION_KEY` private and stable. Changing or losing it makes
 
 ## Security hardening
 
-The normal Compose stack now includes an OWASP Core Rule Set / ModSecurity reverse-proxy WAF.
-
-Use the protected entry points:
+The Compose stack includes an OWASP Core Rule Set / ModSecurity reverse-proxy WAF. It is the only public entry point:
 
 ```text
-http://localhost:8080
 https://localhost:8443
 ```
 
-The WAF accepts TLS 1.2 and TLS 1.3 only.
-
-The direct development ports remain available only on the local loopback interface:
-
-```text
-127.0.0.1:5173  frontend
-127.0.0.1:3000  backend
-127.0.0.1:5432  PostgreSQL
-```
-
-This prevents the development services and database from listening on external host interfaces while keeping local debugging convenient.
+The WAF accepts TLS 1.2 and TLS 1.3 only. Plain HTTP is not published.
 
 The WAF:
 
 - runs in blocking mode with OWASP CRS;
-- proxies the React/Vite application, API and Socket.IO traffic;
+- proxies the React application, API and Socket.IO traffic;
 - permits the HTTP methods used by GO VIRUS;
 - supports the configured 25 MB upload limit;
-- applies browser-facing security headers including CSP, frame protection, MIME sniffing protection, referrer policy and a restrictive permissions policy.
+- applies security headers including a CSP without inline scripts (`script-src 'self'`), frame protection, MIME sniffing protection, referrer policy and a restrictive permissions policy.
 
-The NestJS application also applies Helmet security headers, restricts CORS and WebSocket origins, trusts only the reverse-proxy hop, removes the Express disclosure header, and enforces a global request rate limit. Registration and login are limited more aggressively.
+The frontend is served as a production build. The NestJS application also applies Helmet headers, restricts CORS and WebSocket origins, trusts only the reverse-proxy hop, removes the Express disclosure header, and enforces a global request rate limit. Registration, login and the AI routes are limited more aggressively.
 
 Default local limits:
 
 ```env
 HTTP_RATE_LIMIT_PER_MINUTE=300
-APP_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,https://localhost:8443,https://127.0.0.1:8443
+LLM_RATE_LIMIT_PER_MINUTE=10
+APP_ALLOWED_ORIGINS=https://localhost:8443,https://127.0.0.1:8443,http://localhost:5173,http://127.0.0.1:5173
 ```
 
-For a real deployment, set `APP_ALLOWED_ORIGINS` and `WAF_SERVER_NAME` to the deployment hostname instead of keeping the local defaults.
+For a real deployment, set `APP_ALLOWED_ORIGINS` and `WAF_SERVER_NAME` to the deployment hostname.
 
 ### HTTPS / TLS certificates
 
-The WAF always has an HTTPS listener on container port `8443`.
+If `waf/tls/server.crt` and `waf/tls/server.key` are absent, the WAF creates a self-signed local certificate.
 
-If `waf/tls/server.crt` and `waf/tls/server.key` are absent, the WAF image creates a self-signed local certificate so the HTTPS path can still be tested.
-
-For a browser-trusted local certificate on macOS, install `mkcert` once and run:
+For a browser-trusted local certificate on macOS:
 
 ```bash
 brew install mkcert
@@ -230,58 +314,43 @@ bash scripts/setup-local-tls.sh
 docker compose up --build -d
 ```
 
-Then open:
-
-```text
-https://localhost:8443
-```
-
 The generated certificate and private key live under `waf/tls/` and are ignored by Git.
 
-For a real deployment, put the trusted PEM certificate chain and private key at:
-
-```text
-waf/tls/server.crt
-waf/tls/server.key
-```
-
-and configure the deployment environment, for example:
+For a real deployment, put the trusted PEM certificate chain and private key at `waf/tls/server.crt` and `waf/tls/server.key`, then set:
 
 ```env
 APP_HTTPS_PORT=443
-HTTPS_REDIRECT=on
 WAF_SERVER_NAME=scanner.example.com
 APP_ALLOWED_ORIGINS=https://scanner.example.com
 ```
 
-Then recreate the normal stack:
+and recreate the stack with `docker compose up --build -d`. Certificate issuance and renewal remain external deployment responsibilities; private keys are never committed.
 
-```bash
-docker compose up --build -d
-```
+## Secrets with Vault
 
-The certificate files are mounted read-only and copied into the WAF at startup. This works with certificates issued by Let's Encrypt or another trusted CA. Certificate issuance and renewal remain external deployment responsibilities; private keys are never committed to the repository.
+Four secrets are held by HashiCorp Vault: `VIRUSTOTAL_API_KEY`, `OPENAI_API_KEY`, `TWO_FACTOR_ENCRYPTION_KEY` and `CLAIM_TOKEN_SECRET`.
 
-### File-mounted secrets
+How it works:
 
-GO VIRUS can read sensitive values either from normal environment variables or from files mounted into the backend container. This is useful with Docker secrets, Kubernetes secrets, or a Vault agent that writes secrets to files.
+1. The `vault` service runs a Vault server with file storage on the `vault_data` volume. It is reachable only on the internal Docker network (port 8200 is not published).
+2. The `vault-init` service initialises Vault on the first start, unseals it (and again after every restart), enables the KV v2 engine at `secret/`, writes a read-only policy for `secret/data/go-virus/backend`, creates the `go-virus-backend` AppRole and writes its credentials to the `vault_approle` volume.
+3. `vault-init` stores the four secrets from `.env` in Vault. An empty value keeps what Vault already has; the 2FA key and the claim-token secret are generated when missing.
+4. At boot the backend logs in with its AppRole, reads the secret and loads the values into memory. It retries for about 20 seconds while Vault becomes ready and refuses to start if Vault cannot be read.
 
-Supported file variables:
+The backend container receives none of these four values as environment variables. The unseal key and root token are kept in the `vault_keys` volume, which only `vault-init` mounts. This setup targets local use and evaluation; a production deployment would use an auto-unseal mechanism and TLS inside the network.
 
-```env
-VIRUSTOTAL_API_KEY_FILE=/run/secrets/virustotal
-OPENAI_API_KEY_FILE=/run/secrets/openai
-TWO_FACTOR_ENCRYPTION_KEY_FILE=/run/secrets/two_factor
-```
-
-When a `*_FILE` variable is configured, the file value takes precedence over the plain environment variable. Secret files are not included in the repository.
+The older `*_FILE` variables (`VIRUSTOTAL_API_KEY_FILE`, `OPENAI_API_KEY_FILE`, `TWO_FACTOR_ENCRYPTION_KEY_FILE`) are still understood by the backend for deployments that mount secrets as files.
 
 ## Prisma migration workflow
 
-Database V1 is frozen and version-controlled under:
+Database V1 is version-controlled under `backend/prisma/migrations/`, followed by four later migrations (comment votes, 2FA replay protection, comment-received notification, anonymous LLM usage logs):
 
 ```text
 backend/prisma/migrations/20261022084251_database_v1/
+backend/prisma/migrations/20261118120000_comment_votes/
+backend/prisma/migrations/20261118200000_two_factor_last_used_step/
+backend/prisma/migrations/20261118210000_comment_received_notification/
+backend/prisma/migrations/20261120120000_anonymous_llm_usage/
 ```
 
 Normal startup generates the Prisma client and runs:
@@ -315,18 +384,25 @@ npx prisma migrate dev --name describe_the_change
 
 Commit both the updated `schema.prisma` and the generated migration directory. Do not use `prisma db push` for normal project evolution.
 
-## Automated smoke test
+## Validation
 
-Run:
+Run the end-to-end smoke test:
 
 ```bash
 bash scripts/smoke-test.sh
 ```
 
-The test covers Docker startup, PostgreSQL, Prisma, backend health, React build, API proxying, OWASP CRS blocking, HTTP security headers, HTTPS through the WAF, authentication, file upload, SHA-based deduplication, scan reuse, artifact lookup, AI route authorization/context streaming, comments, voting, notifications and privacy rules.
+It covers: Docker startup, PostgreSQL, Prisma (5 migrations), backend health, the production frontend build and CSP, API proxying, OWASP CRS blocking (XSS, SQL injection, path traversal), security headers, HTTPS-only access, authentication, file upload, SHA-based deduplication, scan reuse, artifact lookup, AI route authorization and streaming, comments, voting, notifications, privacy rules, the legal pages, and Vault (initialised, unsealed, secrets stored, no secrets in the backend environment, port not published, re-unseal after restart).
 
-> `docker compose down -v` deletes the local PostgreSQL development volume. Use it only when you intentionally want a clean database.
+The accessibility audit runs without Docker and is also called by the smoke test when Node.js is installed:
 
+```bash
+node scripts/accessibility-audit.mjs
+```
+
+It checks the colour contrast of the palette against WCAG 2.1 AA (4.5:1 for text) and the markup rules: language, skip link, one main landmark, labelled form controls, image alternatives, named dialogs, announced errors, visible focus, reduced motion.
+
+> `docker compose down -v` deletes the local PostgreSQL and Vault volumes. Use it only when you intentionally want a clean start.
 
 ## File scanning providers
 
@@ -380,7 +456,7 @@ The whole application starts with one command:
 docker compose up --build
 ```
 
-This starts PostgreSQL, ClamAV, the NestJS backend, and the React frontend together.
+This starts PostgreSQL, ClamAV, Vault, the NestJS backend, the React frontend and the WAF together.
 
 Behavior:
 
@@ -410,6 +486,7 @@ Validation is enforced in both React and NestJS:
 - non-empty file;
 - maximum 25 MB by default;
 - filename maximum 255 characters;
+- a well-formed file type (MIME) and no control characters in the filename, checked in the browser and again on the server; every file type is accepted on purpose, because a scanner must be able to receive executables and archives;
 - backend filename normalization;
 - SHA-256, SHA-1 and MD5 calculated server-side.
 

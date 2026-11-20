@@ -88,7 +88,7 @@ export default function UrlPage() {
     ) ?? false;
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title="URL analysis"
         description="Normalize, deduplicate and analyze a URL with the configured reputation provider."
@@ -233,6 +233,6 @@ export default function UrlPage() {
             )}
         </div>
       </div>
-    </main>
+    </div>
   );
 }

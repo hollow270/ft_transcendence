@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from './auth';
-import { AppShell, FeaturePending, RequireAuth, RequireRole } from './components';
+import { AppShell, FeaturePending, RequireAuth, RequireRole, SkipLink } from './components';
 import AdminPage from './pages/AdminPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import ApiKeysPage from './pages/ApiKeysPage';
@@ -8,6 +8,7 @@ import ArtifactPage from './pages/ArtifactPage';
 import AuthPage from './pages/AuthPage';
 import HistoryPage from './pages/HistoryPage';
 import LandingPage from './pages/LandingPage';
+import { PrivacyPage, TermsPage } from './pages/LegalPages';
 import LlmPage from './pages/LlmPage';
 import ModerationPage from './pages/ModerationPage';
 import NotificationsPage from './pages/NotificationsPage';
@@ -33,10 +34,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <SkipLink />
         <Routes>
           <Route index element={<LandingPage />} />
           <Route path="login" element={<AuthPage mode="login" />} />
           <Route path="signup" element={<AuthPage mode="signup" />} />
+          <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="terms" element={<TermsPage />} />
 
           <Route
             path="app"

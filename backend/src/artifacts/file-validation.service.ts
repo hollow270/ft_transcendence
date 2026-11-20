@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { basename } from 'path';
 import { ScannerFile } from '../scanning/scanning.types';
 
+const MIME_TYPE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$/;
+
 @Injectable()
 export class FileValidationService {
   private readonly maxBytes =
@@ -45,12 +47,18 @@ export class FileValidationService {
       );
     }
 
+    const mimetype = (file.mimetype || 'application/octet-stream').trim();
+
+    if (mimetype.length > 255 || !MIME_TYPE_PATTERN.test(mimetype)) {
+      throw new BadRequestException(
+        'file type is not valid',
+      );
+    }
+
     return {
       ...file,
       originalname: cleanName,
-      mimetype:
-        (file.mimetype || 'application/octet-stream')
-          .slice(0, 255),
+      mimetype,
     };
   }
 }

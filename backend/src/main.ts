@@ -4,9 +4,11 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { loadFileSecrets } from './security/file-secrets';
+import { loadVaultSecrets } from './security/vault-secrets';
 
 async function bootstrap() {
   loadFileSecrets();
+  await loadVaultSecrets();
 
   const app =
     await NestFactory.create<NestExpressApplication>(
@@ -28,7 +30,7 @@ async function bootstrap() {
 
   const allowedOrigins = (
     process.env.APP_ALLOWED_ORIGINS ??
-    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,https://localhost:8443,https://127.0.0.1:8443'
+    'https://localhost:8443,https://127.0.0.1:8443,http://localhost:5173,http://127.0.0.1:5173'
   )
     .split(',')
     .map((value) => value.trim())

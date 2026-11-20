@@ -3,14 +3,22 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173}"
-WAF_URL="${WAF_URL:-http://localhost:8080}"
+PLAIN_HTTP_URL="${PLAIN_HTTP_URL:-http://localhost:8080}"
+VAULT_PUBLIC_URL="${VAULT_PUBLIC_URL:-http://localhost:8200}"
 HTTPS_WAF_URL="${HTTPS_WAF_URL:-https://localhost:8443}"
 
 cleanup() {
-  docker compose logs --no-color waf frontend backend postgres clamav || true
+  docker compose logs --no-color waf frontend backend postgres clamav vault vault-init || true
   docker compose down -v || true
 }
 trap cleanup EXIT
+
+if command -v node >/dev/null 2>&1; then
+  echo "Running accessibility audit..."
+  node scripts/accessibility-audit.mjs
+else
+  echo "Skipping accessibility audit: node is not installed on this machine"
+fi
 
 cp .env.example .env
 export SCAN_PROVIDER=development
@@ -67,22 +75,74 @@ let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); 
 '
 
 
-echo "Waiting for OWASP CRS WAF..."
-waf_ready=0
-for _ in $(seq 1 60); do
-  if curl -fsS "$WAF_URL/healthz" >/dev/null 2>&1; then
-    waf_ready=1
+echo "Checking Vault..."
+
+vault_state() {
+  docker compose exec -T vault vault status -format=json 2>/dev/null || true
+}
+
+vault_state | node -e '
+let s="";
+process.stdin.on("data",d=>s+=d).on("end",()=>{
+  const j=JSON.parse(s);
+  if(!j.initialized || j.sealed) process.exit(1);
+  console.log("vault initialized and unsealed");
+});
+'
+
+STORED_KEY=$(docker compose exec -T vault-init sh -c '. /vault/keys/init.env; VAULT_TOKEN=$ROOT_TOKEN vault kv get -field=TWO_FACTOR_ENCRYPTION_KEY secret/go-virus/backend')
+
+if [ "$STORED_KEY" != "$TWO_FACTOR_ENCRYPTION_KEY" ]; then
+  echo "Vault does not hold the configured 2FA encryption key"
+  exit 1
+fi
+
+for secret_name in TWO_FACTOR_ENCRYPTION_KEY CLAIM_TOKEN_SECRET OPENAI_API_KEY VIRUSTOTAL_API_KEY; do
+  if [ -n "$(docker compose exec -T backend printenv "$secret_name" || true)" ]; then
+    echo "$secret_name must not be an environment variable of the backend container"
+    exit 1
+  fi
+done
+
+if curl -sS --max-time 3 "$VAULT_PUBLIC_URL/v1/sys/health" >/dev/null 2>&1; then
+  echo "Vault must not be published on the host"
+  exit 1
+fi
+
+docker compose restart vault >/dev/null
+
+vault_unsealed=0
+for _ in $(seq 1 40); do
+  if vault_state | grep -q '"sealed": false'; then
+    vault_unsealed=1
     break
   fi
   sleep 2
 done
 
-if [ "$waf_ready" -ne 1 ]; then
-  echo "WAF never became healthy"
+if [ "$vault_unsealed" -ne 1 ]; then
+  echo "Vault was not unsealed again after a restart"
   exit 1
 fi
 
-curl -fsS -D /tmp/waf-headers.txt "$WAF_URL/api/health" -o /tmp/waf-health.json
+echo "Vault secrets, isolation and unseal after restart ok"
+
+echo "Waiting for the HTTPS WAF endpoint..."
+https_ready=0
+for _ in $(seq 1 60); do
+  if curl -kfsS "$HTTPS_WAF_URL/healthz" >/dev/null 2>&1; then
+    https_ready=1
+    break
+  fi
+  sleep 2
+done
+
+if [ "$https_ready" -ne 1 ]; then
+  echo "HTTPS WAF endpoint never became ready"
+  exit 1
+fi
+
+curl -kfsS --tlsv1.2 -D /tmp/waf-headers.txt "$HTTPS_WAF_URL/api/health" -o /tmp/waf-health.json
 
 node -e '
 const fs=require("fs");
@@ -99,54 +159,47 @@ if grep -qi '^x-powered-by:' /tmp/waf-headers.txt; then
   exit 1
 fi
 
-echo "WAF secure entrypoint ok"
+echo "HTTPS WAF entrypoint ok"
 
-WAF_ATTACK_CODE=$(curl -sS -o /tmp/waf-attack.html -w "%{http_code}"   "$WAF_URL/api/artifacts/search?q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E")
-
-if [ "$WAF_ATTACK_CODE" != "403" ]; then
-  echo "WAF should block the XSS probe with 403, got $WAF_ATTACK_CODE"
-  cat /tmp/waf-attack.html
+if curl -sS --max-time 3 "$PLAIN_HTTP_URL/" >/dev/null 2>&1; then
+  echo "Plain HTTP must not be published"
   exit 1
 fi
+
+echo "Plain HTTP is not reachable"
+
+for probe in \
+  "/api/artifacts/search?q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E" \
+  "/api/artifacts/search?q=1%27%20OR%20%271%27%3D%271" \
+  "/api/..%2f..%2f..%2fetc%2fpasswd"; do
+  WAF_ATTACK_CODE=$(curl -ksS --path-as-is -o /tmp/waf-attack.html -w "%{http_code}" "$HTTPS_WAF_URL$probe")
+
+  if [ "$WAF_ATTACK_CODE" != "403" ]; then
+    echo "WAF should block $probe with 403, got $WAF_ATTACK_CODE"
+    cat /tmp/waf-attack.html
+    exit 1
+  fi
+done
 
 echo "OWASP CRS blocking mode ok"
 
-
-https_ready=0
-for _ in $(seq 1 30); do
-  if curl -kfsS "$HTTPS_WAF_URL/healthz" >/dev/null 2>&1; then
-    https_ready=1
-    break
-  fi
-  sleep 1
-done
-
-if [ "$https_ready" -ne 1 ]; then
-  echo "HTTPS WAF endpoint never became ready"
-  exit 1
-fi
-
-curl -kfsS --tlsv1.2   -D /tmp/waf-https-headers.txt   "$HTTPS_WAF_URL/api/health"   -o /tmp/waf-https-health.json
-
-node -e '
-const fs=require("fs");
-const health=JSON.parse(fs.readFileSync("/tmp/waf-https-health.json","utf8"));
-if(health.status!=="ok" || health.database!=="connected") process.exit(1);
-'
-
-grep -qi '^content-security-policy:' /tmp/waf-https-headers.txt
-grep -qi '^x-content-type-options: nosniff' /tmp/waf-https-headers.txt
-
-echo "HTTPS WAF entrypoint ok"
-
-
-curl -kfsS -D /tmp/waf-app-headers.txt   "$HTTPS_WAF_URL/"   -o /tmp/waf-app.html
+curl -kfsS -D /tmp/waf-app-headers.txt "$HTTPS_WAF_URL/" -o /tmp/waf-app.html
 
 grep -q 'id="root"' /tmp/waf-app.html
-grep -q '/src/main.tsx' /tmp/waf-app.html
-grep -qi "script-src 'self' 'unsafe-inline'" /tmp/waf-app-headers.txt
+grep -q '/assets/' /tmp/waf-app.html
+grep -qi "script-src 'self';" /tmp/waf-app-headers.txt
 
-echo "Vite app HTML through HTTPS ok"
+echo "Production frontend through HTTPS ok"
+
+for legal_page in privacy terms; do
+  legal_code=$(curl -ksS -o /dev/null -w "%{http_code}" "$HTTPS_WAF_URL/$legal_page")
+  if [ "$legal_code" != "200" ]; then
+    echo "/$legal_page should be served, got $legal_code"
+    exit 1
+  fi
+done
+
+echo "Privacy Policy and Terms of Service routes ok"
 
 docker compose exec -T frontend npm run build
 echo "frontend production build ok"
@@ -711,6 +764,60 @@ fi
 
 echo "revoked API key rejected ok"
 
+OWN_SUBMISSION_ID=$(curl -fsS "$BASE_URL/users/me/history" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); const item=j.find(x=>x.displayName==="private-sample.txt"); if(!item) process.exit(1); process.stdout.write(item.id);});
+')
+
+OWN_DELETE=$(curl -fsS -X DELETE "$BASE_URL/artifacts/submissions/$OWN_SUBMISSION_ID" \
+  -H "Authorization: Bearer $TOKEN")
+
+printf '%s' "$OWN_DELETE" | OWN_SUBMISSION_ID="$OWN_SUBMISSION_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.success!==true || j.submissionId!==process.env.OWN_SUBMISSION_ID) process.exit(1); console.log("own submission deleted ok");});
+'
+
+curl -fsS "$BASE_URL/users/me/history" \
+  -H "Authorization: Bearer $TOKEN" \
+  | OWN_SUBMISSION_ID="$OWN_SUBMISSION_ID" node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(j.some(x=>x.id===process.env.OWN_SUBMISSION_ID)) process.exit(1); console.log("deleted submission left the history ok");});
+'
+
+curl -fsS "$BASE_URL/notifications" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!j.some(x=>x.message==="Your submission was deleted." && x.type==="RESOURCE_DELETED")) process.exit(1); console.log("submission deletion notification ok");});
+'
+
+OWN_DELETE_AGAIN_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE "$BASE_URL/artifacts/submissions/$OWN_SUBMISSION_ID" \
+  -H "Authorization: Bearer $TOKEN")
+
+if [ "$OWN_DELETE_AGAIN_CODE" != "404" ]; then
+  echo "deleting a submission twice should return 404, got $OWN_DELETE_AGAIN_CODE"
+  exit 1
+fi
+
+echo "second delete rejected ok"
+
+AI_LIMITED=0
+for _ in $(seq 1 15); do
+  AI_LIMIT_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/ai/ask" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"prompt":"What is a trojan?"}')
+  if [ "$AI_LIMIT_CODE" = "429" ]; then
+    AI_LIMITED=1
+    break
+  fi
+done
+
+if [ "$AI_LIMITED" -ne 1 ]; then
+  echo "the AI route should answer 429 after too many requests"
+  exit 1
+fi
+
+echo "AI rate limit ok"
+
 TABLE_COUNT=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname = '\''public'\'';"')
 
 if [ "$TABLE_COUNT" -lt 19 ]; then
@@ -722,8 +829,8 @@ echo "database tables ok: $TABLE_COUNT"
 
 MIGRATION_COUNT=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM \"_prisma_migrations\" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;"')
 
-if [ "$MIGRATION_COUNT" -ne 4 ]; then
-  echo "Expected exactly 4 applied Prisma migrations, found $MIGRATION_COUNT"
+if [ "$MIGRATION_COUNT" -ne 5 ]; then
+  echo "Expected exactly 5 applied Prisma migrations, found $MIGRATION_COUNT"
   exit 1
 fi
 

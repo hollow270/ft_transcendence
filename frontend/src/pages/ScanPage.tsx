@@ -22,8 +22,8 @@ export default function ScanPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function scan(file: File, options: ScanOptions) {
-    const result = await api.uploadFile(file, options, token);
+  async function scan(file: File, options: ScanOptions, onProgress: (fraction: number) => void) {
+    const result = await api.uploadFile(file, options, token, onProgress);
     navigate('/app/artifact/' + result.artifact.id, {
       state: { reusedScan: result.reusedScan, submissionVisibility: result.submission.visibility },
     });
@@ -128,6 +128,7 @@ export default function ScanPage() {
 
           <form className="flex gap-2 border-t border-slate-800 p-3" onSubmit={ask}>
             <input
+              aria-label="Question about this scan"
               className="app-input"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}

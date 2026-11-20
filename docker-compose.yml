@@ -30,6 +30,49 @@ services:
       start_period: 10m
     restart: unless-stopped
 
+  vault:
+    image: hashicorp/vault:1.18
+    command: ["server"]
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+    volumes:
+      - ./vault/vault.hcl:/vault/config/vault.hcl:ro
+      - vault_data:/vault/file
+    expose:
+      - "8200"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8200/v1/sys/health?standbyok=true&sealedcode=200&uninitcode=200"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  vault-init:
+    image: hashicorp/vault:1.18
+    entrypoint: ["/bin/sh", "/vault/init/init.sh"]
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TWO_FACTOR_ENCRYPTION_KEY: ${TWO_FACTOR_ENCRYPTION_KEY:-}
+      CLAIM_TOKEN_SECRET: ${CLAIM_TOKEN_SECRET:-}
+    volumes:
+      - ./vault/init.sh:/vault/init/init.sh:ro
+      - ./vault/backend-policy.hcl:/vault/init/backend-policy.hcl:ro
+      - vault_keys:/vault/keys
+      - vault_approle:/vault/approle
+    depends_on:
+      vault:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/vault-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -46,27 +89,27 @@ services:
       CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
       CLAMAV_PORT: ${CLAMAV_PORT:-3310}
       CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-30000}
-      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
       VIRUSTOTAL_BASE_URL: ${VIRUSTOTAL_BASE_URL:-https://www.virustotal.com/api/v3}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      TWO_FACTOR_ENCRYPTION_KEY: ${TWO_FACTOR_ENCRYPTION_KEY:-}
-      CLAIM_TOKEN_SECRET: ${CLAIM_TOKEN_SECRET:-}
-      TWO_FACTOR_ENCRYPTION_KEY_FILE: ${TWO_FACTOR_ENCRYPTION_KEY_FILE:-}
-      VIRUSTOTAL_API_KEY_FILE: ${VIRUSTOTAL_API_KEY_FILE:-}
-      OPENAI_API_KEY_FILE: ${OPENAI_API_KEY_FILE:-}
-      APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,https://localhost:8443,https://127.0.0.1:8443}
+      LLM_RATE_LIMIT_PER_MINUTE: ${LLM_RATE_LIMIT_PER_MINUTE:-10}
+      VAULT_ADDR: http://vault:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role_id
+      VAULT_SECRET_ID_FILE: /run/vault/secret_id
+      APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-https://localhost:8443,https://127.0.0.1:8443,http://localhost:5173,http://127.0.0.1:5173}
       HTTP_RATE_LIMIT_PER_MINUTE: ${HTTP_RATE_LIMIT_PER_MINUTE:-300}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-3000}:3000"
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - vault_approle:/run/vault:ro
     depends_on:
       postgres:
         condition: service_healthy
       clamav:
+        condition: service_healthy
+      vault-init:
         condition: service_healthy
     healthcheck:
       test:
@@ -85,13 +128,11 @@ services:
   frontend:
     build:
       context: ./frontend
+      target: production
     environment:
       VITE_PROXY_TARGET: http://backend:3000
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     depends_on:
       backend:
         condition: service_healthy
@@ -122,7 +163,6 @@ services:
       SSL_CERT_FILE: /etc/nginx/conf/server.crt
       SSL_CERT_KEY_FILE: /etc/nginx/conf/server.key
       SSL_OCSP_STAPLING: "off"
-      NGINX_ALWAYS_TLS_REDIRECT: ${HTTPS_REDIRECT:-off}
       MODSEC_RULE_ENGINE: "On"
       BLOCKING_PARANOIA: "1"
       ANOMALY_INBOUND: "5"
@@ -133,7 +173,6 @@ services:
       MODSEC_REQ_BODY_LIMIT: "30000000"
       MODSEC_REQ_BODY_NOFILES_LIMIT: "1048576"
     ports:
-      - "${APP_PORT:-8080}:8080"
       - "${APP_HTTPS_PORT:-8443}:8443"
     volumes:
       - ./waf/security-headers.conf.template:/etc/nginx/templates/conf.d/security-headers.conf.template:ro
@@ -159,3 +198,6 @@ services:
 volumes:
   postgres_data:
   clamav_data:
+  vault_data:
+  vault_keys:
+  vault_approle:
