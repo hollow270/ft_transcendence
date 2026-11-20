@@ -9,12 +9,18 @@ import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
  * Set CLAIM_TOKEN_SECRET for tokens that survive backend restarts. Without it a
  * per-process random secret is used.
  */
-const secret =
-  (process.env.CLAIM_TOKEN_SECRET ?? '').trim() ||
-  randomBytes(32).toString('hex');
+let secret: string | undefined;
+
+function claimSecret() {
+  secret ??=
+    (process.env.CLAIM_TOKEN_SECRET ?? '').trim() ||
+    randomBytes(32).toString('hex');
+
+  return secret;
+}
 
 export function signClaimToken(submissionId: string) {
-  return createHmac('sha256', secret)
+  return createHmac('sha256', claimSecret())
     .update('claim:' + submissionId)
     .digest('base64url');
 }

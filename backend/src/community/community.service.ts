@@ -221,7 +221,7 @@ export class CommunityService
 		if ( !comment )
 			throw new NotFoundException( 'comment not found' );
 
-		return ( this.prisma.$transaction( async ( tx ) => {
+		const	outcome = await this.prisma.$transaction( async ( tx ) => {
 
 			const	previousVote = await tx.commentVote.findUnique(
 				{
@@ -263,8 +263,32 @@ export class CommunityService
 				}
 			);
 
-			return ( { commentId, score: updated.score, myVote: value } );
-		} ) );
+			return ( { commentId, score: updated.score, previousValue } );
+		} );
+
+		if ( value !== outcome.previousValue ) {
+			await this.notifications.createResourceEvent(
+				{
+					userId,
+					type: outcome.previousValue === 0
+						? NotificationType.RESOURCE_CREATED
+						: value === 0
+							? NotificationType.RESOURCE_DELETED
+							: NotificationType.RESOURCE_UPDATED,
+					entityType: 'comment_vote',
+					entityId: commentId + ':' + userId,
+					artifactId,
+					commentId,
+					message: outcome.previousValue === 0
+						? 'Your vote on a comment was recorded.'
+						: value === 0
+							? 'Your vote on a comment was removed.'
+							: 'Your vote on a comment was changed.',
+				}
+			);
+		}
+
+		return ( { commentId, score: outcome.score, myVote: value } );
 	}
 
 	private async getMyVotes( viewerId: string | null, commentIds: string[] )
@@ -648,7 +672,7 @@ export class CommunityService
 		}
 
 		try {
-			return await this.prisma.commentReport.create(
+			const report = await this.prisma.commentReport.create(
 				{
 					data: {
 						commentId: comment.id,
@@ -666,6 +690,20 @@ export class CommunityService
 					},
 				}
 			);
+
+			await this.notifications.createResourceEvent(
+				{
+					userId: reporterId,
+					type: NotificationType.RESOURCE_CREATED,
+					entityType: 'comment_report',
+					entityId: report.id,
+					artifactId,
+					commentId: comment.id,
+					message: 'Your report was sent to the moderators.',
+				}
+			);
+
+			return report;
 		} catch (error) {
 			if ( error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' ) {
 				throw new BadRequestException( 'you already reported this comment', );

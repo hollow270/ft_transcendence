@@ -30,7 +30,7 @@ export default function LlmPage() {
   }
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title="AI assistant"
         description="Ask cybersecurity questions. For file-specific explanations, use the AI tab on an artifact report."
@@ -49,6 +49,7 @@ export default function LlmPage() {
             <div className="surface-body">
               <form onSubmit={submit}>
                 <textarea
+                  aria-label="Your question"
                   className="app-input min-h-36 resize-y"
                   value={prompt}
                   maxLength={4000}
@@ -65,7 +66,7 @@ export default function LlmPage() {
               </form>
 
               {error && (
-                <div className="mt-5 rounded-md border border-red-900 bg-red-950/30 p-4 text-sm text-red-300">
+                <div role="alert" className="mt-5 rounded-md border border-red-900 bg-red-950/30 p-4 text-sm text-red-300">
                   {error}
                 </div>
               )}
@@ -107,6 +108,6 @@ export default function LlmPage() {
           </aside>
         </div>
       )}
-    </main>
+    </div>
   );
 }

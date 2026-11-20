@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Param,
@@ -103,6 +104,20 @@ export class ArtifactsController {
     return user
       ? result
       : { ...result, claimToken: signClaimToken(result.submission.id) };
+  }
+
+  @Delete('submissions/:submissionId')
+  async deleteSubmission(
+    @Param('submissionId', ParseUUIDPipe) submissionId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user =
+      await this.auth.requireUserFromAuthorization(authorization);
+
+    return this.artifacts.deleteOwnSubmission(
+      submissionId,
+      user.id,
+    );
   }
 
   @Get(':artifactId/scans')

@@ -17,6 +17,7 @@ import {
   EMAIL_PATTERN,
   USERNAME_PATTERN,
 } from '../auth/auth.service';
+import { recordNotification } from '../notifications/notification-events';
 import { PrismaService } from '../prisma.service';
 import { verifyClaimToken } from '../security/claim-token';
 
@@ -333,6 +334,13 @@ export class AccountService {
     if (!result.count) throw new NotFoundException('session not found');
 
     await this.audit(userId, 'account.session_revoked', sessionId);
+    await this.notify(
+      userId,
+      'One of your other sessions was signed out.',
+      NotificationType.RESOURCE_DELETED,
+      'session',
+      sessionId,
+    );
     return { success: true };
   }
 
@@ -345,6 +353,14 @@ export class AccountService {
     await this.audit(userId, 'account.sessions_revoked', userId, {
       count: result.count,
     });
+    if (result.count) {
+      await this.notify(
+        userId,
+        'Your other sessions were signed out.',
+        NotificationType.RESOURCE_DELETED,
+        'session',
+      );
+    }
     return { success: true, revoked: result.count };
   }
 
@@ -384,6 +400,14 @@ export class AccountService {
       data: { userId },
     });
     await this.audit(userId, 'account.submission_claimed', submission.id);
+    await recordNotification(this.prisma, {
+      userId,
+      type: NotificationType.RESOURCE_UPDATED,
+      artifactId: submission.artifactId,
+      entityType: 'submission',
+      entityId: submission.id,
+      message: 'A scan you ran before signing in was added to your history.',
+    });
 
     return { success: true, artifactId: submission.artifactId };
   }
@@ -481,15 +505,19 @@ export class AccountService {
     });
   }
 
-  private notify(userId: string, message: string) {
-    return this.prisma.notification.create({
-      data: {
-        userId,
-        type: NotificationType.RESOURCE_UPDATED,
-        entityType: 'user',
-        entityId: userId,
-        message,
-      },
+  private notify(
+    userId: string,
+    message: string,
+    type: NotificationType = NotificationType.RESOURCE_UPDATED,
+    entityType = 'user',
+    entityId = userId,
+  ) {
+    return recordNotification(this.prisma, {
+      userId,
+      type,
+      entityType,
+      entityId,
+      message,
     });
   }
 }

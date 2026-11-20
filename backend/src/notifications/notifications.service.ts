@@ -4,33 +4,25 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import { NotificationsGateway } from './notifications.gateway';
+import { recordNotification } from './notification-events';
 
 @Injectable()
 export class NotificationsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly gateway: NotificationsGateway,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async createScanCompleted(
     userId: string,
     artifactId: string,
     scanId: string,
   ) {
-    const notification = await this.prisma.notification.create({
-      data: {
-        userId,
-        type: NotificationType.SCAN_COMPLETED,
-        artifactId,
-        entityType: 'scan',
-        entityId: scanId,
-        message: 'Your file scan is complete.',
-      },
+    return recordNotification(this.prisma, {
+      userId,
+      type: NotificationType.SCAN_COMPLETED,
+      artifactId,
+      entityType: 'scan',
+      entityId: scanId,
+      message: 'Your file scan is complete.',
     });
-
-    this.gateway.emitToUser(userId, 'notification', notification);
-    return notification;
   }
 
   async createResourceEvent(input: {
@@ -44,32 +36,17 @@ export class NotificationsService {
     actorUserId?: string | null;
     metadata?: Prisma.InputJsonValue;
   }) {
-    const notification =
-      await this.prisma.notification.create({
-        data: {
-          userId: input.userId,
-          actorUserId:
-            input.actorUserId ?? null,
-          type: input.type,
-          artifactId:
-            input.artifactId ?? null,
-          commentId:
-            input.commentId ?? null,
-          entityType: input.entityType,
-          entityId: input.entityId,
-          message: input.message,
-          metadata:
-            input.metadata ?? undefined,
-        },
-      });
-
-    this.gateway.emitToUser(
-      input.userId,
-      'notification',
-      notification,
-    );
-
-    return notification;
+    return recordNotification(this.prisma, {
+      userId: input.userId,
+      actorUserId: input.actorUserId ?? null,
+      type: input.type,
+      artifactId: input.artifactId ?? null,
+      commentId: input.commentId ?? null,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      message: input.message,
+      metadata: input.metadata ?? undefined,
+    });
   }
 
   async createCommentReply(input: {
@@ -85,34 +62,16 @@ export class NotificationsService {
       return null;
     }
 
-    const notification =
-      await this.prisma.notification.create({
-        data: {
-          userId:
-            input.recipientUserId,
-          actorUserId:
-            input.actorUserId,
-          type:
-            NotificationType.COMMENT_REPLY,
-          artifactId:
-            input.artifactId,
-          commentId:
-            input.commentId,
-          entityType: 'comment',
-          entityId:
-            input.commentId,
-          message:
-            'Someone replied to your comment.',
-        },
-      });
-
-    this.gateway.emitToUser(
-      input.recipientUserId,
-      'notification',
-      notification,
-    );
-
-    return notification;
+    return recordNotification(this.prisma, {
+      userId: input.recipientUserId,
+      actorUserId: input.actorUserId,
+      type: NotificationType.COMMENT_REPLY,
+      artifactId: input.artifactId,
+      commentId: input.commentId,
+      entityType: 'comment',
+      entityId: input.commentId,
+      message: 'Someone replied to your comment.',
+    });
   }
 
   async createCommentReceived(input: {
@@ -126,26 +85,16 @@ export class NotificationsService {
     ].filter((id) => id !== input.actorUserId);
 
     for (const recipientUserId of recipients) {
-      const notification =
-        await this.prisma.notification.create({
-          data: {
-            userId: recipientUserId,
-            actorUserId: input.actorUserId,
-            type: NotificationType.COMMENT_RECEIVED,
-            artifactId: input.artifactId,
-            commentId: input.commentId,
-            entityType: 'comment',
-            entityId: input.commentId,
-            message:
-              'Someone commented on your submission.',
-          },
-        });
-
-      this.gateway.emitToUser(
-        recipientUserId,
-        'notification',
-        notification,
-      );
+      await recordNotification(this.prisma, {
+        userId: recipientUserId,
+        actorUserId: input.actorUserId,
+        type: NotificationType.COMMENT_RECEIVED,
+        artifactId: input.artifactId,
+        commentId: input.commentId,
+        entityType: 'comment',
+        entityId: input.commentId,
+        message: 'Someone commented on your submission.',
+      });
     }
   }
 

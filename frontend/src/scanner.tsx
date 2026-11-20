@@ -13,14 +13,56 @@ export function useScannerCapabilities() {
   return capabilities;
 }
 
+const MIME_TYPE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$/;
+
 export function validateFile(file: File, maxMb: number): string | null {
   if (file.size <= 0) return 'This file is empty. Choose a file that has content.';
   if (file.size > maxMb * 1024 * 1024) return 'This file is larger than ' + maxMb + ' MB. Choose a smaller file.';
   if (!file.name || file.name.length > 255) return 'The file name must be between 1 and 255 characters.';
+  if (/[\u0000-\u001F\u007F]/.test(file.name)) return 'The file name contains characters that are not allowed.';
+  if (file.type && !MIME_TYPE_PATTERN.test(file.type)) return 'The type of this file is not valid.';
   return null;
 }
 
 export type ScanOptions = { visibility: 'PUBLIC' | 'PRIVATE'; forceRescan: boolean };
+
+type FilePreview = { kind: 'image'; url: string } | { kind: 'text'; text: string } | null;
+
+const TEXT_MIME_TYPES = /^(text\/|application\/(json|xml|javascript))/;
+const TEXT_EXTENSIONS = /\.(txt|md|csv|json|xml|log|ini|ya?ml|js|ts|py|sh|html|css)$/i;
+const PREVIEW_CHARACTERS = 600;
+
+function useFilePreview(file: File | null) {
+  const [preview, setPreview] = useState<FilePreview>(null);
+
+  useEffect(() => {
+    setPreview(null);
+    if (!file) return;
+
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      setPreview({ kind: 'image', url });
+      return () => URL.revokeObjectURL(url);
+    }
+
+    if (TEXT_MIME_TYPES.test(file.type) || TEXT_EXTENSIONS.test(file.name)) {
+      let active = true;
+      void file
+        .slice(0, 2048)
+        .text()
+        .then((text) => {
+          if (!active) return;
+          const readable = text.slice(0, PREVIEW_CHARACTERS).replace(/[^\t\n\r\u0020-\u007E\u00A0-\uFFFF]/g, '·');
+          setPreview({ kind: 'text', text: readable });
+        });
+      return () => {
+        active = false;
+      };
+    }
+  }, [file]);
+
+  return preview;
+}
 
 const STAGES = [
   'Computing SHA-256, SHA-1 and MD5',
@@ -42,7 +84,7 @@ export function ScanChamber({
   compact = false,
   buttonLabel = 'Scan file',
 }: {
-  onScan: (file: File, options: ScanOptions) => Promise<void>;
+  onScan: (file: File, options: ScanOptions, onProgress: (fraction: number) => void) => Promise<void>;
   capabilities: ScannerCapabilities | null;
   showOptions?: boolean;
   allowPrivate?: boolean;
@@ -54,20 +96,25 @@ export function ScanChamber({
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [forceRescan, setForceRescan] = useState(false);
 
   const maxMb = capabilities?.maxFileSizeMb ?? 25;
+  const preview = useFilePreview(file);
+  const uploading = busy && progress < 1;
+  const analysing = busy && progress >= 1;
+  const percent = Math.round(progress * 100);
 
   useEffect(() => {
-    if (!busy) return;
+    if (!analysing) return;
     setStage(0);
     const timer = window.setInterval(() => {
       setStage((value) => Math.min(value + 1, STAGES.length - 1));
     }, 900);
     return () => window.clearInterval(timer);
-  }, [busy]);
+  }, [analysing]);
 
   function accept(next?: File | null) {
     if (!next) return;
@@ -79,9 +126,10 @@ export function ScanChamber({
   async function start(target = file) {
     if (!target || busy) return;
     setBusy(true);
+    setProgress(0);
     setError(null);
     try {
-      await onScan(target, { visibility, forceRescan });
+      await onScan(target, { visibility, forceRescan }, setProgress);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The scan could not start. Try again.');
     } finally {
@@ -112,6 +160,7 @@ export function ScanChamber({
 
       <input
         ref={inputRef}
+        aria-label="Choose a file to scan"
         type="file"
         className="sr-only"
         tabIndex={-1}
@@ -123,21 +172,39 @@ export function ScanChamber({
 
       {busy && file ? (
         <div className={'relative flex flex-col justify-center ' + (compact ? 'min-h-[180px]' : 'min-h-[300px]')}>
-          <p className="text-sm text-beam">Scanning</p>
+          <p className="text-sm text-beam" role="status">
+            {uploading ? 'Uploading' : 'Scanning'}
+          </p>
           <p className="display-tight mt-1 break-all text-xl text-white sm:text-2xl">{file.name}</p>
           <p className="mt-1 text-sm text-slate-400">{formatBytes(file.size)}</p>
-          <ol className="mt-6 space-y-2 text-sm">
-            {STAGES.slice(0, stage + 1).map((label, index) => (
-              <li key={label} className="engine-tick flex items-center gap-3">
-                {index < stage ? (
-                  <Icon name="check" className="h-4 w-4 text-emerald-400" strokeWidth={2.4} />
-                ) : (
-                  <span className="h-4 w-4 animate-pulse rounded-full border-2 border-beam/70" />
-                )}
-                <span className={index < stage ? 'text-slate-400' : 'text-slate-100'}>{label}</span>
-              </li>
-            ))}
-          </ol>
+          {uploading ? (
+            <div className="mt-6">
+              <div
+                className="h-2 overflow-hidden rounded-full bg-slate-800"
+                role="progressbar"
+                aria-label="Upload progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={percent}
+              >
+                <div className="h-full rounded-full bg-beam transition-[width] duration-150" style={{ width: percent + '%' }} />
+              </div>
+              <p className="mt-2 text-sm text-slate-300">{percent}% uploaded</p>
+            </div>
+          ) : (
+            <ol className="mt-6 space-y-2 text-sm">
+              {STAGES.slice(0, stage + 1).map((label, index) => (
+                <li key={label} className="engine-tick flex items-center gap-3">
+                  {index < stage ? (
+                    <Icon name="check" className="h-4 w-4 text-emerald-400" strokeWidth={2.4} />
+                  ) : (
+                    <span className="h-4 w-4 animate-pulse rounded-full border-2 border-beam/70" />
+                  )}
+                  <span className={index < stage ? 'text-slate-400' : 'text-slate-100'}>{label}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       ) : (
         <div
@@ -179,7 +246,22 @@ export function ScanChamber({
                 {formatBytes(file.size)}
                 {file.type ? ', ' + file.type : ''}
               </p>
-              <p className="mt-3 text-xs text-slate-500">Click to choose a different file</p>
+              {preview?.kind === 'image' && (
+                <img
+                  src={preview.url}
+                  alt={'Preview of ' + file.name}
+                  className="mt-4 max-h-32 max-w-full rounded-lg border border-slate-700 object-contain"
+                />
+              )}
+              {preview?.kind === 'text' && (
+                <pre
+                  className="mt-4 max-h-32 w-full max-w-md overflow-hidden whitespace-pre-wrap break-all rounded-lg border border-slate-700 bg-slate-950 p-3 text-left font-mono text-xs text-slate-300"
+                  aria-label={'Start of ' + file.name}
+                >
+                  {preview.text}
+                </pre>
+              )}
+              <p className="mt-3 text-xs text-slate-400">Click to choose a different file</p>
             </>
           ) : (
             <>
@@ -228,15 +310,22 @@ export function ScanChamber({
             </p>
           )}
 
-          <button
-            type="button"
-            className="primary-button shrink-0 px-5"
-            disabled={!file}
-            onClick={() => void start()}
-          >
-            <Icon name="shield" className="h-4 w-4" strokeWidth={2} />
-            {buttonLabel}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {file && (
+              <button type="button" className="ghost-button" onClick={() => setFile(null)}>
+                Remove file
+              </button>
+            )}
+            <button
+              type="button"
+              className="primary-button px-5"
+              disabled={!file}
+              onClick={() => void start()}
+            >
+              <Icon name="shield" className="h-4 w-4" strokeWidth={2} />
+              {buttonLabel}
+            </button>
+          </div>
         </div>
       )}
 

@@ -135,7 +135,7 @@ export default function ModerationPage() {
       user.role !== 'ADMIN')
   ) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <PageHeader
           title="Moderation"
           description="Review community reports and moderation actions."
@@ -143,12 +143,12 @@ export default function ModerationPage() {
         <StatusNotice title="Access restricted">
           Moderator or Admin role is required to use this area.
         </StatusNotice>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title="Moderation"
         description="Review reported comments and keep an auditable moderation history."
@@ -167,6 +167,7 @@ export default function ModerationPage() {
           </div>
 
           <select
+            aria-label="Filter by status"
             className="gv-compact-select"
             value={status}
             onChange={(event) =>
@@ -192,7 +193,7 @@ export default function ModerationPage() {
         </div>
 
         {error && (
-          <div className="m-5 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          <div role="alert" className="m-5 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
             {error}
           </div>
         )}
@@ -346,6 +347,6 @@ export default function ModerationPage() {
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }

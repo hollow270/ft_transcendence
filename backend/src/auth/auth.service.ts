@@ -18,6 +18,10 @@ import {
   timingSafeEqual,
 } from 'crypto';
 import { promisify } from 'util';
+import {
+  publishNotification,
+  recordNotification,
+} from '../notifications/notification-events';
 import { PrismaService } from '../prisma.service';
 
 const scryptAsync = promisify(scrypt) as (
@@ -81,16 +85,12 @@ export class AuthService {
           },
         });
 
-      await this.prisma.notification.create({
-        data: {
-          userId: created.id,
-          type:
-            NotificationType.RESOURCE_CREATED,
-          entityType: 'user',
-          entityId: created.id,
-          message:
-            'Your GO VIRUS account was created.',
-        },
+      await recordNotification(this.prisma, {
+        userId: created.id,
+        type: NotificationType.RESOURCE_CREATED,
+        entityType: 'user',
+        entityId: created.id,
+        message: 'Your GO VIRUS account was created.',
       });
 
       return created;
@@ -261,7 +261,7 @@ export class AuthService {
       );
     }
 
-    await this.prisma.$transaction([
+    const [, enabledNotification] = await this.prisma.$transaction([
       this.prisma.userTwoFactor.update({
         where: { userId },
         data: {
@@ -280,6 +280,8 @@ export class AuthService {
         },
       }),
     ]);
+
+    publishNotification(enabledNotification);
 
     return { enabled: true };
   }
@@ -315,7 +317,7 @@ export class AuthService {
       );
     }
 
-    await this.prisma.$transaction([
+    const [, disabledNotification] = await this.prisma.$transaction([
       this.prisma.userTwoFactor.delete({
         where: { userId },
       }),
@@ -331,6 +333,8 @@ export class AuthService {
         },
       }),
     ]);
+
+    publishNotification(disabledNotification);
 
     return { enabled: false };
   }
