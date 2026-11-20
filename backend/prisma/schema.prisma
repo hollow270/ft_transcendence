@@ -121,7 +121,6 @@ model User {
   notificationActions    Notification[]       @relation("NotificationActor")
   apiKeys                ApiKey[]
   apiRequestLogs         ApiRequestLog[]
-  llmUsageLogs           LlmUsageLog[]
   auditLogs              AuditLog[]
 
   @@index([role])
@@ -482,7 +481,6 @@ model ApiRequestLog {
 // 18. LLM usage metrics only. Prompts and responses are intentionally not stored.
 model LlmUsageLog {
   id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @db.Uuid @map("user_id")
   artifactId   String?  @db.Uuid @map("artifact_id")
   scanId       String?  @db.Uuid @map("scan_id")
   provider     String   @db.VarChar(100)
@@ -493,11 +491,10 @@ model LlmUsageLog {
   successful   Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at")
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   artifact Artifact? @relation(fields: [artifactId], references: [id], onDelete: SetNull)
   scan     Scan?     @relation(fields: [scanId], references: [id], onDelete: SetNull)
 
-  @@index([userId, createdAt])
+  @@index([createdAt])
   @@index([artifactId])
   @@index([scanId])
   @@map("llm_usage_logs")

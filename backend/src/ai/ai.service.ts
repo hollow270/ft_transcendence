@@ -199,7 +199,6 @@ export class AiService {
     try {
       await this.prisma.llmUsageLog.create({
         data: {
-          userId: input.userId,
           artifactId: input.artifactId ?? null,
           scanId: input.scanId ?? null,
           provider: this.provider.providerName,

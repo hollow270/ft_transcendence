@@ -111,7 +111,7 @@ export default function SecurityPage() {
 
   if (!user || !token) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <PageHeader
           title="Security"
           description="Manage account security and two-factor authentication."
@@ -119,12 +119,12 @@ export default function SecurityPage() {
         <StatusNotice title="Sign in required">
           Account security settings are only available to authenticated users.
         </StatusNotice>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title="Security"
         description="Protect your GO VIRUS account with a time-based authenticator code."
@@ -132,13 +132,13 @@ export default function SecurityPage() {
 
       <div className="max-w-3xl space-y-5">
         {error && (
-          <div className="rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          <div role="alert" className="rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
             {error}
           </div>
         )}
 
         {message && (
-          <div className="rounded-lg border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-300">
+          <div role="status" className="rounded-lg border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-300">
             {message}
           </div>
         )}
@@ -276,6 +276,7 @@ export default function SecurityPage() {
                 </div>
 
                 <input
+                  aria-label="Current password"
                   className="app-input max-w-xs"
                   type="password"
                   autoComplete="current-password"
@@ -285,6 +286,7 @@ export default function SecurityPage() {
                 />
 
                 <input
+                  aria-label="Authenticator code"
                   className="app-input max-w-xs"
                   inputMode="numeric"
                   autoComplete="one-time-code"
@@ -315,6 +317,6 @@ export default function SecurityPage() {
           Authenticator secrets are encrypted with AES-256-GCM before they are stored in PostgreSQL. The encryption key stays in your local environment configuration.
         </StatusNotice>
       </div>
-    </main>
+    </div>
   );
 }

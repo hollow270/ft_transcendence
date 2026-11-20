@@ -482,6 +482,7 @@ export default function ArtifactPage() {
 								}
 							>
 								<textarea
+								  aria-label="Edit comment"
 								className="app-input min-h-24 resize-y"
 								value={editBody}
 								maxLength={4000}
@@ -624,6 +625,7 @@ export default function ArtifactPage() {
 								onSubmit={ ( event ) => void submitReply( event, comment.id ) }
 							>
 								<textarea
+								  aria-label="Reply to comment"
 									className="app-input min-h-24 resize-y"
 									placeholder="Write a reply…"
 									value={ replyBody }
@@ -662,6 +664,7 @@ export default function ArtifactPage() {
 								}
 							>
 								<select
+								  aria-label="Report reason"
 									className="gv-compact-select"
 									value={reportReason}
 									onChange={(event) =>
@@ -678,6 +681,7 @@ export default function ArtifactPage() {
 								</select>
 
 								<textarea
+								  aria-label="Report details"
 									className="app-input min-h-20 resize-y"
 									placeholder="Optional details for moderators…"
 									value={reportDetails}
@@ -997,20 +1001,20 @@ export default function ArtifactPage() {
 
   if (loading) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <div className="surface p-8 text-sm text-slate-500">Loading artifact report…</div>
-      </main>
+      </div>
     );
   }
 
   if (!artifact) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <PageHeader title="Artifact report" />
-        <div className="rounded-lg border border-red-900 bg-red-950/30 p-5 text-sm text-red-300">
+        <div role="alert" className="rounded-lg border border-red-900 bg-red-950/30 p-5 text-sm text-red-300">
           {loadError ?? 'Artifact not found.'}
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -1047,7 +1051,7 @@ export default function ArtifactPage() {
     : 0;
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <Link to="/app/history" className="mb-5 inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white">
         <span aria-hidden="true">‹</span> Back to history
       </Link>
@@ -1161,7 +1165,7 @@ export default function ArtifactPage() {
       </section>
 
 	{actionError && (
-		<div className="mt-5 rounded-md border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+		<div role="alert" className="mt-5 rounded-md border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
 		{actionError}
 		</div>
 	)}
@@ -1196,7 +1200,7 @@ export default function ArtifactPage() {
 		)}
 
           {artifact.latestScan?.status === 'FAILED' && (
-            <div className="border-b border-red-900 bg-red-950/20 p-5 text-sm text-red-300">
+            <div role="alert" className="border-b border-red-900 bg-red-950/20 p-5 text-sm text-red-300">
               Scan failed{artifact.latestScan.errorMessage ? ': ' + artifact.latestScan.errorMessage : '.'}
             </div>
           )}
@@ -1511,6 +1515,7 @@ export default function ArtifactPage() {
 						{user ? (
 						<form className="border-b border-slate-800 p-5" onSubmit={submitComment}>
 							<textarea
+							  aria-label="New comment"
 							className="app-input min-h-24 resize-y"
 							placeholder="Add useful context about this artifact…"
 							value={commentBody}
@@ -1626,6 +1631,7 @@ export default function ArtifactPage() {
 				<div className="surface-body">
 				<form className="flex flex-col gap-2 sm:flex-row" onSubmit={askAi}>
 					<input
+					  aria-label="Follow-up question"
 					className="app-input flex-1"
 					value={aiPrompt}
 					maxLength={4000}
@@ -1638,7 +1644,7 @@ export default function ArtifactPage() {
 				</form>
 
 				{aiError && (
-					<div className="mt-4 rounded-md border border-red-900 bg-red-950/30 p-4 text-sm text-red-300">
+					<div role="alert" className="mt-4 rounded-md border border-red-900 bg-red-950/30 p-4 text-sm text-red-300">
 					{aiError}
 					</div>
 				)}
@@ -1670,6 +1676,6 @@ export default function ArtifactPage() {
 		)}
 		</section>
 	)}
-	</main>
+	</div>
 );
 }

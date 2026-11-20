@@ -196,6 +196,20 @@ export class AdminUsersService {
       });
     }
 
+    if (changes.status) {
+      await this.notifications.createResourceEvent({
+        userId: targetId,
+        actorUserId: actorId,
+        type: NotificationType.SYSTEM,
+        entityType: 'user',
+        entityId: targetId,
+        message:
+          changes.status.to === UserStatus.ACTIVE
+            ? 'Your account was re-enabled.'
+            : 'Your account was disabled by an administrator.',
+      });
+    }
+
     return { success: true, changed: true };
   }
 
@@ -214,6 +228,17 @@ export class AdminUsersService {
         metadata: { count: result.count },
       },
     });
+
+    if (result.count) {
+      await this.notifications.createResourceEvent({
+        userId: targetId,
+        actorUserId: actorId,
+        type: NotificationType.SYSTEM,
+        entityType: 'session',
+        entityId: targetId,
+        message: 'An administrator signed you out of all sessions.',
+      });
+    }
 
     return { success: true, revoked: result.count };
   }

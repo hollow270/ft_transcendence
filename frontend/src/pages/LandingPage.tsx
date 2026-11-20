@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { BrandMark, formatBytes, Icon, VERDICT_STYLE, Wordmark } from '../components';
 import { savePendingScan } from '../lib/pending';
-import { ScanChamber, useScannerCapabilities } from '../scanner';
+import { ScanChamber, ScanOptions, useScannerCapabilities } from '../scanner';
 import type { Artifact, EngineResult, UploadResponse } from '../types';
 
 /* ------------------------------------------------------------------ */
@@ -331,8 +331,8 @@ export default function LandingPage() {
     return () => window.clearInterval(timer);
   }, [result]);
 
-  async function scan(file: File) {
-    const upload = await api.uploadFile(file, { visibility: 'PUBLIC', forceRescan: false }, token);
+  async function scan(file: File, options: ScanOptions, onProgress: (fraction: number) => void) {
+    const upload = await api.uploadFile(file, options, token, onProgress);
 
     if (user) {
       navigate('/app/artifact/' + upload.artifact.id, {
@@ -361,6 +361,7 @@ export default function LandingPage() {
     <div className="landing min-h-screen">
       <LandingNav />
 
+      <main id="main-content" tabIndex={-1}>
       {/* ---------------------------------------------------------- Hero */}
       <section className="relative overflow-hidden pt-16">
         <div className="landing-grid-bg" />
@@ -612,6 +613,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      </main>
 
       <footer className="border-t border-slate-800/80">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-10 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8">
@@ -624,6 +626,8 @@ export default function LandingPage() {
             <a href="#report" className="hover:text-slate-300">The report</a>
             <a href="#developers" className="hover:text-slate-300">API</a>
             <Link to="/login" className="hover:text-slate-300">Sign in</Link>
+            <Link to="/privacy" className="hover:text-slate-300">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-slate-300">Terms of Service</Link>
           </nav>
           <p>Built for ft_transcendence at 42.</p>
         </div>

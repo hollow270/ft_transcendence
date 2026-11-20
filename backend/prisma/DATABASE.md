@@ -34,6 +34,7 @@ ScanEngineResult = one engine's result inside that scan
 | 17 | `api_request_logs` | API usage and rate-limit analytics |
 | 18 | `llm_usage_logs` | LLM usage metrics without storing prompts or responses |
 | 19 | `audit_logs` | Security/admin audit trail |
+| 20 | `comment_votes` | Up or down vote per user on a comment (added by a later migration) |
 
 ## Important rules already modeled
 
@@ -47,7 +48,7 @@ ScanEngineResult = one engine's result inside that scan
 - Comments support unlimited nesting through `parent_id`.
 - A user can have only one active community vote per artifact.
 - API keys are stored as hashes, not plaintext keys.
-- LLM prompts and generated responses are intentionally not stored.
+- LLM prompts and generated responses are intentionally not stored, and usage logs carry no user reference.
 - Admin analytics can be calculated from the normal application tables.
 
 ## Versioned migration workflow

@@ -32,6 +32,9 @@ export default function HistoryPage() {
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'FILE' | 'URL'>('ALL');
   const [visibilityFilter, setVisibilityFilter] =
     useState<'ALL' | 'PUBLIC' | 'PRIVATE'>('ALL');
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -80,9 +83,26 @@ export default function HistoryPage() {
     [items, typeFilter, visibilityFilter],
   );
 
+  async function deleteItem(item: HistoryItem) {
+    if (!token) return;
+
+    setDeletingId(item.id);
+    setDeleteError(null);
+
+    try {
+      await api.deleteSubmission(item.id, token);
+      setItems((current) => current.filter((entry) => entry.id !== item.id));
+      setConfirmingId(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete this submission');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   if (!user || !token) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <PageHeader
           title="History"
           description="Your file and URL submissions, scan status, visibility and recent activity."
@@ -90,12 +110,12 @@ export default function HistoryPage() {
         <StatusNotice title="Sign in required">
           Submission history belongs to a user account and cannot be shown in anonymous mode.
         </StatusNotice>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title="History"
         description="Your file and URL submissions, including private activity that only you can see."
@@ -112,6 +132,7 @@ export default function HistoryPage() {
 
           <div className="flex flex-wrap gap-2">
             <select
+              aria-label="Filter by type"
               className="gv-compact-select"
               value={typeFilter}
               onChange={(event) =>
@@ -129,6 +150,7 @@ export default function HistoryPage() {
             </select>
 
             <select
+              aria-label="Filter by visibility"
               className="gv-compact-select"
               value={visibilityFilter}
               onChange={(event) =>
@@ -147,8 +169,14 @@ export default function HistoryPage() {
           </div>
         </div>
 
+        {deleteError && (
+          <div className="m-5 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300" role="alert">
+            {deleteError}
+          </div>
+        )}
+
         {error ? (
-          <div className="m-5 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          <div role="alert" className="m-5 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
             {error}
           </div>
         ) : loading ? (
@@ -167,6 +195,9 @@ export default function HistoryPage() {
                   <th>Status</th>
                   <th>Provider</th>
                   <th>Submitted</th>
+                  <th>
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -208,6 +239,39 @@ export default function HistoryPage() {
                     <td className="whitespace-nowrap">
                       {formatDate(item.createdAt)}
                     </td>
+                    <td className="whitespace-nowrap text-right">
+                      {confirmingId === item.id ? (
+                        <span className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="danger-button px-3 py-1.5 text-xs"
+                            disabled={deletingId === item.id}
+                            onClick={() => void deleteItem(item)}
+                          >
+                            {deletingId === item.id ? 'Deleting' : 'Confirm delete'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-button px-3 py-1.5 text-xs"
+                            onClick={() => setConfirmingId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="ghost-button px-3 py-1.5 text-xs"
+                          aria-label={'Delete submission ' + item.displayName}
+                          onClick={() => {
+                            setDeleteError(null);
+                            setConfirmingId(item.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -222,6 +286,6 @@ export default function HistoryPage() {
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }

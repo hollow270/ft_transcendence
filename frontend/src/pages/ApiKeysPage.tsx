@@ -91,7 +91,7 @@ export default function ApiKeysPage() {
 
   if (!user || !token) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <PageHeader
           title="API keys"
           description="Create and revoke credentials for the GO VIRUS public API."
@@ -99,12 +99,12 @@ export default function ApiKeysPage() {
         <StatusNotice title="Sign in required">
           API credentials belong to a registered account.
         </StatusNotice>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title="API keys"
         description="Use API keys to call the authenticated GO VIRUS public API."
@@ -112,7 +112,7 @@ export default function ApiKeysPage() {
 
       <div className="space-y-5">
         {error && (
-          <div className="rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          <div role="alert" className="rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
             {error}
           </div>
         )}
@@ -158,6 +158,7 @@ export default function ApiKeysPage() {
             onSubmit={createKey}
           >
             <input
+              aria-label="API key name"
               className="app-input"
               placeholder="Example: local development"
               value={name}
@@ -275,6 +276,6 @@ export default function ApiKeysPage() {
           </div>
         </section>
       </div>
-    </main>
+    </div>
   );
 }
