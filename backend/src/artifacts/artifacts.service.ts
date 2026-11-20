@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   ArtifactType,
+  NotificationType,
   Prisma,
   ScanReason,
   ScanStatus,
@@ -631,6 +632,23 @@ export class ArtifactsService {
         },
       });
 
+    if (userId) {
+      await this.notifications.createResourceEvent({
+        userId,
+        type:
+          NotificationType.RESOURCE_CREATED,
+        entityType: 'submission',
+        entityId: submission.id,
+        artifactId: artifact.id,
+        message:
+          'Your file submission was created.',
+        metadata: {
+          source,
+          visibility,
+        },
+      });
+    }
+
     const reusableScan = forceRescan
       ? null
       : await this.findReusableScan(
@@ -745,6 +763,23 @@ export class ArtifactsService {
           source,
         },
       });
+
+    if (userId) {
+      await this.notifications.createResourceEvent({
+        userId,
+        type:
+          NotificationType.RESOURCE_CREATED,
+        entityType: 'submission',
+        entityId: submission.id,
+        artifactId: artifact.id,
+        message:
+          'Your URL submission was created.',
+        metadata: {
+          source,
+          visibility,
+        },
+      });
+    }
 
     const reusableScan = forceRescan
       ? null
@@ -950,6 +985,20 @@ export class ArtifactsService {
         },
       }),
     ]);
+
+    await this.notifications.createResourceEvent({
+      userId,
+      type:
+        NotificationType.RESOURCE_DELETED,
+      entityType: 'submission',
+      entityId: submission.id,
+      artifactId: submission.artifactId,
+      message:
+        'Your API submission was deleted.',
+      metadata: {
+        source: SubmissionSource.API,
+      },
+    });
 
     return {
       success: true,
