@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { NotificationType } from '@prisma/client';
+import {
+  NotificationType,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { NotificationsGateway } from './notifications.gateway';
 
@@ -32,17 +35,14 @@ export class NotificationsService {
 
   async createResourceEvent(input: {
     userId: string;
-    type:
-      | NotificationType.RESOURCE_CREATED
-      | NotificationType.RESOURCE_UPDATED
-      | NotificationType.RESOURCE_DELETED;
+    type: NotificationType;
     entityType: string;
     entityId: string;
     message: string;
     artifactId?: string | null;
     commentId?: string | null;
     actorUserId?: string | null;
-    metadata?: Record<string, unknown>;
+    metadata?: Prisma.InputJsonValue;
   }) {
     const notification =
       await this.prisma.notification.create({
