@@ -9,7 +9,7 @@ import {
   UserStatus,
   Verdict,
 } from '@prisma/client';
-import PDFDocument from 'pdfkit';
+import PDFDocument = require('pdfkit');
 import { PrismaService } from '../prisma.service';
 
 type ActivityPoint = {
