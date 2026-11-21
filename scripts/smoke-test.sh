@@ -597,6 +597,45 @@ fi
 
 echo "admin role guard ok"
 
+docker compose exec -T postgres psql \
+  -U transcendence \
+  -d transcendence \
+  -c "UPDATE users SET role = 'ADMIN' WHERE email = 'ci@example.com';" \
+  >/dev/null
+
+ADMIN_OVERVIEW=$(curl -fsS "$BASE_URL/admin/overview" \
+  -H "Authorization: Bearer $TOKEN")
+
+printf '%s' "$ADMIN_OVERVIEW" | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(typeof j.community?.votes!=="number" || typeof j.users?.onlineNow!=="number") process.exit(1);});
+'
+
+curl -fsS "$BASE_URL/admin/activity?days=1" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || j.length!==1) process.exit(1);});
+'
+
+TODAY=$(node -e 'process.stdout.write(new Date().toISOString().slice(0,10))')
+
+curl -fsS "$BASE_URL/admin/activity?from=$TODAY&to=$TODAY" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e '
+let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || j.length!==1) process.exit(1);});
+'
+
+curl -fsS "$BASE_URL/admin/export.csv?from=$TODAY&to=$TODAY" \
+  -H "Authorization: Bearer $TOKEN" \
+  | grep -q '"community_votes"'
+
+curl -fsS "$BASE_URL/admin/export.pdf?from=$TODAY&to=$TODAY" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o /tmp/admin-analytics.pdf
+
+head -c 4 /tmp/admin-analytics.pdf | grep -q '%PDF'
+
+echo "advanced admin analytics ok"
+
 curl -fsS "$BASE_URL/notifications"   -H "Authorization: Bearer $TOKEN"   | node -e '
 let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); if(!Array.isArray(j) || !j.some(x=>x.type==="SCAN_COMPLETED")) process.exit(1); console.log("notification persistence ok");});
 '
