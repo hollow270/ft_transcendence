@@ -3,7 +3,11 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma, UserStatus } from '@prisma/client';
+import {
+  NotificationType,
+  Prisma,
+  UserStatus,
+} from '@prisma/client';
 import {
   createCipheriv,
   createDecipheriv,
@@ -54,21 +58,36 @@ export class AuthService {
     const passwordHash = await this.hashPassword(password);
 
     try {
-      return await this.prisma.user.create({
+      const created =
+        await this.prisma.user.create({
+          data: {
+            username,
+            email,
+            passwordHash,
+          },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            role: true,
+            status: true,
+            createdAt: true,
+          },
+        });
+
+      await this.prisma.notification.create({
         data: {
-          username,
-          email,
-          passwordHash,
-        },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          role: true,
-          status: true,
-          createdAt: true,
+          userId: created.id,
+          type:
+            NotificationType.RESOURCE_CREATED,
+          entityType: 'user',
+          entityId: created.id,
+          message:
+            'Your GO VIRUS account was created.',
         },
       });
+
+      return created;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -230,12 +249,25 @@ export class AuthService {
       );
     }
 
-    await this.prisma.userTwoFactor.update({
-      where: { userId },
-      data: {
-        enabled: true,
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.userTwoFactor.update({
+        where: { userId },
+        data: {
+          enabled: true,
+        },
+      }),
+      this.prisma.notification.create({
+        data: {
+          userId,
+          type:
+            NotificationType.RESOURCE_UPDATED,
+          entityType: 'user_2fa',
+          entityId: userId,
+          message:
+            'Two-factor authentication was enabled.',
+        },
+      }),
+    ]);
 
     return { enabled: true };
   }
@@ -262,9 +294,22 @@ export class AuthService {
       );
     }
 
-    await this.prisma.userTwoFactor.delete({
-      where: { userId },
-    });
+    await this.prisma.$transaction([
+      this.prisma.userTwoFactor.delete({
+        where: { userId },
+      }),
+      this.prisma.notification.create({
+        data: {
+          userId,
+          type:
+            NotificationType.RESOURCE_DELETED,
+          entityType: 'user_2fa',
+          entityId: userId,
+          message:
+            'Two-factor authentication was disabled.',
+        },
+      }),
+    ]);
 
     return { enabled: false };
   }
