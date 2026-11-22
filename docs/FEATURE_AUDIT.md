@@ -25,10 +25,10 @@ Status meanings:
 | Roles | DONE | USER / MODERATOR / ADMIN | — |
 | 2FA | DONE | TOTP setup, verification, login challenge, disable flow | — |
 | User history/community | DONE | Authenticated submission history and user community activity | — |
-| Notifications | PARTIAL | Scan-completion and moderation notifications with Socket.IO delivery | Reply notifications and generic create/update/delete coverage are incomplete |
+| Notifications | DONE | Persistent and real-time notifications cover scan completion, moderation, replies and user-facing resource create/update/delete lifecycles | — |
 | Public API | DONE | API-key auth, rate limiting, request logs, 6 endpoints using GET/POST/PUT/DELETE | — |
 | Advanced public search | DONE | Query, type/verdict filters, sorting, pagination | — |
-| Admin analytics | PARTIAL | Users, online count, submissions, scans, verdicts, API, comments, LLM, audit, 7/14/30-day activity, CSV | Votes metric, Today/custom dates, PDF export and real-time dashboard refresh still missing |
+| Admin analytics | DONE | Users, online count, submissions, scans, verdicts, comments/votes, API/LLM usage, interactive chart, Today/7/30/custom ranges, WebSocket live refresh and PDF/CSV export | — |
 | WAF / secrets | PARTIAL | ModSecurity + OWASP CRS, TLS, security headers, file-mounted secrets | Real HashiCorp Vault integration is still missing |
 | Database V1 | DONE | 19 tables with versioned Prisma migration | — |
 
@@ -40,12 +40,12 @@ Status meanings:
 | 2 | Real-time features using WebSockets | 2 | DONE | Authenticated Socket.IO user rooms and live notification delivery |
 | 3 | Public API interacting with database | 2 | DONE | API keys, rate limiting, documentation, request logs, 6 endpoints including GET/POST/PUT/DELETE |
 | 4 | ORM | 1 | DONE | Prisma + PostgreSQL |
-| 5 | Complete notification system | 1 | PARTIAL | Not yet all create/update/delete actions |
+| 5 | Complete notification system | 1 | DONE | Persistent Socket.IO notifications cover scan/moderation/reply plus user-facing create/update/delete lifecycle events |
 | 6 | Advanced search | 1 | DONE | Filters, sorting and pagination implemented |
 | 7 | File upload and management | 1 | PARTIAL | Validation/access control exist; file preview, upload progress and user-facing deletion management are incomplete |
 | 8 | Complete LLM system interface | 2 | DONE | Text generation, SSE streaming, errors and global throttling |
 | 9 | WAF/ModSecurity + HashiCorp Vault | 2 | PARTIAL | WAF is hardened; Vault itself is not integrated |
-| 10 | Advanced analytics dashboard | 2 | PARTIAL | Dashboard/CSV exist; custom dates, PDF, richer interactive visualization and real-time updates remain |
+| 10 | Advanced analytics dashboard | 2 | DONE | Interactive multi-series chart, Today/7/30/custom ranges, live WebSocket refresh, vote metrics and PDF/CSV export |
 | 11 | WCAG 2.1 AA accessibility | 2 | MISSING | Some keyboard/ARIA work exists, but complete WCAG 2.1 AA compliance has not been implemented or audited |
 | 12 | Complete 2FA system | 1 | DONE | TOTP authenticator flow |
 
@@ -57,21 +57,22 @@ Using only modules marked **DONE**:
 - WebSockets: 2
 - Public API: 2
 - ORM: 1
+- Complete notifications: 1
 - Advanced search: 1
 - LLM system: 2
+- Advanced analytics: 2
 - 2FA: 1
 
-**Safely claimable total: 11 points.**
+**Safely claimable total: 14 points.**
 
-The project target in the selected module plan is 14 points, so at least **3 additional points** should be closed before relying on this exact 19-point module selection.
+This reaches the project target in the selected module plan without depending on the modules that are still incomplete.
 
-## Best path to 14+ verified points
+## Remaining safety-margin modules
 
-Highest-value remaining work:
+The current unclaimed modules are:
 
-1. **Advanced analytics dashboard (2 pts)** — add custom date ranges, Today/7/30 presets, PDF export and live refresh.
-2. **Complete notification system (1 pt)** — emit notifications for relevant create/update/delete actions, especially comment replies and user-visible resource changes.
+1. **File upload and management (1 pt)** — preview, upload progress and user-facing deletion management still need completion.
+2. **WAF/ModSecurity + HashiCorp Vault (2 pts)** — the WAF is implemented, but real HashiCorp Vault integration is still missing.
+3. **WCAG 2.1 AA accessibility (2 pts)** — complete compliance still requires implementation and a dedicated accessibility audit.
 
-That reaches **14 safely claimable points** without depending on Vault or a full WCAG audit.
-
-After that, file-management completion is another 1-point safety margin. Vault and WCAG are larger projects and should not be claimed until fully implemented.
+These remaining modules are extra margin; they are not included in the verified 14-point total.
