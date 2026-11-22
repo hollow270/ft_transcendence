@@ -45,7 +45,7 @@ function SubmissionRow({
       <td>
         <Link
           className="font-medium text-slate-200 hover:text-blue-300 hover:underline"
-          to={'/artifact/' + item.artifactId}
+          to={'/app/artifact/' + item.artifactId}
         >
           {item.displayName}
         </Link>
@@ -81,7 +81,7 @@ function CommentCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link
-            to={'/artifact/' + item.artifactId}
+            to={'/app/artifact/' + item.artifactId}
             className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
           >
             {item.artifactDisplayName}
@@ -200,7 +200,7 @@ export default function UserCommunityPage() {
       <section className="surface overflow-hidden">
         <div className="grid sm:grid-cols-3">
           <div className="border-b border-slate-800 p-5 sm:border-b-0 sm:border-r">
-            <p className="text-xs uppercase tracking-wide text-slate-600">
+            <p className="text-xs text-slate-600">
               Public scans
             </p>
             <p className="mt-2 text-2xl font-semibold text-slate-200">
@@ -209,7 +209,7 @@ export default function UserCommunityPage() {
           </div>
 
           <div className="border-b border-slate-800 p-5 sm:border-b-0 sm:border-r">
-            <p className="text-xs uppercase tracking-wide text-slate-600">
+            <p className="text-xs text-slate-600">
               Comments
             </p>
             <p className="mt-2 text-2xl font-semibold text-slate-200">
@@ -218,7 +218,7 @@ export default function UserCommunityPage() {
           </div>
 
           <div className="p-5">
-            <p className="text-xs uppercase tracking-wide text-slate-600">
+            <p className="text-xs text-slate-600">
               {data.isOwner ? 'Private scans' : 'Member since'}
             </p>
             <p className="mt-2 text-2xl font-semibold text-slate-200">

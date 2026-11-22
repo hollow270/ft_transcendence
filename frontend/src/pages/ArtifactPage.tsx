@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { PageHeader, StatusNotice } from '../components';
+import { formatBytes, PageHeader, StatusNotice, VERDICT_STYLE, VerdictPill } from '../components';
 import type {
   Artifact,
   ArtifactScanHistoryItem,
@@ -478,65 +478,130 @@ export default function ArtifactPage() {
     { id: 'ai', label: 'AI explanation' },
   ];
 
+  const verdict = artifact.latestScan?.overallVerdict ?? 'UNKNOWN';
+  const verdictMeta = VERDICT_STYLE[verdict] ?? VERDICT_STYLE.UNKNOWN;
+  const flaggedCount = detections.malicious + detections.suspicious;
+  const ringColor =
+    verdict === 'MALICIOUS' ? '#FB4D6D' : verdict === 'SUSPICIOUS' ? '#FBBF24' : verdict === 'HARMLESS' ? '#34D399' : '#66708E';
+  const circumference = 2 * Math.PI * 46;
+  const ringFill = detections.total
+    ? verdict === 'HARMLESS'
+      ? 1
+      : Math.max(flaggedCount / detections.total, 0.04)
+    : 0;
+
   return (
     <main className="app-page">
-      <PageHeader
-        title={artifact.file ? 'File report' : 'URL report'}
-        description={displayName}
-        actions={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <VerdictBadge value={artifact.latestScan?.overallVerdict} />
+      <Link to="/app/history" className="mb-5 inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white">
+        <span aria-hidden="true">‹</span> Back to history
+      </Link>
+
+      <section className="chamber p-6 sm:p-8">
+        <span className="chamber-corner tl" />
+        <span className="chamber-corner tr" />
+        <span className="chamber-corner bl" />
+        <span className="chamber-corner br" />
+        <div className="relative grid gap-8 lg:grid-cols-[auto_1fr_auto] lg:items-center">
+          <div className="relative flex h-[112px] w-[112px] items-center justify-center">
+            <svg viewBox="0 0 112 112" className="absolute inset-0 -rotate-90" aria-hidden="true">
+              <circle cx="56" cy="56" r="46" fill="none" stroke="#232A43" strokeWidth="9" />
+              <circle
+                cx="56"
+                cy="56"
+                r="46"
+                fill="none"
+                stroke={ringColor}
+                strokeWidth="9"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference * (1 - ringFill)}
+                style={{ transition: 'stroke-dashoffset 700ms ease' }}
+              />
+            </svg>
+            <div className="text-center leading-none">
+              <span className="display-tight block text-[32px] text-white">{flaggedCount}</span>
+              <span className="mt-1 block text-xs text-slate-500">of {detections.total || 0}</span>
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-sm text-slate-400">{artifact.file ? 'File report' : 'URL report'}</p>
+            <h1 className="display-tight mt-1 break-all text-2xl text-white sm:text-[28px]">{displayName}</h1>
+            <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+              {artifact.latestScan?.status === 'RUNNING' ? (
+                <VerdictPill pending />
+              ) : (
+                <span
+                  className={
+                    'display text-[22px] ' +
+                    (verdict === 'MALICIOUS'
+                      ? 'text-rose-300'
+                      : verdict === 'SUSPICIOUS'
+                        ? 'text-amber-300'
+                        : verdict === 'HARMLESS'
+                          ? 'text-emerald-300'
+                          : 'text-slate-200')
+                  }
+                >
+                  {verdictMeta.label}
+                </span>
+              )}
+              <span className="text-slate-400">
+                {flaggedCount} of {detections.total || 0} engines flagged this {artifact.file ? 'file' : 'URL'}
+              </span>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 lg:justify-end">
             {artifact.latestScan?.status === 'RUNNING' && (
-              <button
-                className="secondary-button"
-                disabled={scanBusy}
-                onClick={() => void refreshPendingScan(false)}
-              >
+              <button className="secondary-button" disabled={scanBusy} onClick={() => void refreshPendingScan(false)}>
                 {scanBusy ? 'Refreshing…' : 'Refresh results'}
               </button>
             )}
             {user && artifact.file && artifact.latestScan?.status !== 'RUNNING' && (
-              <button
-                className="secondary-button"
-                disabled={scanBusy}
-                onClick={() => void requestRescan()}
-              >
+              <button className="secondary-button" disabled={scanBusy} onClick={() => void requestRescan()}>
                 {scanBusy ? 'Starting…' : 'Rescan'}
               </button>
             )}
+            <button className="primary-button" onClick={() => setTab('ai')}>
+              Explain this result
+            </button>
           </div>
-        }
-      />
+        </div>
 
-      <section className="surface overflow-hidden">
-        <div className="grid gap-0 sm:grid-cols-4">
-          <div className="border-b border-slate-800 p-5 sm:border-b-0 sm:border-r">
-            <p className="text-xs uppercase tracking-wide text-slate-600">Type</p>
-            <p className="mt-1 text-sm font-medium text-slate-200">{artifact.type}</p>
+        <dl className="relative mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-800 bg-slate-800 text-sm lg:grid-cols-4 [&>div]:bg-slate-950/90 [&>div]:px-4 [&>div]:py-3">
+          <div>
+            <dt className="text-slate-500">{artifact.file ? 'Size' : 'Domain'}</dt>
+            <dd className="mt-0.5 truncate font-medium text-slate-200">
+              {artifact.file ? formatBytes(Number(artifact.file.size)) : artifact.url?.domain ?? '—'}
+            </dd>
           </div>
-          <div className="border-b border-slate-800 p-5 sm:border-b-0 sm:border-r">
-            <p className="text-xs uppercase tracking-wide text-slate-600">Detections</p>
-            <p className="mt-1 text-sm font-medium text-slate-200">
-              {detections.malicious + detections.suspicious} / {detections.total || 0}
-            </p>
+          <div>
+            <dt className="text-slate-500">{artifact.file ? 'Type' : 'Visibility'}</dt>
+            <dd className="mt-0.5 truncate font-medium text-slate-200">
+              {artifact.file ? artifact.file.mimeType : artifact.submission?.visibility === 'PRIVATE' ? 'Private' : 'Public'}
+            </dd>
           </div>
-          <div className="border-b border-slate-800 p-5 sm:border-b-0 sm:border-r">
-            <p className="text-xs uppercase tracking-wide text-slate-600">Last scan</p>
-            <p className="mt-1 text-sm font-medium text-slate-200">
-              {formatDate(artifact.latestScan?.completedAt)}
-            </p>
+          <div>
+            <dt className="text-slate-500">Last scan</dt>
+            <dd className="mt-0.5 truncate font-medium text-slate-200">{formatDate(artifact.latestScan?.completedAt)}</dd>
           </div>
-          <div className="p-5">
-            <p className="text-xs uppercase tracking-wide text-slate-600">Result source</p>
-            <p className="mt-1 text-sm font-medium text-slate-200">
+          <div>
+            <dt className="text-slate-500">Result source</dt>
+            <dd className="mt-0.5 truncate font-medium text-slate-200">
               {routeState?.reusedScan === true
-                ? 'Fresh cached result'
+                ? 'Cached result'
                 : routeState?.reusedScan === false
                   ? 'New scan'
                   : 'Stored report'}
-            </p>
+            </dd>
           </div>
-        </div>
+        </dl>
+        {artifact.file && (
+          <p className="relative mt-4 truncate font-mono text-xs text-slate-500" title={artifact.file.sha256}>
+            sha256 {artifact.file.sha256}
+          </p>
+        )}
       </section>
 
       {actionError && (
@@ -583,7 +648,7 @@ export default function ArtifactPage() {
             <div>
               <h2 className="text-sm font-semibold text-slate-200">Engine results</h2>
               <p className="mt-1 text-xs text-slate-500">
-                {detections.malicious} malicious · {detections.suspicious} suspicious · {detections.harmless} harmless · {detections.undetected} undetected{detections.unknown ? ' · ' + detections.unknown + ' other' : ''}
+                {detections.malicious} malicious, {detections.suspicious} suspicious, {detections.harmless} harmless, {detections.undetected} undetected{detections.unknown ? ', ' + detections.unknown + ' other' : ''}
               </p>
             </div>
             <span className="text-xs text-slate-600">
@@ -824,7 +889,7 @@ export default function ArtifactPage() {
 
                 <div className="border-t border-slate-800">
                   <div className="px-5 py-4">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <h3 className="text-xs font-semibold text-slate-500">
                       Engine results
                     </h3>
                   </div>
@@ -920,7 +985,7 @@ export default function ArtifactPage() {
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <Link
-                            to={'/users/' + comment.user.id + '/community'}
+                            to={'/app/users/' + comment.user.id + '/community'}
                             className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
                           >
                             {comment.user.username}
