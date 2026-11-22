@@ -218,17 +218,14 @@ export class VirusTotalProvider {
       : 0;
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
 
-    if (
-      !lastAnalysisMs ||
-      Date.now() - lastAnalysisMs > sevenDaysMs
-    ) {
-      return this.requestRescanFromKnownFile(sha256);
-    }
+    if (!lastAnalysisDate) {
+  return null;
+}
 
-    return this.completedFromResults(
-      results,
-      lastAnalysisDate,
-    );
+return this.completedFromResults(
+  results,
+  lastAnalysisDate,
+);
   }
 
   private async getExistingUrlReport(
