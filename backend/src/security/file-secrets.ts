@@ -1,4 +1,8 @@
-import { readFileSync } from 'fs';
+import {
+  existsSync,
+  readFileSync,
+} from 'fs';
+import { isAbsolute } from 'path';
 
 const FILE_SECRET_NAMES = [
   'VIRUSTOTAL_API_KEY',
@@ -16,6 +20,23 @@ export function loadFileSecrets() {
       continue;
     }
 
+    if (!isAbsolute(filePath)) {
+      throw new Error(
+        name +
+          '_FILE must be an absolute mounted file path. ' +
+          'Put the secret value in ' +
+          name +
+          ' instead.',
+      );
+    }
+
+    if (!existsSync(filePath)) {
+      throw new Error(
+        name +
+          '_FILE points to a missing mounted secret file.',
+      );
+    }
+
     const value = readFileSync(
       filePath,
       'utf8',
@@ -23,7 +44,8 @@ export function loadFileSecrets() {
 
     if (!value) {
       throw new Error(
-        name + '_FILE points to an empty secret file',
+        name +
+          '_FILE points to an empty secret file.',
       );
     }
 
