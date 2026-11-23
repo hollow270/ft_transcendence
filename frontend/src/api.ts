@@ -1,4 +1,7 @@
 import type {
+  AccountOverview,
+  AccountSession,
+  AdminUsersResponse,
   AdvancedSearchResponse,
   AdvancedSearchSort,
   Artifact,
@@ -743,5 +746,106 @@ export const api = {
     onDelta: (text: string) => void,
   ) {
     return streamAi('/ai/scans/explain', { scanId }, token, onDelta);
+  },
+
+  /* ---------------- Account ---------------- */
+
+  accountOverview(token: string) {
+    return request<AccountOverview>('/account/overview', {}, token);
+  },
+
+  updateProfile(
+    payload: { username?: string; email?: string; currentPassword?: string },
+    token: string,
+  ) {
+    return request<User>(
+      '/account/profile',
+      { method: 'PATCH', body: JSON.stringify(payload) },
+      token,
+    );
+  },
+
+  changePassword(
+    payload: { currentPassword: string; newPassword: string },
+    token: string,
+  ) {
+    return request<{ success: boolean; revokedSessions: number }>(
+      '/account/password',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    );
+  },
+
+  sessions(token: string) {
+    return request<AccountSession[]>('/account/sessions', {}, token);
+  },
+
+  revokeSession(sessionId: string, token: string) {
+    return request<{ success: boolean }>(
+      '/account/sessions/' + encodeURIComponent(sessionId),
+      { method: 'DELETE' },
+      token,
+    );
+  },
+
+  revokeOtherSessions(token: string) {
+    return request<{ success: boolean; revoked: number }>(
+      '/account/sessions/revoke-others',
+      { method: 'POST' },
+      token,
+    );
+  },
+
+  claimSubmission(
+    payload: { submissionId: string; claimToken: string },
+    token: string,
+  ) {
+    return request<{ success: boolean; artifactId: string }>(
+      '/account/claims',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    );
+  },
+
+  deleteAccount(payload: { password: string; confirm: string }, token: string) {
+    return request<{ success: boolean }>(
+      '/account/delete',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    );
+  },
+
+  /* ---------------- Admin: users ---------------- */
+
+  adminUsers(
+    input: { q?: string; role?: string; status?: string; page?: number },
+    token: string,
+  ) {
+    const params = new URLSearchParams();
+    if (input.q?.trim()) params.set('q', input.q.trim());
+    if (input.role) params.set('role', input.role);
+    if (input.status) params.set('status', input.status);
+    if (input.page) params.set('page', String(input.page));
+    return request<AdminUsersResponse>('/admin/users?' + params.toString(), {}, token);
+  },
+
+  adminUpdateUser(
+    userId: string,
+    payload: { role?: string; status?: string },
+    token: string,
+  ) {
+    return request<{ success: boolean; changed: boolean }>(
+      '/admin/users/' + encodeURIComponent(userId),
+      { method: 'PATCH', body: JSON.stringify(payload) },
+      token,
+    );
+  },
+
+  adminRevokeUserSessions(userId: string, token: string) {
+    return request<{ success: boolean; revoked: number }>(
+      '/admin/users/' + encodeURIComponent(userId) + '/revoke-sessions',
+      { method: 'POST' },
+      token,
+    );
   },
 };
