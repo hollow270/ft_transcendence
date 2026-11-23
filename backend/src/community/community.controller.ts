@@ -12,15 +12,52 @@ import {
 } from '@nestjs/common';
 import { SessionAuthGuard } from '../auth/auth.guard';
 import { CommunityService } from './community.service';
+import { Query, BadRequestException } from '@nestjs/common';
 
 @Controller('artifacts/:artifactId')
 export class CommunityController {
   constructor(private readonly community: CommunityService) {}
 
-  @Get('comments')
-  listComments(@Param('artifactId') artifactId: string) {
-    return this.community.listComments(artifactId);
-  }
+	@Get('comments')
+	listComments(@Param('artifactId') artifactId: string,
+				@Query('limit') limit?: string,
+				@Query('offset') offset?: string) {
+
+		if ( limit !== undefined ) {
+
+			const	nLimit = Number( limit );
+			if ( !Number.isInteger( nLimit ) )
+				throw new BadRequestException( 'bad request params' );
+
+			if ( nLimit < 1 || nLimit > 100 )
+				throw new BadRequestException( 'bad request params' );
+
+			if ( offset === undefined )
+				return ( this.community.listComments( artifactId, nLimit ) );
+
+			const	nOffset = Number( offset );
+			if ( !Number.isInteger( nOffset ) )
+				throw new BadRequestException( 'bad request params' );
+
+			if ( nOffset < 0 )
+				throw new BadRequestException( 'bad request params' );
+
+			return ( this.community.listComments( artifactId, nLimit, nOffset ) );
+		}
+		else if ( offset !== undefined )
+			throw new BadRequestException( 'bad request params' );
+
+		// const	nLimit = Number( limit );
+		// const	nOffset = Number( offset );
+		//
+		// if ( !Number.isInteger( nLimit ) || !Number.isInteger( nOffset ) )
+		// 	throw new BadRequestException( 'bad request params' );
+		//
+		// if ( nLimit < 1 || nLimit > 100 || nOffset < 0 )
+		// 	throw new BadRequestException( 'bad request params' );
+		
+		return this.community.listComments( artifactId );
+	}
 
   @UseGuards(SessionAuthGuard)
   @Post('comments')
