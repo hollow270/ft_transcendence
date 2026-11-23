@@ -86,6 +86,7 @@ export default function ArtifactPage() {
 	const	[ comments, setComments ] = useState<Comment[]>([]);
 	const	[ hasMoreComments, setHasMoreComments ] = useState( false );
 	const	[ loadingMoreComments, setLoadingMoreComments ] = useState( false );
+	const	[ fetchedCommentsCount, setFetchedCommentsCount ] = useState( 0 );
   const [votes, setVotes] = useState<VoteSummary | null>(null);
   const [communityAvailable, setCommunityAvailable] = useState(false);
   const [commentBody, setCommentBody] = useState('');
@@ -208,6 +209,8 @@ export default function ArtifactPage() {
 				api.comments( artifactId, MAX_COMMENT_PER_REQ + 1 ),
 				api.votes(artifactId),
 			]);
+			setFetchedCommentsCount( commentData.length - 1 );
+			console.log( `refreshCommunity() comments log: ${fetchedCommentsCount}` );
 			setHasMoreComments( commentData.length > MAX_COMMENT_PER_REQ );
 			setComments( commentData.slice( 0, MAX_COMMENT_PER_REQ ) );
 			setVotes(voteData);
@@ -227,6 +230,8 @@ export default function ArtifactPage() {
 			setLoadingMoreComments( true );
 
 			const	moreComments: Comment[] = await api.comments( artifactId, MAX_COMMENT_PER_REQ + 1, comments.length );
+			setFetchedCommentsCount( fetchedCommentsCount + moreComments.length - 1 );
+			console.log( `loadMoreComments() comments log: ${fetchedCommentsCount}` );
 
 			setHasMoreComments( moreComments.length > MAX_COMMENT_PER_REQ );
 			setComments( previousComments => [ ...previousComments, ...moreComments.slice( 0, MAX_COMMENT_PER_REQ ) ] );
