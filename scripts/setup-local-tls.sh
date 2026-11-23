@@ -12,7 +12,7 @@ mkdir -p waf/tls
 mkcert -install
 mkcert   -cert-file waf/tls/server.crt   -key-file waf/tls/server.key   localhost 127.0.0.1 ::1
 
-chmod 600 waf/tls/server.key
+chmod 644 waf/tls/server.key
 chmod 644 waf/tls/server.crt
 
 echo "Trusted local TLS certificate created."

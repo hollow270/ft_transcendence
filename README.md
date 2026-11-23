@@ -314,7 +314,7 @@ bash scripts/setup-local-tls.sh
 docker compose up --build -d
 ```
 
-The generated certificate and private key live under `waf/tls/` and are ignored by Git.
+The generated certificate and private key live under `waf/tls/` and are ignored by Git. Both files must be readable by every user (`chmod 644`) because the WAF runs as a different user inside its container; otherwise the WAF ignores them, prints a warning in its logs and keeps the generated self-signed certificate.
 
 For a real deployment, put the trusted PEM certificate chain and private key at `waf/tls/server.crt` and `waf/tls/server.key`, then set:
 
