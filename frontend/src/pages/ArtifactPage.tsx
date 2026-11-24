@@ -270,6 +270,19 @@ export default function ArtifactPage() {
 		}
 	}
 
+	async	function	refreshCommentReplies( commentId: string )
+	{
+		try {
+			setActionError( null );
+
+			const	newReplies = await api.replies( artifactId, commentId, MAX_COMMENT_PER_REQ );
+
+			setRepliesRecord( previousRecords => ( { ...previousRecords, [ commentId ]: newReplies } ) );
+		} catch {
+			setActionError( 'could not load replies' );
+		}
+	}
+
 	function	drawComment( comment: DiscussionComment )
 	{
 		const	currentCommentTree = repliesRecord[ comment.id ];
@@ -500,28 +513,36 @@ export default function ArtifactPage() {
 		);
 	}
 
-  async function submitComment(event: FormEvent) {
-    event.preventDefault();
-    if (!token || !commentBody.trim()) return;
+	async function submitComment(event: FormEvent) {
+		event.preventDefault();
+		if (!token || !commentBody.trim())
+			return;
 
-    setActionError(null);
+		setActionError(null);
 
-    try {
-      await api.createComment(
-        artifactId,
-        {
-          body: commentBody.trim(),
-          ...(replyTo ? { parentId: replyTo.id } : {}),
-        },
-        token,
-      );
-      setCommentBody('');
-      setReplyTo(null);
-      await refreshCommunity();
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Comment failed');
-    }
-  }
+		try {
+			const	parentCommentId = replyTo?.id ?? null;
+
+			await api.createComment(
+				artifactId,
+				{
+					body: commentBody.trim(),
+					...(replyTo ? { parentId: replyTo.id } : {}),
+				},
+				token,
+			);
+			setCommentBody('');
+			setReplyTo(null);
+			if ( parentCommentId ) {
+				await refreshCommentReplies( parentCommentId );
+				setTotalCount( previousCount => previousCount + 1);
+			}
+			else
+				await refreshCommunity();
+		} catch (error) {
+			setActionError(error instanceof Error ? error.message : 'Comment failed');
+		}
+	}
 
   async function saveCommentEdit(
     event: FormEvent,
