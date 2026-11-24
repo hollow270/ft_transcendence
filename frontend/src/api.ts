@@ -19,6 +19,8 @@ import type {
   User,
   UserCommunity,
   VoteSummary,
+	Discussion,
+	RepliesPage,
 } from './types';
 
 const API_BASE = '/api';
@@ -388,6 +390,32 @@ export const api = {
 			params.set( 'offset', String( offset ) );
 
 		return request<Comment[]>( params ? `${ url }?${ params }` : url, );
+	},
+
+	discussion( artifactId: string, limit?: number, cursor?: string )
+	{
+		const	url = `/artifacts/${ encodeURIComponent( artifactId ) }/discussion`;
+		const	params = new URLSearchParams();
+
+		if ( limit !== undefined )
+			params.set( 'limit', String( limit ) );
+		if ( cursor !== undefined )
+			params.set( 'cursor', cursor );
+
+		return ( request<Discussion>( params ? `${ url }?${ params }` : url ) );
+	},
+
+	replies( artifactId: string, commentId: string, limit?: number, cursor?: string)
+	{
+		const	url = `/artifacts/${ encodeURIComponent( artifactId ) }/comments/${ encodeURIComponent( commentId ) }/replies`
+		const	params = new URLSearchParams();
+
+		if ( limit !== undefined )
+			params.set( 'limit', String( limit ) );
+		if ( cursor !== undefined )
+			params.set( 'cursor', cursor );
+
+		return ( request<RepliesPage>( params ? `${ url }?${ params }` : url ) );
 	},
 
   createComment(

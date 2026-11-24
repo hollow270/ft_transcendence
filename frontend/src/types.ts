@@ -90,6 +90,35 @@ export type Comment = {
   };
 };
 
+export type DiscussionComment = {
+	id: string;
+	parentId: string | null;
+	status: 'ACTIVE' | 'HIDDEN' | 'DELETED';
+	body: string | null;
+	createdAt: string;
+	editedAt?: string | null;
+	user: {
+		id: string;
+		username: string;
+		role?: string;
+	} | null;
+	_count: {
+		replies: number;
+	};
+	replies?: DiscussionComment[];
+}
+
+export type Discussion = {
+	totalCount: number;
+	items: DiscussionComment[];
+	nextCursor: string | null;
+}
+
+export type RepliesPage = {
+	items: DiscussionComment[];
+	nextCursor: string | null;
+}
+
 export type VoteSummary = {
   artifactId: string;
   counts: {
