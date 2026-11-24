@@ -17,6 +17,30 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 import { isUUID } from 'class-validator';
 
+const	COMMENT_FIELDS = {
+	id: true,
+	parentId: true,
+	body: true,
+	createdAt: true,
+	editedAt: true,
+	user: {
+		select: {
+			id: true,
+			username: true,
+			role: true
+		}
+	},
+	_count: {
+		select: {
+			replies: {
+				where: {
+					status: CommentStatus.ACTIVE
+				}
+			}
+		}
+	}
+};
+
 @Injectable()
 export class CommunityService
 {
@@ -69,32 +93,23 @@ export class CommunityService
 					{ createdAt: 'desc' },
 					{ id: 'desc' }
 				],
-				select: {
-					id: true,
-					parentId: true,
-					body: true,
-					createdAt: true,
-					editedAt: true,
-					user: {
-						select: {
-							id: true,
-							username: true,
-							role: true,
-						},
-					},
-					_count: {
-						select: {
-							replies: {
-								where: {
-									status: CommentStatus.ACTIVE
-								}
-							}
-						}
-					}
-				},
 				take: limit + 1,
 				cursor: cursor ? { id: cursor } : undefined,
-				skip: cursor ? 1 : 0
+				skip: cursor ? 1 : 0,
+				select: {
+					...COMMENT_FIELDS,
+					replies: {
+						where: {
+							status: CommentStatus.ACTIVE
+						},
+						orderBy: [
+							{ createdAt: 'asc' },
+							{ id: 'asc' }
+						],
+						take: 3,
+						select: COMMENT_FIELDS
+					}
+				}
 			}
 		), this.prisma.comment.count(
 			{
