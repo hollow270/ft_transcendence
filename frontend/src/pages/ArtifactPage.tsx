@@ -92,7 +92,8 @@ export default function ArtifactPage() {
   const [votes, setVotes] = useState<VoteSummary | null>(null);
   const [communityAvailable, setCommunityAvailable] = useState(false);
   const [commentBody, setCommentBody] = useState('');
-	const [replyTo, setReplyTo] = useState<DiscussionComment | null>(null);
+	const	[ replyBody, setReplyBody ] = useState( '' );
+	const	[ replyTo, setReplyTo ] = useState<DiscussionComment | null>( null );
   const [editingCommentId, setEditingCommentId] =
     useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
@@ -372,9 +373,10 @@ export default function ArtifactPage() {
 						<button
 							type="button"
 							className="text-link"
-							onClick={() =>
-								setReplyTo(comment)
-							}
+							onClick={() => {
+								setReplyTo( comment );
+								setReplyBody( '' );
+							}}
 						>
 							Reply
 						</button>
@@ -433,6 +435,39 @@ export default function ArtifactPage() {
 							)
 						}
 					</div>
+				)}
+
+				{replyTo?.id === comment.id && (
+					<form
+						className="mt-3 space-y-3"
+						onSubmit={ ( event ) => void submitReply( event, comment.id ) }
+					>
+						<textarea
+							className="app-input min-h-24 resize-y"
+							placeholder="Write a reply…"
+							value={ replyBody }
+							maxLength={ 4000 }
+							onChange={ ( event ) => setReplyBody( event.target.value ) }
+						/>
+						<div className="flex gap-2">
+							<button
+								className="primary-button"
+								disabled={ communityBusy || !replyBody.trim() }
+							>
+								Reply
+							</button>
+							<button
+								type="button"
+								className="secondary-button"
+								onClick={ () => {
+									setReplyTo( null );
+									setReplyBody( '' );
+								}}
+							>
+								Cancel
+							</button>
+						</div>
+					</form>
 				)}
 
 				{user && reportTargetId === comment.id && (
@@ -511,7 +546,8 @@ export default function ArtifactPage() {
 		);
 	}
 
-	async function submitComment(event: FormEvent) {
+	async	function	submitComment( event: FormEvent )
+	{
 		event.preventDefault();
 		if (!token || !commentBody.trim())
 			return;
@@ -519,26 +555,46 @@ export default function ArtifactPage() {
 		setActionError(null);
 
 		try {
-			const	parentCommentId = replyTo?.id ?? null;
 
 			await api.createComment(
 				artifactId,
-				{
-					body: commentBody.trim(),
-					...(replyTo ? { parentId: replyTo.id } : {}),
-				},
+				{ body: commentBody.trim() },
 				token,
 			);
 			setCommentBody('');
-			setReplyTo(null);
-			if ( parentCommentId ) {
-				await refreshCommentReplies( parentCommentId );
-				setTotalCount( previousCount => previousCount + 1);
-			}
-			else
-				await refreshCommunity();
+			await refreshCommunity();
 		} catch (error) {
 			setActionError(error instanceof Error ? error.message : 'Comment failed');
+		}
+	}
+
+	async	function	submitReply( event: FormEvent, parentId: string )
+	{
+		event.preventDefault();
+		if ( !token || !replyBody.trim() )
+			return ;
+
+		setCommunityBusy( true );
+		setActionError( null );
+
+		try {
+			await api.createComment(
+				artifactId,
+				{
+					body: replyBody.trim(),
+					parentId
+				},
+				token
+			);
+
+			setReplyBody( '' );
+			setReplyTo( null );
+			await refreshCommentReplies( parentId );
+			setTotalCount( previous => previous + 1 );
+		} catch ( error ) {
+			setActionError( error instanceof Error ? error.message : 'Reply failed' );
+		} finally {
+			setCommunityBusy( false );
 		}
 	}
 
@@ -1254,14 +1310,6 @@ export default function ArtifactPage() {
 
 						{user ? (
 						<form className="border-b border-slate-800 p-5" onSubmit={submitComment}>
-							{replyTo && (
-							<div className="mb-3 flex items-center justify-between rounded-md bg-slate-950 px-3 py-2 text-xs text-slate-500">
-								<span>Replying to {replyTo.user?.username}</span>
-								<button type="button" className="text-link" onClick={() => setReplyTo(null)}>
-								Cancel
-								</button>
-							</div>
-							)}
 							<textarea
 							className="app-input min-h-24 resize-y"
 							placeholder="Add useful context about this artifact…"
