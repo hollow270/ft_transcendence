@@ -108,6 +108,8 @@ export type DiscussionComment = {
 	_count: {
 		replies: number;
 	};
+	score: number;
+	myVote: number;
 	replies?: DiscussionComment[];
 }
 
@@ -121,6 +123,14 @@ export type RepliesPage = {
 	items: DiscussionComment[];
 	nextCursor: string | null;
 }
+
+export type CommentVoteResult = {
+	commentId: string;
+	score: number;
+	myVote: number;
+}
+
+export type CommentSort = 'new' | 'top';
 
 export type VoteSummary = {
   artifactId: string;

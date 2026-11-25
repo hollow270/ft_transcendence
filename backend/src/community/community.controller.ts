@@ -1,5 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, UseGuards, Query, BadRequestException, ParseUUIDPipe } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Put, Req, UseGuards, Query, BadRequestException, ParseUUIDPipe } from '@nestjs/common';
 import { SessionAuthGuard } from '../auth/auth.guard';
+import { AuthService } from '../auth/auth.service';
+import { PutCommentVoteDto } from './dto/put-comment-vote.dto';
 import { CommunityService } from './community.service';
 import { DiscussionQueryDto } from './dto/discussion-query.dto';
 import { PostCommentDto } from './dto/post-comment.dto';
@@ -10,7 +12,7 @@ import { PutVoteDto } from './dto/put-vote.dto';
 @Controller('artifacts/:artifactId')
 export class CommunityController
 {
-	constructor(private readonly community: CommunityService) {}
+	constructor( private readonly community: CommunityService, private readonly auth: AuthService ) {}
 
 	@Get('comments')
 	listComments(@Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
@@ -45,17 +47,24 @@ export class CommunityController
 	}
 
 	@Get( 'discussion' )
-	listDiscussion( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string, @Query() query: DiscussionQueryDto )
+	async listDiscussion( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
+		@Query() query: DiscussionQueryDto,
+		@Headers( 'authorization' ) authorization?: string )
 	{
-		return ( this.community.getDiscussion( artifactId, query.limit, query.cursor ) );
+		const	viewer = await this.auth.optionalUserFromAuthorization( authorization );
+
+		return ( this.community.getDiscussion( artifactId, query.limit, query.cursor, query.sort, viewer?.id ?? null ) );
 	}
 
 	@Get( 'comments/:commentId/replies' )
-	getReplies( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
+	async getReplies( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
 		@Param( 'commentId', ParseUUIDPipe ) commentId: string,
-		@Query() query: DiscussionQueryDto )
+		@Query() query: DiscussionQueryDto,
+		@Headers( 'authorization' ) authorization?: string )
 	{
-		return ( this.community.getReplies( artifactId, commentId, query.limit, query.cursor ) );
+		const	viewer = await this.auth.optionalUserFromAuthorization( authorization );
+
+		return ( this.community.getReplies( artifactId, commentId, query.limit, query.cursor, viewer?.id ?? null ) );
 	}
 
 	@UseGuards(SessionAuthGuard)
@@ -85,6 +94,16 @@ export class CommunityController
 		@Req() request: any, )
 	{
 		return this.community.deleteComment( artifactId, commentId, request.user.id, );
+	}
+
+	@UseGuards(SessionAuthGuard)
+	@Put( 'comments/:commentId/vote' )
+	voteComment( @Param( 'artifactId', ParseUUIDPipe ) artifactId: string,
+		@Param( 'commentId', ParseUUIDPipe ) commentId: string,
+		@Req() request: any,
+		@Body() query: PutCommentVoteDto )
+	{
+		return ( this.community.voteComment( artifactId, commentId, request.user.id, query.value ) );
 	}
 
 	@UseGuards(SessionAuthGuard)

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Min, Max, IsUUID } from 'class-validator';
+import { IsInt, IsOptional, Min, Max, IsUUID, IsIn } from 'class-validator';
 
 export class DiscussionQueryDto
 {
@@ -13,4 +13,8 @@ export class DiscussionQueryDto
 	@IsOptional()
 	@IsUUID()
 	cursor?: string;
+
+	@IsOptional()
+	@IsIn( [ 'new', 'top' ] )
+	sort: 'new' | 'top' = 'new';
 }

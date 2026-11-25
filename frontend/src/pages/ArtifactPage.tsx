@@ -7,6 +7,8 @@ import type {
   Artifact,
   ArtifactScanHistoryItem,
   CommentReportReason,
+	CommentSort,
+	CommentVoteResult,
   DiscussionComment,
   RepliesPage,
   VoteSummary,
@@ -87,6 +89,8 @@ export default function ArtifactPage() {
 	const	[ comments, setComments ] = useState<DiscussionComment[]>([]);
 	const	[ repliesRecord, setRepliesRecord ] = useState<Record<string, RepliesPage>>( {} );
 	const	[ collapsedIdsRecord, setCollapsedIdsRecord ] = useState<Record<string, boolean>>( {} );
+	const	[ voteRecord, setVoteRecord ] = useState<Record<string, CommentVoteResult>>( {} );
+	const	[ sort, setSort ] = useState<CommentSort>( 'new' );
 	const	[ loadingMoreComments, setLoadingMoreComments ] = useState( false );
 	const	[ nextCursor, setNextCursor ] = useState<string | null>( null );
 	const	[ totalCount, setTotalCount ] = useState( 0 );
@@ -148,9 +152,14 @@ export default function ArtifactPage() {
 
   useEffect(() => {
     if (!artifactId) return;
-    void refreshCommunity();
     void loadScanHistory();
   }, [artifactId, token]);
+
+	useEffect( () => {
+		if ( !artifactId )
+			return ;
+		void refreshCommunity();
+	}, [ artifactId, token, sort ] );
 
   useEffect(() => {
     setAiAnswer('');
@@ -218,7 +227,7 @@ export default function ArtifactPage() {
 
 		try {
 			const [commentData, voteData] = await Promise.all([
-				api.discussion( artifactId, MAX_COMMENT_PER_REQ ),
+				api.discussion( artifactId, MAX_COMMENT_PER_REQ, undefined, sort, token ),
 				api.votes(artifactId),
 			]);
 
@@ -245,7 +254,7 @@ export default function ArtifactPage() {
 			setActionError( null );
 			setLoadingMoreComments( true );
 
-			const	moreComments = await api.discussion( artifactId, MAX_COMMENT_PER_REQ, nextCursor );
+			const	moreComments = await api.discussion( artifactId, MAX_COMMENT_PER_REQ, nextCursor, sort, token );
 
 			setNextCursor( moreComments.nextCursor );
 			setComments( previousComments => [ ...previousComments, ...moreComments.items ] );
@@ -262,7 +271,7 @@ export default function ArtifactPage() {
 			setActionError( null );
 
 			const	commentRecord = repliesRecord[ comment.id ];
-			const	moreReplies = await api.replies( artifactId, comment.id, MAX_COMMENT_PER_REQ, commentRecord?.nextCursor ?? undefined );
+			const	moreReplies = await api.replies( artifactId, comment.id, MAX_COMMENT_PER_REQ, commentRecord?.nextCursor ?? undefined, token );
 
 			const	oldItems = commentRecord?.items ?? [];
 			const	newPage = { items: [ ...oldItems, ...moreReplies.items ], nextCursor: moreReplies.nextCursor };
@@ -277,7 +286,7 @@ export default function ArtifactPage() {
 		try {
 			setActionError( null );
 
-			const	newReplies = await api.replies( artifactId, commentId, MAX_COMMENT_PER_REQ );
+			const	newReplies = await api.replies( artifactId, commentId, MAX_COMMENT_PER_REQ, undefined, token );
 
 			setRepliesRecord( previousRecords => ( { ...previousRecords, [ commentId ]: newReplies } ) );
 		} catch {
@@ -295,6 +304,31 @@ export default function ArtifactPage() {
 			setCollapsedIdsRecord( { ...collapsedIdsRecord, [ commentId ]: true } );
 	}
 
+	async	function	voteOnComment( comment: DiscussionComment, value: number )
+	{
+		if ( !token )
+			return ;
+
+		const	currentVote = voteRecord[ comment.id ]?.myVote ?? comment.myVote;
+		let		newValue;
+		if ( currentVote === value )
+			newValue = 0;
+		else
+			newValue = value;
+
+		setCommunityBusy( true );
+		setActionError( null );
+
+		try {
+			const	result = await api.voteComment( artifactId, comment.id, newValue, token );
+			setVoteRecord( previousRecords => ( { ...previousRecords, [ comment.id ]: result } ) );
+		} catch ( error ) {
+			setActionError( error instanceof Error ? error.message : 'Vote failed' );
+		} finally {
+			setCommunityBusy( false );
+		}
+	}
+
 	function	drawComment( comment: DiscussionComment )
 	{
 		const	currentCommentTree = repliesRecord[ comment.id ];
@@ -309,6 +343,10 @@ export default function ArtifactPage() {
 			isCollapsed = true;
 		else
 			isCollapsed = false;
+
+		const	currentVote = voteRecord[ comment.id ];
+		const	score = currentVote?.score ?? comment.score;
+		const	myVote = currentVote?.myVote ?? comment.myVote;
 
 		return (
 			<article
@@ -392,6 +430,28 @@ export default function ArtifactPage() {
 								Edited {formatDate(comment.editedAt)}
 							</p>
 						)}
+
+						{ comment.user &&
+							<div className="mt-2 flex items-center gap-2 text-xs">
+								<button
+									type="button"
+									className={ myVote === 1 ? 'text-emerald-300' : 'text-slate-500 hover:text-slate-300' }
+									disabled={ !user || communityBusy }
+									onClick={ () => void voteOnComment( comment, 1 ) }
+								>
+									▲
+								</button>
+								<span className="text-slate-300">{ score }</span>
+								<button
+									type="button"
+									className={ myVote === -1 ? 'text-red-300' : 'text-slate-500 hover:text-slate-300' }
+									disabled={ !user || communityBusy }
+									onClick={ () => void voteOnComment( comment, -1 ) }
+								>
+									▼
+								</button>
+							</div>
+						}
 
 						{user && comment.user && (
 							<div className="mt-2 flex flex-wrap gap-3 text-xs">
@@ -1364,6 +1424,23 @@ export default function ArtifactPage() {
 							Sign in to comment.
 						</div>
 						)}
+						
+						<div className="flex gap-3 border-b border-slate-800 px-5 py-3 text-xs">
+							<button
+								type="button"
+								className={ sort === 'new' ? 'font-semibold text-slate-200' : 'text-link' }
+								onClick={ () => setSort( 'new' ) }
+							>
+								New
+							</button>
+							<button
+								type="button"
+								className={ sort === 'top' ? 'font-semibold text-slate-200' : 'text-link' }
+								onClick={ () => setSort( 'top' ) }
+							>
+								Top
+							</button>
+						</div>
 
 					<div>
 					{comments.length ? ( comments.map( ( comment ) => drawComment( comment ) ) ) : (
