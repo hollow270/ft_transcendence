@@ -1,13 +1,14 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { formatBytes, PageHeader, StatusNotice, VERDICT_STYLE, VerdictPill } from '../components';
 import type {
   Artifact,
   ArtifactScanHistoryItem,
-  Comment,
   CommentReportReason,
+  DiscussionComment,
+  RepliesPage,
   VoteSummary,
 } from '../types';
 
@@ -65,6 +66,8 @@ function DetailRow({
   );
 }
 
+const	MAX_COMMENT_PER_REQ = 10;
+
 export default function ArtifactPage() {
   const { artifactId = '' } = useParams();
   const location = useLocation();
@@ -79,13 +82,19 @@ export default function ArtifactPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedHistoryScanId, setSelectedHistoryScanId] =
     useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('detection');
+	const	[ params, setParams ] = useSearchParams();
 
-  const [comments, setComments] = useState<Comment[]>([]);
+	const	[ comments, setComments ] = useState<DiscussionComment[]>([]);
+	const	[ repliesRecord, setRepliesRecord ] = useState<Record<string, RepliesPage>>( {} );
+	const	[ collapsedIdsRecord, setCollapsedIdsRecord ] = useState<Record<string, boolean>>( {} );
+	const	[ loadingMoreComments, setLoadingMoreComments ] = useState( false );
+	const	[ nextCursor, setNextCursor ] = useState<string | null>( null );
+	const	[ totalCount, setTotalCount ] = useState( 0 );
   const [votes, setVotes] = useState<VoteSummary | null>(null);
   const [communityAvailable, setCommunityAvailable] = useState(false);
   const [commentBody, setCommentBody] = useState('');
-  const [replyTo, setReplyTo] = useState<Comment | null>(null);
+	const	[ replyBody, setReplyBody ] = useState( '' );
+	const	[ replyTo, setReplyTo ] = useState<DiscussionComment | null>( null );
   const [editingCommentId, setEditingCommentId] =
     useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
@@ -104,6 +113,14 @@ export default function ArtifactPage() {
   const routeState = location.state as
     | { reusedScan?: boolean; submissionVisibility?: 'PUBLIC' | 'PRIVATE' }
     | null;
+
+	const	TABS: Tab[] = [ 'detection', 'details', 'history', 'community', 'ai' ];
+	const	tab: Tab = TABS.find( ( t ) => t === params.get( 'tab' ) ) ?? 'detection';
+
+	function	setTab( next: Tab )
+	{
+		setParams( { tab: next }, { replace: true, state: location.state } );
+	}
 
   useEffect(() => {
     let active = true;
@@ -197,110 +214,482 @@ export default function ArtifactPage() {
     }
   }
 
-  async function refreshCommunity() {
-    try {
-      const [commentData, voteData] = await Promise.all([
-        api.comments(artifactId),
-        api.votes(artifactId),
-      ]);
-      setComments(commentData);
-      setVotes(voteData);
-      setCommunityAvailable(true);
-    } catch {
-      setComments([]);
-      setVotes(null);
-      setCommunityAvailable(false);
-    }
-  }
+	async	function	refreshCommunity() {
 
-  async function submitComment(event: FormEvent) {
-    event.preventDefault();
-    if (!token || !commentBody.trim()) return;
+		try {
+			const [commentData, voteData] = await Promise.all([
+				api.discussion( artifactId, MAX_COMMENT_PER_REQ ),
+				api.votes(artifactId),
+			]);
 
-    setActionError(null);
+			setComments( commentData.items );
+			setNextCursor( commentData.nextCursor );
+			setTotalCount( commentData.totalCount );
 
-    try {
-      await api.createComment(
-        artifactId,
-        {
-          body: commentBody.trim(),
-          ...(replyTo ? { parentId: replyTo.id } : {}),
-        },
-        token,
-      );
-      setCommentBody('');
-      setReplyTo(null);
-      await refreshCommunity();
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Comment failed');
-    }
-  }
+			setVotes(voteData);
+			setCommunityAvailable(true);
+		} catch {
+			setNextCursor( null );
+			setTotalCount( 0 );
+			setComments([]);
+			setVotes(null);
+			setCommunityAvailable(false);
+		}
+	}
 
-  async function saveCommentEdit(
-    event: FormEvent,
-    commentId: string,
-  ) {
-    event.preventDefault();
+	async	function	loadMoreComments()
+	{
+		if ( !nextCursor )
+			return ;
+		try {
+			setActionError( null );
+			setLoadingMoreComments( true );
 
-    if (!token || !editBody.trim()) return;
+			const	moreComments = await api.discussion( artifactId, MAX_COMMENT_PER_REQ, nextCursor );
 
-    setCommunityBusy(true);
-    setActionError(null);
+			setNextCursor( moreComments.nextCursor );
+			setComments( previousComments => [ ...previousComments, ...moreComments.items ] );
+		} catch {
+			setActionError( 'could not load more comments' );
+		} finally {
+			setLoadingMoreComments( false );
+		}
+	}
 
-    try {
-      await api.editComment(
-        artifactId,
-        commentId,
-        editBody.trim(),
-        token,
-      );
-      setEditingCommentId(null);
-      setEditBody('');
-      await refreshCommunity();
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : 'Could not edit comment',
-      );
-    } finally {
-      setCommunityBusy(false);
-    }
-  }
+	async	function	loadMoreReplies( comment: DiscussionComment )
+	{
+		try {
+			setActionError( null );
 
-  async function removeComment(
-    commentId: string,
-  ) {
-    if (!token) return;
+			const	commentRecord = repliesRecord[ comment.id ];
+			const	moreReplies = await api.replies( artifactId, comment.id, MAX_COMMENT_PER_REQ, commentRecord?.nextCursor ?? undefined );
 
-    if (
-      !window.confirm(
-        'Delete this comment?',
-      )
-    ) {
-      return;
-    }
+			const	oldItems = commentRecord?.items ?? [];
+			const	newPage = { items: [ ...oldItems, ...moreReplies.items ], nextCursor: moreReplies.nextCursor };
+			setRepliesRecord( previousRecords => ( { ...previousRecords, [ comment.id ]: newPage } ) );
+		} catch {
+			setActionError( 'could not load more replies' )
+		}
+	}
 
-    setCommunityBusy(true);
-    setActionError(null);
+	async	function	refreshCommentReplies( commentId: string )
+	{
+		try {
+			setActionError( null );
 
-    try {
-      await api.deleteComment(
-        artifactId,
-        commentId,
-        token,
-      );
-      await refreshCommunity();
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : 'Could not delete comment',
-      );
-    } finally {
-      setCommunityBusy(false);
-    }
-  }
+			const	newReplies = await api.replies( artifactId, commentId, MAX_COMMENT_PER_REQ );
+
+			setRepliesRecord( previousRecords => ( { ...previousRecords, [ commentId ]: newReplies } ) );
+		} catch {
+			setActionError( 'could not load replies' );
+		}
+	}
+
+	function	toggleCollapse( commentId: string )
+	{
+		if ( collapsedIdsRecord[ commentId ] === undefined )
+			setCollapsedIdsRecord( { ...collapsedIdsRecord, [ commentId ]: true } );
+		else if ( collapsedIdsRecord[ commentId ] === true )
+			setCollapsedIdsRecord( { ...collapsedIdsRecord, [ commentId ]: false } );
+		else
+			setCollapsedIdsRecord( { ...collapsedIdsRecord, [ commentId ]: true } );
+	}
+
+	function	drawComment( comment: DiscussionComment )
+	{
+		const	currentCommentTree = repliesRecord[ comment.id ];
+		const	loadedReplies = currentCommentTree?.items ?? comment.replies ?? [];
+		const	hasMoreReplies = currentCommentTree ? currentCommentTree.nextCursor !== null
+			: loadedReplies.length < comment._count.replies;
+		const	remainingReplies = comment._count.replies - loadedReplies.length;
+		let		isCollapsed;
+		if ( collapsedIdsRecord[ comment.id ] === undefined )
+			isCollapsed = false;
+		else if ( collapsedIdsRecord[ comment.id ] === true )
+			isCollapsed = true;
+		else
+			isCollapsed = false;
+
+		return (
+			<article
+				key={comment.id}
+				className={
+					'border-b border-slate-800 px-5 py-4 last:border-b-0 ' +
+					(comment.parentId ? 'ml-6 border-l border-l-slate-700 sm:ml-10' : '')
+				}
+			>
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					<div className="flex items-center gap-2">
+						<button type="button" className="text-link" onClick={ () => toggleCollapse( comment.id ) }>
+							{ isCollapsed ? '[+]' : '[-]' }
+						</button>
+						{ comment.user ? 
+							(
+								<Link
+									to={'/app/users/' + comment.user.id + '/community'}
+									className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
+								>
+									{comment.user.username}
+								</Link>
+							) : (
+								<span className="text-slate-500">{ comment.status === 'HIDDEN' ? '[hidden]' : '[deleted]'}</span>
+							)
+						}
+					</div>
+					<span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
+				</div>
+				{ !isCollapsed &&
+					<>
+						{editingCommentId === comment.id ? (
+							<form
+								className="mt-3 space-y-3"
+								onSubmit={(event) =>
+									void saveCommentEdit( event, comment.id, comment.parentId )
+								}
+							>
+								<textarea
+								className="app-input min-h-24 resize-y"
+								value={editBody}
+								maxLength={4000}
+								onChange={(event) =>
+									setEditBody(
+									event.target.value,
+									)
+								}
+								/>
+								<div className="flex gap-2">
+									<button
+										className="primary-button"
+										disabled={
+										communityBusy ||
+										!editBody.trim()
+										}
+									>
+										Save
+									</button>
+									<button
+										type="button"
+										className="secondary-button"
+										onClick={() => {
+										setEditingCommentId(
+											null,
+										);
+										setEditBody('');
+										}}
+									>
+										Cancel
+									</button>
+								</div>
+							</form>
+						) : (
+						<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">
+							{comment.body}
+						</p>
+						)}
+
+						{comment.editedAt && (
+							<p className="mt-1 text-xs text-slate-600">
+								Edited {formatDate(comment.editedAt)}
+							</p>
+						)}
+
+						{user && comment.user && (
+							<div className="mt-2 flex flex-wrap gap-3 text-xs">
+								<button
+									type="button"
+									className="text-link"
+									onClick={() => {
+										setReplyTo( comment );
+										setReplyBody( '' );
+									}}
+								>
+									Reply
+								</button>
+
+								{user.id ===
+									comment.user.id ? (
+										<>
+											<button
+												type="button"
+												className="text-link"
+												onClick={() => {
+													setEditingCommentId(
+														comment.id,
+													);
+													setEditBody(
+														comment.body ?? '',
+													);
+													setReportTargetId(
+														null,
+													);
+												}}
+											>
+											Edit
+											</button>
+											<button
+												type="button"
+												className="text-link"
+												disabled={
+													communityBusy
+												}
+												onClick={
+													() => void removeComment( comment.id, comment.parentId )
+												}
+											>
+												Delete
+											</button>
+										</>
+									) : (
+									<button
+										type="button"
+										className="text-link"
+										onClick={() => {
+											setReportTargetId(
+												reportTargetId ===
+												comment.id
+												? null
+												: comment.id,
+											);
+											setEditingCommentId(
+												null,
+											);
+										}}
+									>
+										Report
+									</button>
+									)
+								}
+							</div>
+						)}
+
+						{replyTo?.id === comment.id && (
+							<form
+								className="mt-3 space-y-3"
+								onSubmit={ ( event ) => void submitReply( event, comment.id ) }
+							>
+								<textarea
+									className="app-input min-h-24 resize-y"
+									placeholder="Write a reply…"
+									value={ replyBody }
+									maxLength={ 4000 }
+									onChange={ ( event ) => setReplyBody( event.target.value ) }
+								/>
+								<div className="flex gap-2">
+									<button
+										className="primary-button"
+										disabled={ communityBusy || !replyBody.trim() }
+									>
+										Reply
+									</button>
+									<button
+										type="button"
+										className="secondary-button"
+										onClick={ () => {
+											setReplyTo( null );
+											setReplyBody( '' );
+										}}
+									>
+										Cancel
+									</button>
+								</div>
+							</form>
+						)}
+
+						{user && reportTargetId === comment.id && (
+							<form
+								className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+								onSubmit={(event) =>
+									void submitReport(
+										event,
+										comment.id,
+									)
+								}
+							>
+								<select
+									className="gv-compact-select"
+									value={reportReason}
+									onChange={(event) =>
+										setReportReason(
+											event.target
+											.value as CommentReportReason,
+										)
+									}
+								>
+									<option value="SPAM">Spam</option>
+									<option value="ABUSIVE">Abusive</option>
+									<option value="DANGEROUS_MISINFORMATION">Dangerous misinformation</option>
+									<option value="OTHER">Other</option>
+								</select>
+
+								<textarea
+									className="app-input min-h-20 resize-y"
+									placeholder="Optional details for moderators…"
+									value={reportDetails}
+									maxLength={2000}
+									onChange={(event) =>
+										setReportDetails(
+											event.target.value,
+										)
+									}
+								/>
+
+								<div className="flex gap-2">
+									<button
+										className="primary-button"
+										disabled={
+											communityBusy
+										}
+									>
+										Submit report
+									</button>
+									<button
+										type="button"
+										className="secondary-button"
+										onClick={() => {
+											setReportTargetId(
+												null,
+											);
+											setReportDetails('');
+										}}
+										>
+										Cancel
+									</button>
+								</div>
+							</form>
+						)}
+						{
+							loadedReplies.map( ( reply ) => drawComment( reply ) )
+						}
+						{
+							hasMoreReplies &&
+								<button className="text-link" type="button" onClick={ () => void loadMoreReplies( comment ) }>
+									{ currentCommentTree ? 'Show more replies'
+										: `Show ${ remainingReplies } more ${ remainingReplies === 1 ? 'reply' : 'replies' }` }
+								</button>
+						}
+					</>
+				}
+			</article>
+		);
+	}
+
+	async	function	submitComment( event: FormEvent )
+	{
+		event.preventDefault();
+		if (!token || !commentBody.trim())
+			return;
+
+		setActionError(null);
+
+		try {
+
+			await api.createComment(
+				artifactId,
+				{ body: commentBody.trim() },
+				token,
+			);
+			setCommentBody('');
+			await refreshCommunity();
+		} catch (error) {
+			setActionError(error instanceof Error ? error.message : 'Comment failed');
+		}
+	}
+
+	async	function	submitReply( event: FormEvent, parentId: string )
+	{
+		event.preventDefault();
+		if ( !token || !replyBody.trim() )
+			return ;
+
+		setCommunityBusy( true );
+		setActionError( null );
+
+		try {
+			await api.createComment(
+				artifactId,
+				{
+					body: replyBody.trim(),
+					parentId
+				},
+				token
+			);
+
+			setReplyBody( '' );
+			setReplyTo( null );
+			await refreshCommentReplies( parentId );
+			setTotalCount( previous => previous + 1 );
+		} catch ( error ) {
+			setActionError( error instanceof Error ? error.message : 'Reply failed' );
+		} finally {
+			setCommunityBusy( false );
+		}
+	}
+
+	async function saveCommentEdit( event: FormEvent, commentId: string, parentId: string | null )
+	{
+		event.preventDefault();
+
+		if ( !token || !editBody.trim() )
+			return;
+
+		setCommunityBusy(true);
+		setActionError(null);
+
+		try {
+			const	updated = await api.editComment( artifactId, commentId, editBody.trim(), token );
+			setEditingCommentId( null );
+			setEditBody( '' );
+			if ( parentId )
+				await refreshCommentReplies( parentId );
+			else {
+				setComments( previous =>
+					previous.map( c =>
+						c.id === commentId ? { ...c, body: updated.body, editedAt: updated.editedAt } : c ) );
+			}
+		} catch ( error ) {
+			setActionError( error instanceof Error ? error.message : 'Could not edit comment' );
+		} finally {
+			setCommunityBusy( false );
+		}
+	}
+
+	async function removeComment( commentId: string, parentId: string | null )
+	{
+		if (!token)
+			return;
+
+		if ( !window.confirm( 'Delete this comment?' ) ) {
+			return;
+		}
+
+		setCommunityBusy(true);
+		setActionError(null);
+
+		try {
+			await api.deleteComment( artifactId, commentId, token );
+			if ( parentId ) {
+				await refreshCommentReplies( parentId );
+				setTotalCount( previous => previous - 1 );
+			}
+			else {
+				const	deletedComment = comments.find( c => c.id === commentId );
+				if ( deletedComment && deletedComment._count.replies > 0 ) {
+					setComments( previous =>
+						previous.map( c =>
+							c.id === commentId ? { ...c, body: null, status: 'DELETED', user: null } : c ) );
+				}
+				else {
+					setComments( previous =>
+						previous.filter( c => c.id !== commentId ) );
+				}
+				setTotalCount( previous => previous - 1 );
+			}
+		} catch (error) {
+			setActionError( error instanceof Error ? error.message : 'Could not delete comment' );
+		} finally {
+			setCommunityBusy( false );
+		}
+	}
 
   async function submitReport(
     event: FormEvent,
@@ -604,40 +993,40 @@ export default function ArtifactPage() {
         )}
       </section>
 
-      {actionError && (
-        <div className="mt-5 rounded-md border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
-          {actionError}
-        </div>
-      )}
+	{actionError && (
+		<div className="mt-5 rounded-md border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+		{actionError}
+		</div>
+	)}
 
-      <div className="mt-6 border-b border-slate-800">
-        <nav className="-mb-px flex gap-6 overflow-x-auto">
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              className={
-                'whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition ' +
-                (tab === item.id
-                  ? 'border-blue-500 text-white'
-                  : 'border-transparent text-slate-500 hover:text-slate-300')
-              }
-              onClick={() => setTab(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-      </div>
+	<div className="mt-6 border-b border-slate-800">
+		<nav className="-mb-px flex gap-6 overflow-x-auto">
+		{tabs.map((item) => (
+			<button
+			key={item.id}
+			className={
+				'whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition ' +
+				(tab === item.id
+				? 'border-blue-500 text-white'
+				: 'border-transparent text-slate-500 hover:text-slate-300')
+			}
+			onClick={() => setTab(item.id)}
+			>
+			{item.label}
+			</button>
+		))}
+		</nav>
+	</div>
 
-      {tab === 'detection' && (
-        <section className="mt-6 surface overflow-hidden">
-          {artifact.latestScan?.status === 'RUNNING' && (
-            <div className="border-b border-slate-800 p-5">
-              <StatusNotice title="Analysis is still running">
-                The external provider has accepted this file. GO VIRUS will refresh the report automatically, or you can use “Refresh results”.
-              </StatusNotice>
-            </div>
-          )}
+	{tab === 'detection' && (
+		<section className="mt-6 surface overflow-hidden">
+		{artifact.latestScan?.status === 'RUNNING' && (
+			<div className="border-b border-slate-800 p-5">
+			<StatusNotice title="Analysis is still running">
+				The external provider has accepted this file. GO VIRUS will refresh the report automatically, or you can use “Refresh results”.
+			</StatusNotice>
+			</div>
+		)}
 
           {artifact.latestScan?.status === 'FAILED' && (
             <div className="border-b border-red-900 bg-red-950/20 p-5 text-sm text-red-300">
@@ -656,236 +1045,236 @@ export default function ArtifactPage() {
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Engine</th>
-                  <th>Verdict</th>
-                  <th>Detection name</th>
-                  <th>Response time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {artifact.latestScan?.engineResults?.length ? (
-                  artifact.latestScan.engineResults.map((result) => (
-                    <tr key={result.engine}>
-                      <td className="font-medium text-slate-200">{result.engine}</td>
-                      <td><VerdictBadge value={engineResultLabel(result)} /></td>
-                      <td>{result.detectionName ?? '—'}</td>
-                      <td>{result.responseTimeMs ? result.responseTimeMs + ' ms' : '—'}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4}>
-                      <div className="empty-state">
-                        <p className="text-sm font-semibold text-slate-300">No engine results</p>
-                        <p className="mt-1 text-sm text-slate-500">This scan has no stored engine responses.</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+		<div className="overflow-x-auto">
+			<table className="data-table">
+			<thead>
+				<tr>
+				<th>Engine</th>
+				<th>Verdict</th>
+				<th>Detection name</th>
+				<th>Response time</th>
+				</tr>
+			</thead>
+			<tbody>
+				{artifact.latestScan?.engineResults?.length ? (
+				artifact.latestScan.engineResults.map((result) => (
+					<tr key={result.engine}>
+					<td className="font-medium text-slate-200">{result.engine}</td>
+					<td><VerdictBadge value={engineResultLabel(result)} /></td>
+					<td>{result.detectionName ?? '—'}</td>
+					<td>{result.responseTimeMs ? result.responseTimeMs + ' ms' : '—'}</td>
+					</tr>
+				))
+				) : (
+				<tr>
+					<td colSpan={4}>
+					<div className="empty-state">
+						<p className="text-sm font-semibold text-slate-300">No engine results</p>
+						<p className="mt-1 text-sm text-slate-500">This scan has no stored engine responses.</p>
+					</div>
+					</td>
+				</tr>
+				)}
+			</tbody>
+			</table>
+		</div>
+		</section>
+	)}
 
-      {tab === 'details' && (
-        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="surface">
-            <div className="surface-header">
-              <h2 className="text-sm font-semibold text-slate-200">Artifact details</h2>
-            </div>
-            <dl className="px-5">
-              <DetailRow label="Artifact ID" value={artifact.id} mono />
-              <DetailRow label="First seen" value={formatDate(artifact.firstSeenAt)} />
-              <DetailRow label="Last seen" value={formatDate(artifact.lastSeenAt)} />
-              <DetailRow label="Submitted" value={formatDate(artifact.submission?.createdAt)} />
-              <DetailRow
-                label="Submission visibility"
-                value={artifact.submission?.visibility ?? artifact.latestScan?.visibility ?? '—'}
-              />
-              {artifact.submission?.originalFilename && (
-                <DetailRow label="Original filename" value={artifact.submission.originalFilename} />
-              )}
-              {artifact.file && (
-                <>
-                  <DetailRow label="SHA-256" value={artifact.file.sha256} mono />
-                  <DetailRow label="SHA-1" value={artifact.file.sha1 ?? '—'} mono />
-                  <DetailRow label="MD5" value={artifact.file.md5 ?? '—'} mono />
-                  <DetailRow label="MIME type" value={artifact.file.mimeType} />
-                  <DetailRow label="Size" value={artifact.file.size + ' bytes'} />
-                </>
-              )}
-              {artifact.url && (
-                <>
-                  <DetailRow label="Normalized URL" value={artifact.url.normalizedUrl} mono />
-                  <DetailRow label="Domain" value={artifact.url.domain ?? '—'} />
-                </>
-              )}
-            </dl>
-          </div>
+	{tab === 'details' && (
+		<section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+		<div className="surface">
+			<div className="surface-header">
+			<h2 className="text-sm font-semibold text-slate-200">Artifact details</h2>
+			</div>
+			<dl className="px-5">
+			<DetailRow label="Artifact ID" value={artifact.id} mono />
+			<DetailRow label="First seen" value={formatDate(artifact.firstSeenAt)} />
+			<DetailRow label="Last seen" value={formatDate(artifact.lastSeenAt)} />
+			<DetailRow label="Submitted" value={formatDate(artifact.submission?.createdAt)} />
+			<DetailRow
+				label="Submission visibility"
+				value={artifact.submission?.visibility ?? artifact.latestScan?.visibility ?? '—'}
+			/>
+			{artifact.submission?.originalFilename && (
+				<DetailRow label="Original filename" value={artifact.submission.originalFilename} />
+			)}
+			{artifact.file && (
+				<>
+				<DetailRow label="SHA-256" value={artifact.file.sha256} mono />
+				<DetailRow label="SHA-1" value={artifact.file.sha1 ?? '—'} mono />
+				<DetailRow label="MD5" value={artifact.file.md5 ?? '—'} mono />
+				<DetailRow label="MIME type" value={artifact.file.mimeType} />
+				<DetailRow label="Size" value={artifact.file.size + ' bytes'} />
+				</>
+			)}
+			{artifact.url && (
+				<>
+				<DetailRow label="Normalized URL" value={artifact.url.normalizedUrl} mono />
+				<DetailRow label="Domain" value={artifact.url.domain ?? '—'} />
+				</>
+			)}
+			</dl>
+		</div>
 
-          <aside className="space-y-5">
-            <section className="surface">
-              <div className="surface-body">
-                <h2 className="text-sm font-semibold text-slate-200">Scan status</h2>
-                <dl className="mt-4 space-y-3 text-sm">
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-500">Status</dt>
-                    <dd className="text-slate-300">{artifact.latestScan?.status ?? '—'}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-500">Visibility</dt>
-                    <dd className="text-slate-300">
-                      {artifact.submission?.visibility ?? routeState?.submissionVisibility ?? artifact.latestScan?.visibility ?? '—'}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-500">Provider</dt>
-                    <dd className="text-right text-slate-300">{artifact.latestScan?.provider ?? '—'}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-500">Provider status</dt>
-                    <dd className="text-right text-slate-300">{artifact.latestScan?.providerStatus ?? '—'}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-500">Fresh until</dt>
-                    <dd className="text-right text-slate-300">{formatDate(artifact.latestScan?.staleAt)}</dd>
-                  </div>
-                </dl>
-              </div>
-            </section>
-          </aside>
-        </section>
-      )}
+		<aside className="space-y-5">
+			<section className="surface">
+			<div className="surface-body">
+				<h2 className="text-sm font-semibold text-slate-200">Scan status</h2>
+				<dl className="mt-4 space-y-3 text-sm">
+				<div className="flex justify-between gap-4">
+					<dt className="text-slate-500">Status</dt>
+					<dd className="text-slate-300">{artifact.latestScan?.status ?? '—'}</dd>
+				</div>
+				<div className="flex justify-between gap-4">
+					<dt className="text-slate-500">Visibility</dt>
+					<dd className="text-slate-300">
+					{artifact.submission?.visibility ?? routeState?.submissionVisibility ?? artifact.latestScan?.visibility ?? '—'}
+					</dd>
+				</div>
+				<div className="flex justify-between gap-4">
+					<dt className="text-slate-500">Provider</dt>
+					<dd className="text-right text-slate-300">{artifact.latestScan?.provider ?? '—'}</dd>
+				</div>
+				<div className="flex justify-between gap-4">
+					<dt className="text-slate-500">Provider status</dt>
+					<dd className="text-right text-slate-300">{artifact.latestScan?.providerStatus ?? '—'}</dd>
+				</div>
+				<div className="flex justify-between gap-4">
+					<dt className="text-slate-500">Fresh until</dt>
+					<dd className="text-right text-slate-300">{formatDate(artifact.latestScan?.staleAt)}</dd>
+				</div>
+				</dl>
+			</div>
+			</section>
+		</aside>
+		</section>
+	)}
 
-      {tab === 'history' && (
-        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="surface overflow-hidden">
-            <div className="surface-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-200">Scan history</h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Previous analyses that you are allowed to view for this artifact.
-                </p>
-              </div>
-              <span className="text-xs text-slate-600">
-                {scanHistory.length} scan{scanHistory.length === 1 ? '' : 's'}
-              </span>
-            </div>
+	{tab === 'history' && (
+		<section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+		<section className="surface overflow-hidden">
+			<div className="surface-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+			<div>
+				<h2 className="text-sm font-semibold text-slate-200">Scan history</h2>
+				<p className="mt-1 text-xs text-slate-500">
+				Previous analyses that you are allowed to view for this artifact.
+				</p>
+			</div>
+			<span className="text-xs text-slate-600">
+				{scanHistory.length} scan{scanHistory.length === 1 ? '' : 's'}
+			</span>
+			</div>
 
-            <div className="overflow-x-auto">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Reason</th>
-                    <th>Provider</th>
-                    <th>Status</th>
-                    <th>Visibility</th>
-                    <th>Verdict</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historyLoading ? (
-                    <tr>
-                      <td colSpan={6}>
-                        <div className="empty-state">
-                          <p className="text-sm text-slate-500">Loading scan history…</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : scanHistory.length ? (
-                    scanHistory.map((scan) => (
-                      <tr
-                        key={scan.id}
-                        className={
-                          'cursor-pointer transition hover:bg-slate-800/40 ' +
-                          (selectedHistoryScan?.id === scan.id ? 'bg-slate-800/50' : '')
-                        }
-                        onClick={() => setSelectedHistoryScanId(scan.id)}
-                      >
-                        <td className="whitespace-nowrap">
-                          {formatDate(scan.completedAt ?? scan.createdAt)}
-                        </td>
-                        <td>{scan.reason}</td>
-                        <td>{scan.provider ?? '—'}</td>
-                        <td>{scan.status}</td>
-                        <td>
-                          <span
-                            className={
-                              'status-badge ' +
-                              (scan.visibility === 'PRIVATE'
-                                ? 'border-amber-800 bg-amber-950/40 text-amber-300'
-                                : 'border-sky-800 bg-sky-950/40 text-sky-300')
-                            }
-                          >
-                            {scan.visibility}
-                          </span>
-                        </td>
-                        <td>
-                          <VerdictBadge value={scan.overallVerdict} />
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={6}>
-                        <div className="empty-state">
-                          <p className="text-sm font-semibold text-slate-300">
-                            No scan history
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            Previous scans will appear here after analysis or rescan.
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+			<div className="overflow-x-auto">
+			<table className="data-table">
+				<thead>
+				<tr>
+					<th>Date</th>
+					<th>Reason</th>
+					<th>Provider</th>
+					<th>Status</th>
+					<th>Visibility</th>
+					<th>Verdict</th>
+				</tr>
+				</thead>
+				<tbody>
+				{historyLoading ? (
+					<tr>
+					<td colSpan={6}>
+						<div className="empty-state">
+						<p className="text-sm text-slate-500">Loading scan history…</p>
+						</div>
+					</td>
+					</tr>
+				) : scanHistory.length ? (
+					scanHistory.map((scan) => (
+					<tr
+						key={scan.id}
+						className={
+						'cursor-pointer transition hover:bg-slate-800/40 ' +
+						(selectedHistoryScan?.id === scan.id ? 'bg-slate-800/50' : '')
+						}
+						onClick={() => setSelectedHistoryScanId(scan.id)}
+					>
+						<td className="whitespace-nowrap">
+						{formatDate(scan.completedAt ?? scan.createdAt)}
+						</td>
+						<td>{scan.reason}</td>
+						<td>{scan.provider ?? '—'}</td>
+						<td>{scan.status}</td>
+						<td>
+						<span
+							className={
+							'status-badge ' +
+							(scan.visibility === 'PRIVATE'
+								? 'border-amber-800 bg-amber-950/40 text-amber-300'
+								: 'border-sky-800 bg-sky-950/40 text-sky-300')
+							}
+						>
+							{scan.visibility}
+						</span>
+						</td>
+						<td>
+						<VerdictBadge value={scan.overallVerdict} />
+						</td>
+					</tr>
+					))
+				) : (
+					<tr>
+					<td colSpan={6}>
+						<div className="empty-state">
+						<p className="text-sm font-semibold text-slate-300">
+							No scan history
+						</p>
+						<p className="mt-1 text-sm text-slate-500">
+							Previous scans will appear here after analysis or rescan.
+						</p>
+						</div>
+					</td>
+					</tr>
+				)}
+				</tbody>
+			</table>
+			</div>
+		</section>
 
-          <aside className="surface h-fit overflow-hidden">
-            <div className="surface-header">
-              <h2 className="text-sm font-semibold text-slate-200">
-                Selected scan
-              </h2>
-            </div>
+		<aside className="surface h-fit overflow-hidden">
+			<div className="surface-header">
+			<h2 className="text-sm font-semibold text-slate-200">
+				Selected scan
+			</h2>
+			</div>
 
-            {selectedHistoryScan ? (
-              <>
-                <dl className="px-5">
-                  <DetailRow
-                    label="Scan ID"
-                    value={selectedHistoryScan.id}
-                    mono
-                  />
-                  <DetailRow
-                    label="Created"
-                    value={formatDate(selectedHistoryScan.createdAt)}
-                  />
-                  <DetailRow
-                    label="Completed"
-                    value={formatDate(selectedHistoryScan.completedAt)}
-                  />
-                  <DetailRow
-                    label="Reason"
-                    value={selectedHistoryScan.reason}
-                  />
-                  <DetailRow
-                    label="Provider"
-                    value={selectedHistoryScan.provider ?? '—'}
-                  />
-                  <DetailRow
-                    label="Visibility"
-                    value={selectedHistoryScan.visibility}
-                  />
-                </dl>
+			{selectedHistoryScan ? (
+			<>
+				<dl className="px-5">
+				<DetailRow
+					label="Scan ID"
+					value={selectedHistoryScan.id}
+					mono
+				/>
+				<DetailRow
+					label="Created"
+					value={formatDate(selectedHistoryScan.createdAt)}
+				/>
+				<DetailRow
+					label="Completed"
+					value={formatDate(selectedHistoryScan.completedAt)}
+				/>
+				<DetailRow
+					label="Reason"
+					value={selectedHistoryScan.reason}
+				/>
+				<DetailRow
+					label="Provider"
+					value={selectedHistoryScan.provider ?? '—'}
+				/>
+				<DetailRow
+					label="Visibility"
+					value={selectedHistoryScan.visibility}
+				/>
+				</dl>
 
                 <div className="border-t border-slate-800">
                   <div className="px-5 py-4">
@@ -894,418 +1283,203 @@ export default function ArtifactPage() {
                     </h3>
                   </div>
 
-                  {selectedHistoryScan.engineResults.length ? (
-                    <div className="max-h-80 overflow-y-auto">
-                      {selectedHistoryScan.engineResults.map((result) => (
-                        <div
-                          key={result.engine}
-                          className="border-t border-slate-800 px-5 py-3"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-sm font-medium text-slate-300">
-                              {result.engine}
-                            </span>
-                            <VerdictBadge value={engineResultLabel(result)} />
-                          </div>
-                          {result.detectionName && (
-                            <p className="mt-1 break-words text-xs text-slate-500">
-                              {result.detectionName}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="px-5 pb-5 text-sm text-slate-500">
-                      No engine results stored for this scan.
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="empty-state min-h-40">
-                <p className="text-sm text-slate-500">
-                  Select a scan to inspect its engine results.
-                </p>
-              </div>
-            )}
-          </aside>
-        </section>
-      )}
+				{selectedHistoryScan.engineResults.length ? (
+					<div className="max-h-80 overflow-y-auto">
+					{selectedHistoryScan.engineResults.map((result) => (
+						<div
+						key={result.engine}
+						className="border-t border-slate-800 px-5 py-3"
+						>
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-sm font-medium text-slate-300">
+							{result.engine}
+							</span>
+							<VerdictBadge value={engineResultLabel(result)} />
+						</div>
+						{result.detectionName && (
+							<p className="mt-1 break-words text-xs text-slate-500">
+							{result.detectionName}
+							</p>
+						)}
+						</div>
+					))}
+					</div>
+				) : (
+					<div className="px-5 pb-5 text-sm text-slate-500">
+					No engine results stored for this scan.
+					</div>
+				)}
+				</div>
+			</>
+			) : (
+			<div className="empty-state min-h-40">
+				<p className="text-sm text-slate-500">
+				Select a scan to inspect its engine results.
+				</p>
+			</div>
+			)}
+		</aside>
+		</section>
+	)}
 
-      {tab === 'community' && (
-        <section className="mt-6">
-          {!communityAvailable ? (
-            <StatusNotice title="Community is not available for this artifact">
-              Private submissions are excluded from public community discussion, or the community endpoint is unavailable.
-            </StatusNotice>
-          ) : (
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-              <section className="surface">
-                <div className="surface-header">
-                  <h2 className="text-sm font-semibold text-slate-200">Discussion</h2>
-                </div>
+	{tab === 'community' && (
+		<section className="mt-6">
+			{!communityAvailable ? (
+				<StatusNotice title="Community is not available for this artifact">
+					Private submissions are excluded from public community discussion, or the community endpoint is unavailable.
+				</StatusNotice>
+			) : (
+				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+					<section className="surface">
+						<div className="surface-header">
+						<h2 className="text-sm font-semibold text-slate-200">Discussion - { totalCount }</h2>
+						</div>
 
-                {user ? (
-                  <form className="border-b border-slate-800 p-5" onSubmit={submitComment}>
-                    {replyTo && (
-                      <div className="mb-3 flex items-center justify-between rounded-md bg-slate-950 px-3 py-2 text-xs text-slate-500">
-                        <span>Replying to {replyTo.user.username}</span>
-                        <button type="button" className="text-link" onClick={() => setReplyTo(null)}>
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                    <textarea
-                      className="app-input min-h-24 resize-y"
-                      placeholder="Add useful context about this artifact…"
-                      value={commentBody}
-                      maxLength={4000}
-                      onChange={(event) => setCommentBody(event.target.value)}
-                    />
-                    <div className="mt-3 flex justify-end">
-                      <button className="primary-button">Post comment</button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="border-b border-slate-800 px-5 py-4 text-sm text-slate-500">
-                    Sign in to comment.
-                  </div>
-                )}
+						{user ? (
+						<form className="border-b border-slate-800 p-5" onSubmit={submitComment}>
+							<textarea
+							className="app-input min-h-24 resize-y"
+							placeholder="Add useful context about this artifact…"
+							value={commentBody}
+							maxLength={4000}
+							onChange={(event) => setCommentBody(event.target.value)}
+							/>
+							<div className="mt-3 flex justify-end">
+							<button className="primary-button">Post comment</button>
+							</div>
+						</form>
+						) : (
+						<div className="border-b border-slate-800 px-5 py-4 text-sm text-slate-500">
+							Sign in to comment.
+						</div>
+						)}
 
-                <div>
-                  {comments.length ? (
-                    comments.map((comment) => (
-                      <article
-                        key={comment.id}
-                        className={
-                          'border-b border-slate-800 px-5 py-4 last:border-b-0 ' +
-                          (comment.parentId ? 'ml-6 border-l border-l-slate-700 sm:ml-10' : '')
-                        }
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <Link
-                            to={'/app/users/' + comment.user.id + '/community'}
-                            className="text-sm font-medium text-slate-200 hover:text-blue-300 hover:underline"
-                          >
-                            {comment.user.username}
-                          </Link>
-                          <span className="text-xs text-slate-600">{formatDate(comment.createdAt)}</span>
-                        </div>
-                        {editingCommentId === comment.id ? (
-                          <form
-                            className="mt-3 space-y-3"
-                            onSubmit={(event) =>
-                              void saveCommentEdit(
-                                event,
-                                comment.id,
-                              )
-                            }
-                          >
-                            <textarea
-                              className="app-input min-h-24 resize-y"
-                              value={editBody}
-                              maxLength={4000}
-                              onChange={(event) =>
-                                setEditBody(
-                                  event.target.value,
-                                )
-                              }
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                className="primary-button"
-                                disabled={
-                                  communityBusy ||
-                                  !editBody.trim()
-                                }
-                              >
-                                Save
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={() => {
-                                  setEditingCommentId(
-                                    null,
-                                  );
-                                  setEditBody('');
-                                }}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </form>
-                        ) : (
-                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">
-                            {comment.body}
-                          </p>
-                        )}
+					<div>
+					{comments.length ? ( comments.map( ( comment ) => drawComment( comment ) ) ) : (
+						<div className="empty-state">
+						<p className="text-sm font-semibold text-slate-300">No comments yet</p>
+						<p className="mt-1 text-sm text-slate-500">Be the first to add context to this artifact.</p>
+						</div>
+					)}
+						</div>
+						<div className="mt-3 flex justify-end">
+							{
+								nextCursor &&
+									<button className="primary-button"
+										disabled={loadingMoreComments}
+										type="button"
+										onClick={loadMoreComments}>Load more comments
+									</button>
+							}
+						</div>
+					</section>
 
-                        {comment.editedAt && (
-                          <p className="mt-1 text-xs text-slate-600">
-                            Edited {formatDate(comment.editedAt)}
-                          </p>
-                        )}
+					<aside className="surface h-fit">
+						<div className="surface-header">
+							<h2 className="text-sm font-semibold text-slate-200">Community verdict</h2>
+						</div>
+						<div className="surface-body space-y-3">
+							{(
+								[
+								['HARMLESS', 'Harmless'],
+								['SUSPICIOUS', 'Suspicious'],
+								['MALICIOUS', 'Malicious'],
+								] as const
+							).map(([value, label]) => (
+								<button
+								key={value}
+								type="button"
+								disabled={!user}
+								onClick={() => void vote(value)}
+								className="flex w-full items-center justify-between rounded-md border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm text-slate-300 hover:border-slate-700 disabled:opacity-50"
+								>
+									<span>{label}</span>
+									<span className="font-medium">{votes?.counts[value] ?? 0}</span>
+								</button>
+							))}
+						</div>
+					</aside>
+				</div>
+			)}
+		</section>
+	)}
 
-                        {user && (
-                          <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                            <button
-                              type="button"
-                              className="text-link"
-                              onClick={() =>
-                                setReplyTo(comment)
-                              }
-                            >
-                              Reply
-                            </button>
+	{tab === 'ai' && (
+		<section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+		{!user ? (
+			<div className="xl:col-span-2">
+			<StatusNotice title="Sign in required">
+				AI scan explanations are available to registered users.
+			</StatusNotice>
+			</div>
+		) : (
+			<>
+			<section className="surface">
+				<div className="surface-header flex items-center justify-between gap-4">
+				<div>
+					<h2 className="text-sm font-semibold text-slate-200">Scan explanation</h2>
+					<p className="mt-1 text-xs text-slate-500">Generated from the structured scan evidence stored for this report.</p>
+				</div>
+				<button
+					className="primary-button"
+					disabled={
+					aiBusy ||
+					!artifact.latestScan?.id ||
+					artifact.latestScan.status !== 'COMPLETED'
+					}
+					onClick={explainScan}
+				>
+					{aiBusy ? 'Generating…' : 'Explain scan'}
+				</button>
+				</div>
 
-                            {user.id ===
-                            comment.user.id ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="text-link"
-                                  onClick={() => {
-                                    setEditingCommentId(
-                                      comment.id,
-                                    );
-                                    setEditBody(
-                                      comment.body,
-                                    );
-                                    setReportTargetId(
-                                      null,
-                                    );
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  className="text-link"
-                                  disabled={
-                                    communityBusy
-                                  }
-                                  onClick={() =>
-                                    void removeComment(
-                                      comment.id,
-                                    )
-                                  }
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                className="text-link"
-                                onClick={() => {
-                                  setReportTargetId(
-                                    reportTargetId ===
-                                      comment.id
-                                      ? null
-                                      : comment.id,
-                                  );
-                                  setEditingCommentId(
-                                    null,
-                                  );
-                                }}
-                              >
-                                Report
-                              </button>
-                            )}
-                          </div>
-                        )}
+				<div className="surface-body">
+				<form className="flex flex-col gap-2 sm:flex-row" onSubmit={askAi}>
+					<input
+					className="app-input flex-1"
+					value={aiPrompt}
+					maxLength={4000}
+					placeholder="Ask a follow-up cybersecurity question…"
+					onChange={(event) => setAiPrompt(event.target.value)}
+					/>
+					<button className="secondary-button" disabled={aiBusy || !aiPrompt.trim()}>
+					Ask
+					</button>
+				</form>
 
-                        {user &&
-                          reportTargetId ===
-                            comment.id && (
-                            <form
-                              className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
-                              onSubmit={(event) =>
-                                void submitReport(
-                                  event,
-                                  comment.id,
-                                )
-                              }
-                            >
-                              <select
-                                className="gv-compact-select"
-                                value={reportReason}
-                                onChange={(event) =>
-                                  setReportReason(
-                                    event.target
-                                      .value as CommentReportReason,
-                                  )
-                                }
-                              >
-                                <option value="SPAM">
-                                  Spam
-                                </option>
-                                <option value="ABUSIVE">
-                                  Abusive
-                                </option>
-                                <option value="DANGEROUS_MISINFORMATION">
-                                  Dangerous misinformation
-                                </option>
-                                <option value="OTHER">
-                                  Other
-                                </option>
-                              </select>
+				{aiError && (
+					<div className="mt-4 rounded-md border border-red-900 bg-red-950/30 p-4 text-sm text-red-300">
+					{aiError}
+					</div>
+				)}
 
-                              <textarea
-                                className="app-input min-h-20 resize-y"
-                                placeholder="Optional details for moderators…"
-                                value={reportDetails}
-                                maxLength={2000}
-                                onChange={(event) =>
-                                  setReportDetails(
-                                    event.target.value,
-                                  )
-                                }
-                              />
+				{(aiAnswer || aiBusy) ? (
+					<div className="mt-5 border-t border-slate-800 pt-5">
+					<div className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
+						{aiAnswer || 'Generating explanation…'}
+					</div>
+					</div>
+				) : (
+					<div className="empty-state min-h-36">
+					<p className="text-sm font-semibold text-slate-300">No explanation generated yet</p>
+					<p className="mt-1 text-sm text-slate-500">Use “Explain scan” to summarize the evidence in this report.</p>
+					</div>
+				)}
+				</div>
+			</section>
 
-                              <div className="flex gap-2">
-                                <button
-                                  className="primary-button"
-                                  disabled={
-                                    communityBusy
-                                  }
-                                >
-                                  Submit report
-                                </button>
-                                <button
-                                  type="button"
-                                  className="secondary-button"
-                                  onClick={() => {
-                                    setReportTargetId(
-                                      null,
-                                    );
-                                    setReportDetails('');
-                                  }}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </form>
-                          )}
-                      </article>
-                    ))
-                  ) : (
-                    <div className="empty-state">
-                      <p className="text-sm font-semibold text-slate-300">No comments yet</p>
-                      <p className="mt-1 text-sm text-slate-500">Be the first to add context to this artifact.</p>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <aside className="surface h-fit">
-                <div className="surface-header">
-                  <h2 className="text-sm font-semibold text-slate-200">Community verdict</h2>
-                </div>
-                <div className="surface-body space-y-3">
-                  {(
-                    [
-                      ['HARMLESS', 'Harmless'],
-                      ['SUSPICIOUS', 'Suspicious'],
-                      ['MALICIOUS', 'Malicious'],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      disabled={!user}
-                      onClick={() => void vote(value)}
-                      className="flex w-full items-center justify-between rounded-md border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm text-slate-300 hover:border-slate-700 disabled:opacity-50"
-                    >
-                      <span>{label}</span>
-                      <span className="font-medium">{votes?.counts[value] ?? 0}</span>
-                    </button>
-                  ))}
-                </div>
-              </aside>
-            </div>
-          )}
-        </section>
-      )}
-
-      {tab === 'ai' && (
-        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-          {!user ? (
-            <div className="xl:col-span-2">
-              <StatusNotice title="Sign in required">
-                AI scan explanations are available to registered users.
-              </StatusNotice>
-            </div>
-          ) : (
-            <>
-              <section className="surface">
-                <div className="surface-header flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-sm font-semibold text-slate-200">Scan explanation</h2>
-                    <p className="mt-1 text-xs text-slate-500">Generated from the structured scan evidence stored for this report.</p>
-                  </div>
-                  <button
-                    className="primary-button"
-                    disabled={
-                      aiBusy ||
-                      !artifact.latestScan?.id ||
-                      artifact.latestScan.status !== 'COMPLETED'
-                    }
-                    onClick={explainScan}
-                  >
-                    {aiBusy ? 'Generating…' : 'Explain scan'}
-                  </button>
-                </div>
-
-                <div className="surface-body">
-                  <form className="flex flex-col gap-2 sm:flex-row" onSubmit={askAi}>
-                    <input
-                      className="app-input flex-1"
-                      value={aiPrompt}
-                      maxLength={4000}
-                      placeholder="Ask a follow-up cybersecurity question…"
-                      onChange={(event) => setAiPrompt(event.target.value)}
-                    />
-                    <button className="secondary-button" disabled={aiBusy || !aiPrompt.trim()}>
-                      Ask
-                    </button>
-                  </form>
-
-                  {aiError && (
-                    <div className="mt-4 rounded-md border border-red-900 bg-red-950/30 p-4 text-sm text-red-300">
-                      {aiError}
-                    </div>
-                  )}
-
-                  {(aiAnswer || aiBusy) ? (
-                    <div className="mt-5 border-t border-slate-800 pt-5">
-                      <div className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                        {aiAnswer || 'Generating explanation…'}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="empty-state min-h-36">
-                      <p className="text-sm font-semibold text-slate-300">No explanation generated yet</p>
-                      <p className="mt-1 text-sm text-slate-500">Use “Explain scan” to summarize the evidence in this report.</p>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <aside className="surface h-fit">
-                <div className="surface-body">
-                  <h2 className="text-sm font-semibold text-slate-200">Privacy</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    GO VIRUS logs LLM usage metrics, but does not persist the prompt or generated answer.
-                  </p>
-                </div>
-              </aside>
-            </>
-          )}
-        </section>
-      )}
-    </main>
-  );
+			<aside className="surface h-fit">
+				<div className="surface-body">
+				<h2 className="text-sm font-semibold text-slate-200">Privacy</h2>
+				<p className="mt-2 text-sm leading-6 text-slate-500">
+					GO VIRUS logs LLM usage metrics, but does not persist the prompt or generated answer.
+				</p>
+				</div>
+			</aside>
+			</>
+		)}
+		</section>
+	)}
+	</main>
+);
 }
