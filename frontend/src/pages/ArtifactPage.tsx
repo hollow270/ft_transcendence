@@ -287,6 +287,9 @@ export default function ArtifactPage() {
 	{
 		const	currentCommentTree = repliesRecord[ comment.id ];
 		const	loadedReplies = currentCommentTree?.items ?? comment.replies ?? [];
+		const	hasMoreReplies = currentCommentTree ? currentCommentTree.nextCursor !== null
+			: loadedReplies.length < comment._count.replies;
+		const	remainingReplies = comment._count.replies - loadedReplies.length;
 
 		return (
 			<article
@@ -498,10 +501,10 @@ export default function ArtifactPage() {
 					loadedReplies.map( ( reply ) => drawComment( reply ) )
 				}
 				{
-					loadedReplies.length < comment._count.replies &&
+					hasMoreReplies &&
 						<button className="text-link" type="button" onClick={ () => void loadMoreReplies( comment ) }>
-							Show { comment._count.replies - loadedReplies.length }
-								more { comment._count.replies - loadedReplies.length == 1 ? 'reply' : 'replies' }
+							{ currentCommentTree ? 'Show more replies'
+								: `Show ${ remainingReplies } more ${ remainingReplies === 1 ? 'reply' : 'replies' }` }
 						</button>
 				}
 			</article>
@@ -581,10 +584,23 @@ export default function ArtifactPage() {
 
 		try {
 			await api.deleteComment( artifactId, commentId, token );
-			if ( parentId )
+			if ( parentId ) {
 				await refreshCommentReplies( parentId );
-			else
-				await refreshCommunity();
+				setTotalCount( previous => previous - 1 );
+			}
+			else {
+				const	deletedComment = comments.find( c => c.id === commentId );
+				if ( deletedComment && deletedComment._count.replies > 0 ) {
+					setComments( previous =>
+						previous.map( c =>
+							c.id === commentId ? { ...c, body: null, status: 'DELETED', user: null } : c ) );
+				}
+				else {
+					setComments( previous =>
+						previous.filter( c => c.id !== commentId ) );
+				}
+				setTotalCount( previous => previous - 1 );
+			}
 		} catch (error) {
 			setActionError( error instanceof Error ? error.message : 'Could not delete comment' );
 		} finally {
