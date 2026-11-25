@@ -736,8 +736,9 @@ export const api = {
     prompt: string,
     token: string,
     onDelta: (text: string) => void,
+    scanId?: string,
   ) {
-    return streamAi('/ai/ask', { prompt }, token, onDelta);
+    return streamAi('/ai/ask', { prompt, ...(scanId ? { scanId } : {}) }, token, onDelta);
   },
 
   explainScan(

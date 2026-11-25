@@ -429,9 +429,20 @@ export default function ArtifactPage() {
     setAiError(null);
 
     try {
-      await api.askAi(aiPrompt.trim(), token, (text) => {
-        setAiAnswer((current) => current + text);
-      });
+      // Send the report's latest completed scan so the answer is about this report.
+      const scanId =
+        artifact?.latestScan?.status === 'COMPLETED'
+          ? artifact.latestScan.id
+          : undefined;
+
+      await api.askAi(
+        aiPrompt.trim(),
+        token,
+        (text) => {
+          setAiAnswer((current) => current + text);
+        },
+        scanId,
+      );
     } catch (error) {
       setAiError(error instanceof Error ? error.message : 'AI request failed');
     } finally {
