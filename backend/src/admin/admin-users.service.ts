@@ -9,6 +9,7 @@ import {
   UserRole,
   UserStatus,
 } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 
 const ROLES = new Set<string>(Object.values(UserRole));
@@ -16,7 +17,10 @@ const STATUSES = new Set<string>([UserStatus.ACTIVE, UserStatus.DISABLED]);
 
 @Injectable()
 export class AdminUsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async list(input: {
     q?: string;
@@ -179,22 +183,19 @@ export class AdminUsersService {
       );
     }
 
+    await this.prisma.$transaction(ops);
+
     if (changes.role) {
-      ops.push(
-        this.prisma.notification.create({
-          data: {
-            userId: targetId,
-            actorUserId: actorId,
-            type: NotificationType.SYSTEM,
-            entityType: 'user',
-            entityId: targetId,
-            message: 'Your role was changed to ' + changes.role.to.toLowerCase() + '.',
-          },
-        }),
-      );
+      await this.notifications.createResourceEvent({
+        userId: targetId,
+        actorUserId: actorId,
+        type: NotificationType.SYSTEM,
+        entityType: 'user',
+        entityId: targetId,
+        message: 'Your role was changed to ' + changes.role.to.toLowerCase() + '.',
+      });
     }
 
-    await this.prisma.$transaction(ops);
     return { success: true, changed: true };
   }
 

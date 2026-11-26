@@ -115,6 +115,40 @@ export class NotificationsService {
     return notification;
   }
 
+  async createCommentReceived(input: {
+    recipientUserIds: string[];
+    actorUserId: string;
+    artifactId: string;
+    commentId: string;
+  }) {
+    const recipients = [
+      ...new Set(input.recipientUserIds),
+    ].filter((id) => id !== input.actorUserId);
+
+    for (const recipientUserId of recipients) {
+      const notification =
+        await this.prisma.notification.create({
+          data: {
+            userId: recipientUserId,
+            actorUserId: input.actorUserId,
+            type: NotificationType.COMMENT_RECEIVED,
+            artifactId: input.artifactId,
+            commentId: input.commentId,
+            entityType: 'comment',
+            entityId: input.commentId,
+            message:
+              'Someone commented on your submission.',
+          },
+        });
+
+      this.gateway.emitToUser(
+        recipientUserId,
+        'notification',
+        notification,
+      );
+    }
+  }
+
   listForUser(userId: string) {
     return this.prisma.notification.findMany({
       where: { userId },
@@ -139,5 +173,14 @@ export class NotificationsService {
       where: { id: notificationId },
       data: { readAt: new Date() },
     });
+  }
+
+  async markAllRead(userId: string) {
+    const result = await this.prisma.notification.updateMany({
+      where: { userId, readAt: null },
+      data: { readAt: new Date() },
+    });
+
+    return { updated: result.count };
   }
 }

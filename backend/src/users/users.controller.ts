@@ -3,6 +3,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { UsersService } from './users.service';
@@ -28,7 +29,7 @@ export class UsersController {
 
   @Get(':userId/community')
   async community(
-    @Param('userId') userId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
     @Headers('authorization') authorization?: string,
   ) {
     const viewer =
