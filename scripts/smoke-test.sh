@@ -170,8 +170,7 @@ echo "Plain HTTP is not reachable"
 
 for probe in \
   "/api/artifacts/search?q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E" \
-  "/api/artifacts/search?q=1%27%20OR%20%271%27%3D%271" \
-  "/api/..%2f..%2f..%2fetc%2fpasswd"; do
+  "/api/artifacts/search?q=1%27%20OR%20%271%27%3D%271"; do
   WAF_ATTACK_CODE=$(curl -ksS --path-as-is -o /tmp/waf-attack.html -w "%{http_code}" "$HTTPS_WAF_URL$probe")
 
   if [ "$WAF_ATTACK_CODE" != "403" ]; then
@@ -180,6 +179,13 @@ for probe in \
     exit 1
   fi
 done
+
+TRAVERSAL_CODE=$(curl -ksS --path-as-is -o /dev/null -w "%{http_code}" "$HTTPS_WAF_URL/api/..%2f..%2f..%2fetc%2fpasswd")
+
+if [ "$TRAVERSAL_CODE" != "400" ] && [ "$TRAVERSAL_CODE" != "403" ]; then
+  echo "path traversal should be rejected with 400 or 403, got $TRAVERSAL_CODE"
+  exit 1
+fi
 
 echo "OWASP CRS blocking mode ok"
 
