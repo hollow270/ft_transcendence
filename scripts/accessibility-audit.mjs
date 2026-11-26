@@ -87,6 +87,9 @@ const pageFiles = tsxFiles.filter((file) => file.includes(join('src', 'pages')))
 const nestedMains = pageFiles.filter((file) => file.includes('Page.tsx') && !/Legal|Landing|Auth/.test(file) && /<main[\s>]/.test(contents.get(file)));
 check('app pages do not add a second main landmark', nestedMains.length === 0, nestedMains.map((file) => relative(sourceDirectory, file)).join(', '));
 
+const attributeValue = /="[^"]*"|='[^']*'|=\{(?:[^{}]|\{[^{}]*\})*\}/g;
+const tagWithAttributes = /<([A-Za-z][\w.]*)((?:\s+[\w:-]+(?:="[^"]*"|='[^']*'|=\{(?:[^{}]|\{[^{}]*\})*\})?)+)\s*\/?>/g;
+const repeatedAttributes = [];
 const unlabeledControls = [];
 const imagesWithoutAlt = [];
 const dialogsWithoutName = [];
@@ -95,13 +98,23 @@ for (const file of tsxFiles) {
   const source = contents.get(file);
   const name = relative(sourceDirectory, file);
 
-  for (const match of source.matchAll(/<(input|select|textarea)\b[^>]*?>/gs)) {
+  for (const match of source.matchAll(tagWithAttributes)) {
+    const names = [...match[2].replace(attributeValue, '').matchAll(/(?:^|\s)([\w:-]+)(?=\s|$)/g)].map((entry) => entry[1]);
+    const repeated = [...new Set(names.filter((attribute, index) => names.indexOf(attribute) !== index))];
+    if (repeated.length > 0) {
+      repeatedAttributes.push(name + ':' + source.slice(0, match.index).split('\n').length + ' ' + repeated.join('/'));
+    }
+  }
+
+  for (const match of source.matchAll(tagWithAttributes)) {
+    if (!['input', 'select', 'textarea'].includes(match[1])) continue;
     const tag = match[0];
     const line = source.slice(0, match.index).split('\n').length;
     const before = source.slice(Math.max(0, match.index - 400), match.index);
     const insideLabel = before.lastIndexOf('<label') > before.lastIndexOf('</label>');
-    const hasId = /\sid=/.test(tag) && new RegExp('htmlFor="' + (tag.match(/\sid="([^"]+)"/)?.[1] ?? '__none__') + '"').test(source);
-    if (!/aria-label|aria-labelledby|type="hidden"/.test(tag) && !insideLabel && !hasId) {
+    const id = tag.match(/\sid="([^"]+)"/)?.[1];
+    const hasLabelFor = id !== undefined && source.includes('htmlFor="' + id + '"');
+    if (!/aria-label|aria-labelledby|type="hidden"/.test(tag) && !insideLabel && !hasLabelFor) {
       unlabeledControls.push(name + ':' + line);
     }
   }
@@ -119,6 +132,7 @@ for (const file of tsxFiles) {
   }
 }
 
+check('no element repeats an attribute', repeatedAttributes.length === 0, repeatedAttributes.join(', '));
 check('every form control has an accessible name', unlabeledControls.length === 0, unlabeledControls.join(', '));
 check('every image has alternative text', imagesWithoutAlt.length === 0, imagesWithoutAlt.join(', '));
 check('every dialog has a name', dialogsWithoutName.length === 0, dialogsWithoutName.join(', '));
