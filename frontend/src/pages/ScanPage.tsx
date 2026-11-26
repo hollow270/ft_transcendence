@@ -101,7 +101,7 @@ export default function ScanPage() {
               <div className="space-y-4">
                 <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-blue-600 px-4 py-2.5 text-sm text-white">{asked}</p>
                 {error ? (
-                  <div className="gv-inline-error mt-0">{error}</div>
+                  <div role="alert" className="gv-inline-error mt-0">{error}</div>
                 ) : (
                   <div className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
                     {answer || <span className="text-slate-500">Thinking…</span>}

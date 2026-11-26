@@ -94,6 +94,8 @@ const unlabeledControls = [];
 const imagesWithoutAlt = [];
 const dialogsWithoutName = [];
 const errorsWithoutRole = [];
+const nameOnBareElement = [];
+const unnamedNavigation = [];
 for (const file of tsxFiles) {
   const source = contents.get(file);
   const name = relative(sourceDirectory, file);
@@ -119,6 +121,12 @@ for (const file of tsxFiles) {
     }
   }
 
+  for (const match of source.matchAll(tagWithAttributes)) {
+    const line = name + ':' + source.slice(0, match.index).split('\n').length;
+    if (['span', 'div'].includes(match[1]) && /\saria-label=/.test(match[0]) && !/\srole=/.test(match[0])) nameOnBareElement.push(line);
+    if (match[1] === 'nav' && !/\saria-label=/.test(match[0])) unnamedNavigation.push(line);
+  }
+
   for (const match of source.matchAll(/<img\b[^>]*?>/gs)) {
     if (!/\salt=/.test(match[0])) imagesWithoutAlt.push(name + ':' + source.slice(0, match.index).split('\n').length);
   }
@@ -127,7 +135,7 @@ for (const file of tsxFiles) {
     if (!/aria-label/.test(match[0])) dialogsWithoutName.push(name);
   }
 
-  for (const match of source.matchAll(/<div\b[^>]*border-red-900 bg-red-950[^>]*>/gs)) {
+  for (const match of source.matchAll(/<div\b[^>]*(?:border-red-900 bg-red-950|gv-inline-error|border-rose-500\/30 bg-rose-500\/10)[^>]*>/gs)) {
     if (!/role="alert"/.test(match[0])) errorsWithoutRole.push(name + ':' + source.slice(0, match.index).split('\n').length);
   }
 }
@@ -136,6 +144,8 @@ check('no element repeats an attribute', repeatedAttributes.length === 0, repeat
 check('every form control has an accessible name', unlabeledControls.length === 0, unlabeledControls.join(', '));
 check('every image has alternative text', imagesWithoutAlt.length === 0, imagesWithoutAlt.join(', '));
 check('every dialog has a name', dialogsWithoutName.length === 0, dialogsWithoutName.join(', '));
+check('aria-label is never set on a span or div without a role', nameOnBareElement.length === 0, nameOnBareElement.join(', '));
+check('every navigation landmark has its own name', unnamedNavigation.length === 0, unnamedNavigation.join(', '));
 check('every error message is announced to screen readers', errorsWithoutRole.length === 0, errorsWithoutRole.join(', '));
 
 const stylesheet = contents.get(join(sourceDirectory, 'index.css'));
@@ -143,6 +153,34 @@ check('keyboard focus is visibly styled', /:focus-visible\s*{[^}]*outline/.test(
 check('reduced motion preference is honoured', stylesheet.includes('prefers-reduced-motion: reduce'));
 check('white text is never placed on blue-500', !/bg-blue-500[^"']*text-white|text-white[^"']*bg-blue-500/.test(allSource) && !/hover:bg-blue-500/.test(allSource));
 check('no single-key shortcut remains', !/event\.key === '\/'/.test(allSource));
+
+const componentsSource = contents.get(join(sourceDirectory, 'components.tsx'));
+check(
+  'every app page sets the browser tab title',
+  /export function DocumentTitle[\s\S]*?document\.title\s*=/.test(componentsSource) &&
+    /export function PageHeader[\s\S]*?<DocumentTitle/.test(componentsSource),
+);
+
+const appSource = contents.get(join(sourceDirectory, 'App.tsx'));
+check(
+  'focus moves to the page content after navigation',
+  /export function RouteFocus[\s\S]*?getElementById\('main-content'\)[\s\S]*?\.focus\(/.test(componentsSource) &&
+    /<RouteFocus\s*\/>/.test(appSource),
+);
+
+const fieldBorders = [];
+for (const selector of ['app-input', 'app-select']) {
+  const shade = stylesheet.match(new RegExp('\\.' + selector + '\\s*{\\s*@apply[^;]*?\\sborder-slate-(\\d+)\\s'))?.[1];
+  fieldBorders.push([selector, shade ? slate[shade] : undefined]);
+}
+for (const selector of ['gv-compact-select', 'shell-search']) {
+  const hex = stylesheet.match(new RegExp('\\.' + selector + '\\s*{[^}]*?border:\\s*1px solid\\s*(#[0-9a-fA-F]{6})'))?.[1];
+  fieldBorders.push([selector, hex]);
+}
+for (const [selector, color] of fieldBorders) {
+  const ratio = color ? contrastRatio(color, slate[950]) : 0;
+  check('border of .' + selector + ' is ' + ratio.toFixed(2) + ':1 on slate-950 (minimum 3:1)', ratio >= 3);
+}
 
 const lowContrastLeftovers = ['#5a6483', '#66708e', '#4a5370'].filter((hex) => new RegExp(hex, 'i').test(stylesheet));
 check('stylesheet has no leftover low-contrast greys', lowContrastLeftovers.length === 0, lowContrastLeftovers.join(', '));

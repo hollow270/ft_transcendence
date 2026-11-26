@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from './auth';
-import { AppShell, FeaturePending, RequireAuth, RequireRole, SkipLink } from './components';
+import { AppShell, FeaturePending, RequireAuth, RequireRole, RouteFocus, SkipLink } from './components';
 import AdminPage from './pages/AdminPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import ApiKeysPage from './pages/ApiKeysPage';
@@ -35,6 +35,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <SkipLink />
+        <RouteFocus />
         <Routes>
           <Route index element={<LandingPage />} />
           <Route path="login" element={<AuthPage mode="login" />} />

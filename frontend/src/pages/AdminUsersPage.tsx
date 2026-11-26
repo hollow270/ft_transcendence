@@ -1,9 +1,9 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import {FormEvent, useCallback, useEffect, useState} from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { Avatar, Icon, PageHeader, Spinner, timeAgo } from '../components';
-import type { AdminUserRow, AdminUsersResponse } from '../types';
+import {Avatar, Icon, PageHeader, Spinner, timeAgo} from '../components';
+import type {AdminUserRow, AdminUsersResponse} from '../types';
 
 const ROLE_STYLE: Record<AdminUserRow['role'], string> = {
   ADMIN: 'border-blue-500/30 bg-blue-500/10 text-blue-300',

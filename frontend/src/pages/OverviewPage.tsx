@@ -171,7 +171,7 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {error && <div className="gv-inline-error mb-6">{error}</div>}
+      {error && <div role="alert" className="gv-inline-error mb-6">{error}</div>}
 
       {/* Stats strip */}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-800 bg-slate-800 md:grid-cols-5 [&>*]:bg-slate-900 max-md:[&>*:last-child]:col-span-2">

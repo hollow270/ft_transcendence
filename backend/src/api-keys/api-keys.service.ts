@@ -1,15 +1,12 @@
 import {
-  BadRequestException,
-  HttpException,
-  HttpStatus,
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
+    BadRequestException,
+    HttpException,
+    HttpStatus,
+    Injectable,
+    NotFoundException,
+    UnauthorizedException,
 } from '@nestjs/common';
-import {
-  NotificationType,
-  UserStatus,
-} from '@prisma/client';
+import { NotificationType, UserStatus, } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { recordNotification } from '../notifications/notification-events';
 import { PrismaService } from '../prisma.service';

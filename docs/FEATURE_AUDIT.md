@@ -47,7 +47,7 @@ Status meanings:
 | 8 | Complete LLM system interface | 2 | DONE | Text generation, SSE streaming, errors and global throttling |
 | 9 | WAF/ModSecurity + HashiCorp Vault | 2 | DONE | Blocking WAF with TLS 1.2/1.3; Vault server, init and unseal service, AppRole login from the backend, no secrets in the backend environment |
 | 10 | Advanced analytics dashboard | 2 | DONE | Interactive multi-series chart, Today/7/30/custom ranges, live WebSocket refresh, vote metrics and PDF/CSV export |
-| 11 | WCAG 2.1 AA accessibility | 2 | DONE | Contrast-checked palette, skip link, landmarks, labelled controls, announced errors, named dialog, no single-key shortcut, visible focus, reduced motion; verified by `scripts/accessibility-audit.mjs` |
+| 11 | WCAG 2.1 AA accessibility | 2 | DONE | Contrast-checked palette, skip link, landmarks, labelled controls, announced errors, page titles, focus moved on navigation, trapped and restored menu focus, named dialog and chart, no single-key shortcut, visible focus, reduced motion; verified by `scripts/accessibility-audit.mjs` |
 | 12 | Complete 2FA system | 1 | DONE | TOTP authenticator flow |
 
 ### Claimable module points
@@ -79,7 +79,7 @@ Status meanings:
 | LLM | smoke test checks SSE streaming, authorization and that the route answers 429 after too many requests |
 | WAF + Vault | smoke test sends XSS, SQL injection and path traversal payloads (blocked), checks HTTPS-only access, Vault initialised and unsealed, secrets present in Vault, absent from the backend environment, port 8200 not published, unsealed again after a restart |
 | Analytics | smoke test checks `/admin/overview`, activity ranges and the CSV export |
-| WCAG 2.1 AA | `node scripts/accessibility-audit.mjs` (contrast ratios and markup rules, 34 checks) |
+| WCAG 2.1 AA | `node scripts/accessibility-audit.mjs` (contrast ratios and markup rules, 43 checks) |
 | ORM | smoke test expects exactly 5 applied Prisma migrations |
 | Notifications | smoke test checks the stored create, update and delete notifications; the in-memory proof suite checks the live push |
 | Advanced search | smoke test queries with type and verdict filters, sorting and pagination |

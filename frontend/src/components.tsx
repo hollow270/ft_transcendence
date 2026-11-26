@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import {
   Link,
   Navigate,
@@ -336,7 +336,7 @@ function Sidebar({
         {!collapsed && <Wordmark />}
       </Link>
 
-      <nav className="flex-1 pb-6">
+      <nav aria-label="Main" className="flex-1 pb-6">
         {navGroups(user).map((group) => (
           <div key={group.title} className="shell-nav-group">
             <div className="shell-nav-title">{group.title}</div>
@@ -468,6 +468,9 @@ export function AppShell() {
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const drawerWasOpen = useRef(false);
   const { unread } = useNotifications();
 
   useEffect(() => {
@@ -487,6 +490,33 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  useEffect(() => {
+    if (drawer) {
+      drawerWasOpen.current = true;
+      drawerRef.current?.querySelector<HTMLElement>('a[href], button')?.focus();
+    } else if (drawerWasOpen.current) {
+      drawerWasOpen.current = false;
+      toggleRef.current?.focus();
+    }
+  }, [drawer]);
+
+  function keepFocusInDrawer(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Tab') return;
+    const items = drawerRef.current?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!items || items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   function submitSearch(event: FormEvent) {
     event.preventDefault();
     const query = search.trim();
@@ -503,6 +533,8 @@ export function AppShell() {
           role="dialog"
           aria-modal="true"
           aria-label="Navigation"
+          ref={drawerRef}
+          onKeyDown={keepFocusInDrawer}
           onClick={() => setDrawer(false)}
         >
           <div onClick={(event) => event.stopPropagation()}>
@@ -515,6 +547,7 @@ export function AppShell() {
         <header className="shell-topbar">
           <button
             className="icon-button"
+            ref={toggleRef}
             aria-label="Toggle navigation"
             aria-expanded={drawer || !collapsed}
             onClick={() => {
@@ -571,6 +604,14 @@ export function AppShell() {
 /* Page scaffolding                                                   */
 /* ------------------------------------------------------------------ */
 
+export function DocumentTitle({ title }: { title: string }) {
+  useEffect(() => {
+    document.title = title + ' · GO VIRUS';
+  }, [title]);
+
+  return null;
+}
+
 export function PageHeader({
   title,
   description,
@@ -582,6 +623,7 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <DocumentTitle title={title} />
       <div>
         <h1 className="display-tight text-[28px] leading-tight text-white sm:text-[32px]">{title}</h1>
         {description && <p className="mt-2 max-w-2xl text-[15px] leading-6 text-slate-400">{description}</p>}
@@ -627,4 +669,20 @@ export function FeaturePending({
       </StatusNotice>
     </div>
   );
+}
+
+export function RouteFocus() {
+  const { pathname } = useLocation();
+  const firstRender = useRef(true);
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    document.getElementById('main-content')?.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
 }

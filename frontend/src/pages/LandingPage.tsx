@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { BrandMark, formatBytes, Icon, VERDICT_STYLE, Wordmark } from '../components';
+import { BrandMark, DocumentTitle, formatBytes, Icon, VERDICT_STYLE, Wordmark } from '../components';
 import { savePendingScan } from '../lib/pending';
 import { ScanChamber, ScanOptions, useScannerCapabilities } from '../scanner';
 import type { Artifact, EngineResult, UploadResponse } from '../types';
@@ -20,7 +20,7 @@ function detectionSummary(results: EngineResult[]) {
 }
 
 function Redacted({ width }: { width: number | string }) {
-  return <span className="redact" style={{ width }} aria-label="Hidden until you sign in" />;
+  return <span className="redact" style={{ width }} role="img" aria-label="Hidden until you sign in" />;
 }
 
 const VERDICT_HEADLINE: Record<string, string> = {
@@ -230,7 +230,7 @@ function LandingNav() {
           <BrandMark className="h-8 w-8" />
           <Wordmark />
         </Link>
-        <nav className="hidden items-center gap-6 text-sm text-slate-400 md:flex">
+        <nav aria-label="Main" className="hidden items-center gap-6 text-sm text-slate-400 md:flex">
           <a href="#how" className="hover:text-white">How it works</a>
           <a href="#report" className="hover:text-white">The report</a>
           <a href="#plans" className="hover:text-white">Free account</a>
@@ -298,7 +298,7 @@ function Cell({ value }: { value: boolean | string }) {
   return value ? (
     <Icon name="check" className="mx-auto h-5 w-5 text-emerald-400" strokeWidth={2.4} />
   ) : (
-    <span className="mx-auto block h-px w-4 bg-slate-600" aria-label="Not included" />
+    <span className="mx-auto block h-px w-4 bg-slate-600" role="img" aria-label="Not included" />
   );
 }
 
@@ -362,6 +362,7 @@ export default function LandingPage() {
       <LandingNav />
 
       <main id="main-content" tabIndex={-1}>
+      <DocumentTitle title="Know what a file does before you open it" />
       {/* ---------------------------------------------------------- Hero */}
       <section className="relative overflow-hidden pt-16">
         <div className="landing-grid-bg" />
@@ -419,18 +420,20 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <ol className="relative mt-16 grid gap-10 md:grid-cols-3 md:gap-8">
+          <div className="relative mt-16">
             <div className="absolute left-0 right-0 top-[22px] hidden h-px bg-gradient-to-r from-beam/60 via-blue-500/40 to-transparent md:block" />
-            {STEPS.map((step, index) => (
-              <li key={step.title} className="relative">
-                <span className="display-tight relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-ink text-beam">
-                  {index + 1}
-                </span>
-                <h3 className="display-tight mt-6 text-xl text-white">{step.title}</h3>
-                <p className="mt-2 max-w-sm leading-7 text-slate-400">{step.body}</p>
-              </li>
-            ))}
-          </ol>
+            <ol className="relative grid gap-10 md:grid-cols-3 md:gap-8">
+              {STEPS.map((step, index) => (
+                <li key={step.title} className="relative">
+                  <span className="display-tight relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-ink text-beam">
+                    {index + 1}
+                  </span>
+                  <h3 className="display-tight mt-6 text-xl text-white">{step.title}</h3>
+                  <p className="mt-2 max-w-sm leading-7 text-slate-400">{step.body}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       </section>
 
@@ -621,7 +624,7 @@ export default function LandingPage() {
             <BrandMark className="h-7 w-7" />
             <Wordmark className="text-[15px]" />
           </div>
-          <nav className="flex flex-wrap gap-x-6 gap-y-2">
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2">
             <a href="#how" className="hover:text-slate-300">How it works</a>
             <a href="#report" className="hover:text-slate-300">The report</a>
             <a href="#developers" className="hover:text-slate-300">API</a>

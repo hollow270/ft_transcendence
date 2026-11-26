@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { formatBytes, PageHeader, StatusNotice, VERDICT_STYLE, VerdictPill } from '../components';
+import { DocumentTitle, formatBytes, PageHeader, StatusNotice, VERDICT_STYLE, VerdictPill } from '../components';
 import type {
   Artifact,
   ArtifactScanHistoryItem,
@@ -1086,6 +1086,7 @@ export default function ArtifactPage() {
 
           <div className="min-w-0">
             <p className="text-sm text-slate-400">{artifact.file ? 'File report' : 'URL report'}</p>
+            <DocumentTitle title={displayName} />
             <h1 className="display-tight mt-1 break-all text-2xl text-white sm:text-[28px]">{displayName}</h1>
             <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
               {artifact.latestScan?.status === 'RUNNING' ? (
@@ -1171,7 +1172,7 @@ export default function ArtifactPage() {
 	)}
 
 	<div className="mt-6 border-b border-slate-800">
-		<nav className="-mb-px flex gap-6 overflow-x-auto">
+		<nav aria-label="Artifact sections" className="-mb-px flex gap-6 overflow-x-auto">
 		{tabs.map((item) => (
 			<button
 			key={item.id}

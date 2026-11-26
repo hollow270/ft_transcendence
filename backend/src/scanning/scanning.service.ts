@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, } from '@nestjs/common';
 import { Visibility } from '@prisma/client';
 import { ClamAvProvider } from './clamav.provider';
 import { DevelopmentScanProvider } from './development-scan.provider';

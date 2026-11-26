@@ -1,14 +1,5 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import {
-  NotificationType,
-  Prisma,
-  UserRole,
-  UserStatus,
-} from '@prisma/client';
+import {BadRequestException, Injectable, NotFoundException,} from '@nestjs/common';
+import {NotificationType, Prisma, UserRole, UserStatus,} from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 

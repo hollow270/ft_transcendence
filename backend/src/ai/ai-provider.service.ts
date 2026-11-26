@@ -4,10 +4,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import OpenAI from 'openai';
-import {
-  AiChatMessage,
-  AiProviderStreamChunk,
-} from './types/ai-stream-event';
+import { AiChatMessage, AiProviderStreamChunk, } from './types/ai-stream-event';
 
 @Injectable()
 export class AiProviderService {
