@@ -11,6 +11,7 @@ import {
   UserStatus,
 } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
+import { recordNotification } from '../notifications/notification-events';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -88,19 +89,15 @@ export class ApiKeysService {
         },
       });
 
-    await this.prisma.notification.create({
-      data: {
-        userId,
-        type:
-          NotificationType.RESOURCE_CREATED,
-        entityType: 'api_key',
-        entityId: apiKey.id,
-        message: 'Your API key was created.',
-        metadata: {
-          name: apiKey.name,
-          keyPrefix:
-            apiKey.keyPrefix,
-        },
+    await recordNotification(this.prisma, {
+      userId,
+      type: NotificationType.RESOURCE_CREATED,
+      entityType: 'api_key',
+      entityId: apiKey.id,
+      message: 'Your API key was created.',
+      metadata: {
+        name: apiKey.name,
+        keyPrefix: apiKey.keyPrefix,
       },
     });
 
@@ -139,19 +136,15 @@ export class ApiKeysService {
       });
     }
 
-    await this.prisma.notification.create({
-      data: {
-        userId,
-        type:
-          NotificationType.RESOURCE_DELETED,
-        entityType: 'api_key',
-        entityId: apiKey.id,
-        message: 'Your API key was revoked.',
-        metadata: {
-          name: apiKey.name,
-          keyPrefix:
-            apiKey.keyPrefix,
-        },
+    await recordNotification(this.prisma, {
+      userId,
+      type: NotificationType.RESOURCE_DELETED,
+      entityType: 'api_key',
+      entityId: apiKey.id,
+      message: 'Your API key was revoked.',
+      metadata: {
+        name: apiKey.name,
+        keyPrefix: apiKey.keyPrefix,
       },
     });
 

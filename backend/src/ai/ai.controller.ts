@@ -6,6 +6,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { Observable } from 'rxjs';
 import { SessionAuthGuard } from '../auth/auth.guard';
@@ -13,6 +14,13 @@ import { AiService } from './ai.service';
 import { AskPromptDto } from './dto/ask-prompt.dto';
 import { ExplainScanDto } from './dto/explain-scan.dto';
 import { AiStreamEvent } from './types/ai-stream-event';
+
+const AI_RATE_LIMIT = {
+  default: {
+    limit: Number(process.env.LLM_RATE_LIMIT_PER_MINUTE ?? 10),
+    ttl: 60_000,
+  },
+};
 
 type AuthenticatedRequest = Request & {
   user: {
@@ -25,6 +33,7 @@ type AuthenticatedRequest = Request & {
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
+  @Throttle(AI_RATE_LIMIT)
   @Post('ask')
   ask(
     @Body() dto: AskPromptDto,
@@ -38,6 +47,7 @@ export class AiController {
     );
   }
 
+  @Throttle(AI_RATE_LIMIT)
   @Post('scans/explain')
   explainScan(
     @Body() dto: ExplainScanDto,

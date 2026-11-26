@@ -60,17 +60,17 @@ export default function NotificationsPage() {
 
   if (!user) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <PageHeader title="Notifications" description="Scan, reply, moderation and system events." />
         <StatusNotice title="Sign in required">
           Notifications belong to a registered account.
         </StatusNotice>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title="Notifications"
         description="Scan, reply, moderation and system events."
@@ -103,7 +103,7 @@ export default function NotificationsPage() {
         </div>
 
         {error && (
-          <div className="border-b border-red-900 bg-red-950/30 px-5 py-3 text-sm text-red-300">
+          <div role="alert" className="border-b border-red-900 bg-red-950/30 px-5 py-3 text-sm text-red-300">
             {error}
           </div>
         )}
@@ -144,6 +144,6 @@ export default function NotificationsPage() {
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }

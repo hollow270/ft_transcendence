@@ -10,6 +10,7 @@ import {
   PageHeader,
   StatusNotice,
 } from '../components';
+import VerdictDistribution from '../VerdictDistribution';
 import type {
   AdminActivityPoint,
   AdminOverview,
@@ -598,7 +599,7 @@ export default function AdminPage() {
     user.role !== 'ADMIN'
   ) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <PageHeader
           title="Admin"
           description="Platform administration and operational analytics."
@@ -607,12 +608,12 @@ export default function AdminPage() {
           Admin role is required
           to view this page.
         </StatusNotice>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title="Admin"
         description="Operational metrics, interactive analytics, API usage and security activity."
@@ -764,7 +765,7 @@ export default function AdminPage() {
       </section>
 
       {error && (
-        <div className="mb-5 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+        <div role="alert" className="mb-5 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
           {error}
         </div>
       )}
@@ -968,6 +969,27 @@ export default function AdminPage() {
             </div>
           </section>
 
+          <section className="surface">
+            <div className="surface-header">
+              <h2 className="text-sm font-semibold text-slate-200">
+                Verdict distribution
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                How every completed scan was classified. Hover a row to
+                highlight its share.
+              </p>
+            </div>
+
+            <div className="surface-body">
+              <VerdictDistribution
+                verdicts={
+                  overview.scans
+                    .verdicts
+                }
+              />
+            </div>
+          </section>
+
           <div className="grid gap-6 xl:grid-cols-2">
             <section className="surface overflow-hidden">
               <div className="surface-header">
@@ -1093,6 +1115,6 @@ export default function AdminPage() {
           </div>
         </div>
       ) : null}
-    </main>
+    </div>
   );
 }

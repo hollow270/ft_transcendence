@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
-import { BrandMark, Icon, Spinner, VerdictPill, Wordmark } from '../components';
+import { BrandMark, Icon, Spinner, VerdictPill, Wordmark, LegalLinks } from '../components';
 import { claimPendingScan, readPendingScan } from '../lib/pending';
 
 function safeNext(value: string | null) {
@@ -80,7 +80,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   return (
     <div className="grid min-h-screen bg-ink lg:grid-cols-[1fr_1.05fr]">
       {/* Form */}
-      <div className="flex flex-col px-6 py-8 sm:px-12">
+      <main id="main-content" tabIndex={-1} className="flex flex-col px-6 py-8 sm:px-12">
         <Link to="/" className="flex items-center gap-2.5 self-start">
           <BrandMark className="h-8 w-8" />
           <Wordmark />
@@ -197,6 +197,19 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
               {busy && <Spinner />}
               {twoFactor ? 'Verify and sign in' : mode === 'login' ? 'Sign in' : 'Create account'}
             </button>
+            {mode === 'signup' && !twoFactor && (
+              <p className="text-center text-xs leading-5 text-slate-400">
+                By creating an account you agree to the{' '}
+                <Link className="text-link" to="/terms">
+                  Terms of Service
+                </Link>{' '}
+                and the{' '}
+                <Link className="text-link" to="/privacy">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
+            )}
           </form>
 
           {!twoFactor && (
@@ -213,7 +226,9 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
             </button>
           )}
         </div>
-      </div>
+
+        <LegalLinks className="text-xs text-slate-400" />
+      </main>
 
       {/* Context panel */}
       <div className="relative hidden overflow-hidden border-l border-slate-800 lg:block">

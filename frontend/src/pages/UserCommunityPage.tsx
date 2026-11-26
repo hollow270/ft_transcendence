@@ -162,27 +162,27 @@ export default function UserCommunityPage() {
 
   if (loading) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <div className="surface p-8 text-sm text-slate-500">
           Loading community activity…
         </div>
-      </main>
+      </div>
     );
   }
 
   if (!data) {
     return (
-      <main className="app-page">
+      <div className="app-page">
         <PageHeader title="Community activity" />
-        <div className="rounded-lg border border-red-900 bg-red-950/30 p-5 text-sm text-red-300">
+        <div role="alert" className="rounded-lg border border-red-900 bg-red-950/30 p-5 text-sm text-red-300">
           {error ?? 'User not found.'}
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <PageHeader
         title={data.user.username}
         description={
@@ -352,6 +352,6 @@ export default function UserCommunityPage() {
           community view.
         </p>
       )}
-    </main>
+    </div>
   );
 }

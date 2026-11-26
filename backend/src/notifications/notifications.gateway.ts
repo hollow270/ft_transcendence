@@ -6,12 +6,17 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { Notification } from '@prisma/client';
 import { Server, Socket } from 'socket.io';
 import { AuthService } from '../auth/auth.service';
+import {
+  NOTIFICATION_CREATED,
+  notificationEvents,
+} from './notification-events';
 
 const socketOrigins = (
   process.env.APP_ALLOWED_ORIGINS ??
-  'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,https://localhost:8443,https://127.0.0.1:8443'
+  'https://localhost:8443,https://127.0.0.1:8443,http://localhost:5173,http://127.0.0.1:5173'
 )
   .split(',')
   .map((value) => value.trim())
@@ -55,6 +60,17 @@ export class NotificationsGateway
     }, SESSION_CHECK_MS);
 
     sessionTimer.unref();
+
+    notificationEvents.on(
+      NOTIFICATION_CREATED,
+      (notification: Notification) => {
+        this.emitToUser(
+          notification.userId,
+          'notification',
+          notification,
+        );
+      },
+    );
   }
 
   async handleConnection(client: Socket) {

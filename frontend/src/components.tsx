@@ -40,6 +40,27 @@ export function Wordmark({ className = '' }: { className?: string }) {
   );
 }
 
+export function SkipLink() {
+  return (
+    <a href="#main-content" className="skip-link">
+      Skip to main content
+    </a>
+  );
+}
+
+export function LegalLinks({ className = '' }: { className?: string }) {
+  return (
+    <nav aria-label="Legal" className={'flex flex-wrap gap-x-6 gap-y-2 ' + className}>
+      <Link to="/privacy" className="hover:text-slate-200">
+        Privacy Policy
+      </Link>
+      <Link to="/terms" className="hover:text-slate-200">
+        Terms of Service
+      </Link>
+    </nav>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Icons                                                              */
 /* ------------------------------------------------------------------ */
@@ -456,10 +477,11 @@ export function AppShell() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === '/' && !(event.target instanceof HTMLInputElement) && !(event.target instanceof HTMLTextAreaElement)) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
         searchRef.current?.focus();
       }
+      if (event.key === 'Escape') setDrawer(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -478,6 +500,9 @@ export function AppShell() {
       {drawer && (
         <div
           className="shell-drawer fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
           onClick={() => setDrawer(false)}
         >
           <div onClick={(event) => event.stopPropagation()}>
@@ -491,6 +516,7 @@ export function AppShell() {
           <button
             className="icon-button"
             aria-label="Toggle navigation"
+            aria-expanded={drawer || !collapsed}
             onClick={() => {
               if (window.innerWidth < 1024) setDrawer(true);
               else setCollapsed((value) => !value);
@@ -502,13 +528,14 @@ export function AppShell() {
           <form className="shell-search" onSubmit={submitSearch} role="search">
             <Icon name="search" className="h-4 w-4" />
             <input
+              aria-label="Search hashes, file names and domains"
               ref={searchRef}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search hashes, file names, domains"
               aria-label="Search"
             />
-            <kbd className="hidden sm:inline">/</kbd>
+            <kbd className="hidden sm:inline" aria-hidden="true">Ctrl K</kbd>
           </form>
 
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
@@ -519,7 +546,7 @@ export function AppShell() {
             <button className="icon-button" onClick={() => navigate('/app/notifications')} aria-label="Notifications">
               <Icon name="bell" />
               {unread > 0 && (
-                <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-blue-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-blue-600 px-1 text-center text-[10px] font-bold leading-4 text-white">
                   {unread > 9 ? '9+' : unread}
                 </span>
               )}
@@ -528,9 +555,14 @@ export function AppShell() {
           </div>
         </header>
 
-        <div className="min-h-[calc(100vh-64px)]">
+        <main id="main-content" tabIndex={-1} className="min-h-[calc(100vh-64px-65px)]">
           <Outlet />
-        </div>
+        </main>
+
+        <footer className="flex flex-col gap-3 border-t hairline px-5 py-5 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <p>GO VIRUS · ft_transcendence</p>
+          <LegalLinks />
+        </footer>
       </div>
     </div>
   );

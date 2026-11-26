@@ -944,28 +944,56 @@ export class ArtifactsService {
     };
   }
 
-  async deleteApiSubmission(
+  deleteApiSubmission(
     submissionId: string,
     userId: string,
+  ) {
+    return this.removeSubmission(
+      submissionId,
+      userId,
+      SubmissionSource.API,
+    );
+  }
+
+  deleteOwnSubmission(
+    submissionId: string,
+    userId: string,
+  ) {
+    return this.removeSubmission(
+      submissionId,
+      userId,
+    );
+  }
+
+  private async removeSubmission(
+    submissionId: string,
+    userId: string,
+    source?: SubmissionSource,
   ) {
     const submission =
       await this.prisma.submission.findFirst({
         where: {
           id: submissionId,
           userId,
-          source: SubmissionSource.API,
+          ...(source ? { source } : {}),
         },
         select: {
           id: true,
           artifactId: true,
+          source: true,
         },
       });
 
     if (!submission) {
       throw new NotFoundException(
-        'API submission not found',
+        source
+          ? 'API submission not found'
+          : 'submission not found',
       );
     }
+
+    const fromApi =
+      submission.source === SubmissionSource.API;
 
     await this.prisma.$transaction([
       this.prisma.submission.delete({
@@ -976,7 +1004,9 @@ export class ArtifactsService {
       this.prisma.auditLog.create({
         data: {
           actorUserId: userId,
-          action: 'API_SUBMISSION_DELETED',
+          action: fromApi
+            ? 'API_SUBMISSION_DELETED'
+            : 'SUBMISSION_DELETED',
           targetType: 'submission',
           targetId: submission.id,
           metadata: {
@@ -994,10 +1024,11 @@ export class ArtifactsService {
       entityType: 'submission',
       entityId: submission.id,
       artifactId: submission.artifactId,
-      message:
-        'Your API submission was deleted.',
+      message: fromApi
+        ? 'Your API submission was deleted.'
+        : 'Your submission was deleted.',
       metadata: {
-        source: SubmissionSource.API,
+        source: submission.source,
       },
     });
 

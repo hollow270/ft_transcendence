@@ -86,6 +86,10 @@ async function streamAi(
     body: JSON.stringify(payload),
   });
 
+  if (response.status === 429) {
+    throw new Error('You are sending requests too quickly. Wait a moment and try again.');
+  }
+
   if (!response.ok) {
     const body = await response.text();
     let message = `AI request failed with status ${response.status}`;
@@ -315,18 +319,61 @@ export const api = {
       forceRescan: boolean;
     },
     token?: string | null,
+    onProgress?: (fraction: number) => void,
   ) {
-    const form = new FormData();
-    form.set('file', file);
-    form.set('visibility', options.visibility);
-    form.set('forceRescan', String(options.forceRescan));
+    return new Promise<UploadResponse>((resolve, reject) => {
+      const form = new FormData();
+      form.set('file', file);
+      form.set('visibility', options.visibility);
+      form.set('forceRescan', String(options.forceRescan));
 
-    return request<UploadResponse>(
-      '/artifacts/files',
-      {
-        method: 'POST',
-        body: form,
-      },
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE}/artifacts/files`);
+
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          onProgress?.(event.loaded / event.total);
+        }
+      };
+
+      xhr.onload = () => {
+        let data: any = null;
+
+        try {
+          data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+        } catch {
+          data = null;
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress?.(1);
+          resolve(data as UploadResponse);
+          return;
+        }
+
+        const message =
+          data?.message ??
+          data?.error ??
+          `Request failed with status ${xhr.status}`;
+        reject(new Error(Array.isArray(message) ? message.join(', ') : message));
+      };
+
+      xhr.onerror = () =>
+        reject(new Error('The upload could not reach the server. Check your connection and try again.'));
+      xhr.onabort = () => reject(new Error('The upload was cancelled.'));
+
+      xhr.send(form);
+    });
+  },
+
+  deleteSubmission(submissionId: string, token: string) {
+    return request<{ success: boolean; submissionId: string; artifactId: string }>(
+      '/artifacts/submissions/' + encodeURIComponent(submissionId),
+      { method: 'DELETE' },
       token,
     );
   },

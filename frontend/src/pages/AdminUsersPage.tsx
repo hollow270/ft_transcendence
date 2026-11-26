@@ -106,6 +106,7 @@ export default function AdminUsersPage() {
             <div className="relative flex-1">
               <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <input
+                aria-label="Search users by username or email"
                 className="app-input pl-9"
                 placeholder="Search by username or email"
                 value={query}
@@ -116,6 +117,7 @@ export default function AdminUsersPage() {
           </form>
           <div className="flex gap-2">
             <select
+              aria-label="Filter by role"
               className="app-select"
               value={filters.role}
               onChange={(event) => setFilters((current) => ({ ...current, role: event.target.value, page: 1 }))}
@@ -127,6 +129,7 @@ export default function AdminUsersPage() {
               <option value="ADMIN">Admins</option>
             </select>
             <select
+              aria-label="Filter by status"
               className="app-select"
               value={filters.status}
               onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value, page: 1 }))}
@@ -194,6 +197,7 @@ export default function AdminUsersPage() {
                     </td>
                     <td>
                       <select
+                        aria-label="User role"
                         className={'rounded-md border px-2 py-1 text-xs font-semibold outline-none ' + ROLE_STYLE[row.role]}
                         value={row.role}
                         disabled={busy || self}

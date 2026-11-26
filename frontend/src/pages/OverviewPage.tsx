@@ -111,8 +111,12 @@ export default function OverviewPage() {
     api.accountOverview(token).then(setData).catch((err) => setError(err instanceof Error ? err.message : 'Could not load your overview'));
   }, [token]);
 
-  async function scan(file: File, options: { visibility: 'PUBLIC' | 'PRIVATE'; forceRescan: boolean }) {
-    const result = await api.uploadFile(file, options, token);
+  async function scan(
+    file: File,
+    options: { visibility: 'PUBLIC' | 'PRIVATE'; forceRescan: boolean },
+    onProgress: (fraction: number) => void,
+  ) {
+    const result = await api.uploadFile(file, options, token, onProgress);
     navigate('/app/artifact/' + result.artifact.id, {
       state: { reusedScan: result.reusedScan, submissionVisibility: result.submission.visibility },
     });

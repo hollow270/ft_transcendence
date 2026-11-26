@@ -12,7 +12,7 @@
   --rule: #1f2741;
   --rule-strong: #2c3554;
   --text: #e6eaf5;
-  --muted: #8792b0;
+  --muted: #9aa4c0;
   --accent: #5c76ff;
   --beam: #6be4ff;
   --clean: #34d399;
@@ -66,6 +66,28 @@ button:disabled {
 :focus-visible {
   outline: 2px solid var(--beam);
   outline-offset: 2px;
+}
+
+main:focus {
+  outline: none;
+}
+
+.skip-link {
+  position: fixed;
+  left: 16px;
+  top: -64px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: #fff;
+  color: #090c17;
+  font-size: 14px;
+  font-weight: 600;
+  transition: top 0.15s;
+}
+
+.skip-link:focus {
+  top: 16px;
 }
 
 /* Expanded display type: the brand voice. */
@@ -122,7 +144,7 @@ button:disabled {
   }
 
   .primary-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(69,97,245,0.9)] transition hover:bg-blue-500 active:translate-y-px disabled:opacity-50 disabled:shadow-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(69,97,245,0.9)] transition hover:bg-blue-700 active:translate-y-px disabled:opacity-50 disabled:shadow-none;
   }
 
   .secondary-button {
@@ -270,7 +292,7 @@ button:disabled {
 .shell-nav-title {
   padding: 0 12px 8px;
   font-size: 12px;
-  color: #5a6483;
+  color: #7b86a8;
   font-weight: 500;
 }
 
@@ -360,7 +382,7 @@ button:disabled {
 }
 
 .shell-search input::placeholder {
-  color: #5a6483;
+  color: #7b86a8;
 }
 
 .shell-search kbd {
@@ -369,7 +391,7 @@ button:disabled {
   border-radius: 5px;
   font-family: inherit;
   font-size: 11px;
-  color: #66708e;
+  color: #8892b2;
 }
 
 .icon-button {
