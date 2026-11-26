@@ -189,7 +189,7 @@ Twelve modules, 19 points (14 required).
 | LLM interface | Major | 2 | streamed explanations and assistant, rate limited, anonymous usage logs |
 | WAF / ModSecurity and HashiCorp Vault | Major | 2 | OWASP CRS blocking WAF in front of everything, Vault for every secret |
 | Advanced analytics dashboard | Major | 2 | admin dashboard: activity, verdict distribution, platform metrics |
-| Accessibility (WCAG 2.1 AA) | Major | 2 | contrast-checked palette, skip link, landmarks, labels, live regions, keyboard support; `scripts/accessibility-audit.mjs` |
+| Accessibility (WCAG 2.1 AA) | Major | 2 | contrast-checked palette, skip link, landmarks, labels, live regions, page titles, focus management, keyboard support; `scripts/accessibility-audit.mjs` |
 | ORM | Minor | 1 | Prisma with versioned migrations |
 | Notification system | Minor | 1 | stored and live notifications on create, update and delete actions |
 | Advanced search | Minor | 1 | filters, sorting and pagination over public artifacts |
@@ -400,7 +400,7 @@ The accessibility audit runs without Docker and is also called by the smoke test
 node scripts/accessibility-audit.mjs
 ```
 
-It checks the colour contrast of the palette against WCAG 2.1 AA (4.5:1 for text) and the markup rules: language, skip link, one main landmark, labelled form controls, image alternatives, named dialogs, announced errors, visible focus, reduced motion.
+It checks the colour contrast of the palette against WCAG 2.1 AA (4.5:1 for text) and the markup rules: language, skip link, one main landmark, labelled form controls, image alternatives, named dialogs, announced errors, page titles, focus moved on navigation, visible focus, reduced motion.
 
 > `docker compose down -v` deletes the local PostgreSQL and Vault volumes. Use it only when you intentionally want a clean start.
 

@@ -177,10 +177,38 @@ function ActivityChart({
     },
   ];
 
+  const totals = activity.reduce(
+    (sum, point) => ({
+      users: sum.users + point.users,
+      submissions: sum.submissions + point.files + point.urls,
+      scans: sum.scans + point.scans,
+      apiRequests: sum.apiRequests + point.apiRequests,
+    }),
+    { users: 0, submissions: 0, scans: 0, apiRequests: 0 },
+  );
+
+  const chartLabel =
+    activity.length === 0
+      ? 'Daily activity chart. No data in this range.'
+      : 'Daily activity from ' +
+        activity[0].date +
+        ' to ' +
+        activity[activity.length - 1].date +
+        '. Totals: ' +
+        totals.users +
+        ' new users, ' +
+        totals.submissions +
+        ' submissions, ' +
+        totals.scans +
+        ' scans, ' +
+        totals.apiRequests +
+        ' API requests.';
+
   return (
     <div className="space-y-4">
       <div
         className="flex flex-wrap gap-2"
+        role="group"
         aria-label="Chart series"
       >
         {series.map((item) => (
@@ -223,7 +251,7 @@ function ActivityChart({
           }
           className="min-w-[620px] w-full"
           role="img"
-          aria-label="GO VIRUS daily analytics chart"
+          aria-label={chartLabel}
         >
           {[0, 0.25, 0.5, 0.75, 1].map(
             (ratio) => {

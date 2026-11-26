@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
-import { BrandMark, Icon, Spinner, VerdictPill, Wordmark, LegalLinks } from '../components';
+import { BrandMark, DocumentTitle, Icon, Spinner, VerdictPill, Wordmark, LegalLinks } from '../components';
 import { claimPendingScan, readPendingScan } from '../lib/pending';
 
 function safeNext(value: string | null) {
@@ -81,6 +81,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
     <div className="grid min-h-screen bg-ink lg:grid-cols-[1fr_1.05fr]">
       {/* Form */}
       <main id="main-content" tabIndex={-1} className="flex flex-col px-6 py-8 sm:px-12">
+        <DocumentTitle title={twoFactor ? 'Enter your code' : mode === 'login' ? 'Sign in' : 'Create account'} />
         <Link to="/" className="flex items-center gap-2.5 self-start">
           <BrandMark className="h-8 w-8" />
           <Wordmark />
@@ -187,7 +188,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
             )}
 
             {error && (
-              <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-200">
+              <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-200">
                 <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>

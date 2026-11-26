@@ -213,7 +213,7 @@ export default function UrlPage() {
               )}
 
             {message && (
-              <div className="gv-inline-error">
+              <div role="alert" className="gv-inline-error">
                 {message}
               </div>
             )}

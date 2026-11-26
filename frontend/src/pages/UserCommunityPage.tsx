@@ -241,7 +241,7 @@ export default function UserCommunityPage() {
       )}
 
       <div className="mt-6 border-b border-slate-800">
-        <nav className="-mb-px flex gap-6">
+        <nav aria-label="Community sections" className="-mb-px flex gap-6">
           <button
             className={
               'border-b-2 px-1 pb-3 text-sm font-medium ' +
