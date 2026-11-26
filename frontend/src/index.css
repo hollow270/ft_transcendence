@@ -136,11 +136,11 @@ main:focus {
   }
 
   .app-input {
-    @apply w-full rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 hover:border-slate-600 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15;
+    @apply w-full rounded-lg border border-slate-600 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 hover:border-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15;
   }
 
   .app-select {
-    @apply rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none transition hover:border-slate-600 focus:border-blue-500;
+    @apply rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none transition hover:border-slate-500 focus:border-blue-500;
   }
 
   .primary-button {
@@ -226,7 +226,7 @@ main:focus {
 .gv-compact-select {
   min-width: 94px;
   padding: 7px 28px 7px 10px;
-  border: 1px solid #333b57;
+  border: 1px solid #7b86a8;
   border-radius: 8px;
   outline: 0;
   color: #e6eaf5;
@@ -357,7 +357,7 @@ main:focus {
   max-width: 560px;
   height: 40px;
   padding: 0 12px;
-  border: 1px solid var(--rule-strong);
+  border: 1px solid #7b86a8;
   border-radius: 10px;
   color: var(--muted);
   background: rgba(16, 21, 42, 0.8);

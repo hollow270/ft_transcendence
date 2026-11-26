@@ -162,8 +162,7 @@ export function ScanChamber({
         ref={inputRef}
         aria-label="Choose a file to scan"
         type="file"
-        className="sr-only"
-        tabIndex={-1}
+        hidden
         onChange={(event) => {
           accept(event.target.files?.[0]);
           event.target.value = '';
@@ -335,7 +334,7 @@ export function ScanChamber({
         </p>
       )}
 
-      {error && <div className="gv-inline-error relative">{error}</div>}
+      {error && <div role="alert" className="gv-inline-error relative">{error}</div>}
     </div>
   );
 }
