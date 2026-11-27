@@ -1,8 +1,20 @@
-import { FormEvent, ReactNode, useCallback, useEffect, useState } from 'react';
+import {
+  FormEvent,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useState
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { Avatar, Icon, PageHeader, Spinner, timeAgo } from '../components';
+import {
+  Avatar,
+  Icon,
+  PageHeader,
+  Spinner,
+  timeAgo
+} from '../components';
 import type { AccountSession } from '../types';
 
 function describeAgent(agent: string | null) {

@@ -1,7 +1,4 @@
-import {
-  existsSync,
-  readFileSync,
-} from 'fs';
+import { existsSync, readFileSync, } from 'fs';
 import { isAbsolute } from 'path';
 
 const FILE_SECRET_NAMES = [

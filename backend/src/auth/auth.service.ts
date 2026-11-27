@@ -1,13 +1,5 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
-import {
-  NotificationType,
-  Prisma,
-  UserStatus,
-} from '@prisma/client';
+import {BadRequestException, Injectable, UnauthorizedException,} from '@nestjs/common';
+import {NotificationType, Prisma, UserStatus,} from '@prisma/client';
 import {
   createCipheriv,
   createDecipheriv,
@@ -18,10 +10,7 @@ import {
   timingSafeEqual,
 } from 'crypto';
 import { promisify } from 'util';
-import {
-  publishNotification,
-  recordNotification,
-} from '../notifications/notification-events';
+import {publishNotification, recordNotification,} from '../notifications/notification-events';
 import { PrismaService } from '../prisma.service';
 
 const scryptAsync = promisify(scrypt) as (

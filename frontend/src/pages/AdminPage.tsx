@@ -1,20 +1,10 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import {useEffect, useMemo, useState,} from 'react';
 import { io } from 'socket.io-client';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import {
-  PageHeader,
-  StatusNotice,
-} from '../components';
+import {PageHeader, StatusNotice,} from '../components';
 import VerdictDistribution from '../VerdictDistribution';
-import type {
-  AdminActivityPoint,
-  AdminOverview,
-} from '../types';
+import type {AdminActivityPoint, AdminOverview,} from '../types';
 
 type RangeMode =
   | 'TODAY'

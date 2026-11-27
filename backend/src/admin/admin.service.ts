@@ -1,14 +1,5 @@
-import {
-  BadRequestException,
-  Injectable,
-} from '@nestjs/common';
-import {
-  ArtifactType,
-  ReportStatus,
-  ScanStatus,
-  UserStatus,
-  Verdict,
-} from '@prisma/client';
+import {BadRequestException, Injectable,} from '@nestjs/common';
+import {ArtifactType, ReportStatus, ScanStatus, UserStatus, Verdict,} from '@prisma/client';
 import PDFDocument = require('pdfkit');
 import { PrismaService } from '../prisma.service';
 

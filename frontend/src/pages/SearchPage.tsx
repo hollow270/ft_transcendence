@@ -2,10 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { PageHeader } from '../components';
-import type {
-  AdvancedSearchResponse,
-  AdvancedSearchSort,
-} from '../types';
+import type { AdvancedSearchResponse, AdvancedSearchSort, } from '../types';
 
 function formatDate(value?: string | null) {
   if (!value) return '—';

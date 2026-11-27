@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Min, Max, IsUUID, IsIn } from 'class-validator';
+import {IsInt, IsOptional, Min, Max, IsUUID, IsIn} from 'class-validator';
 
 export class DiscussionQueryDto
 {

@@ -1,8 +1,16 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import {FormEvent, useEffect, useState} from 'react';
+import {Link, useLocation, useNavigate, useSearchParams} from 'react-router-dom';
 import { useAuth } from '../auth';
-import { BrandMark, DocumentTitle, Icon, Spinner, VerdictPill, Wordmark, LegalLinks } from '../components';
-import { claimPendingScan, readPendingScan } from '../lib/pending';
+import {
+  BrandMark,
+  DocumentTitle,
+  Icon,
+  Spinner,
+  VerdictPill,
+  Wordmark,
+  LegalLinks
+} from '../components';
+import {claimPendingScan, readPendingScan} from '../lib/pending';
 
 function safeNext(value: string | null) {
   // Only allow in-app paths to avoid open redirects.

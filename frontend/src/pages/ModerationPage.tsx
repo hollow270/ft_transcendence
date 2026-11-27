@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { PageHeader, StatusNotice } from '../components';
+import {PageHeader, StatusNotice} from '../components';
 import type { ModerationReport } from '../types';
 
 type ReportStatus =

@@ -1,4 +1,4 @@
-import { IsString, MaxLength, IsUUID, IsOptional } from 'class-validator';
+import {IsString, MaxLength, IsUUID, IsOptional} from 'class-validator';
 
 export class PostCommentDto
 {

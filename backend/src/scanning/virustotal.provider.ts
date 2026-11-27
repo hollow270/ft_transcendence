@@ -1,8 +1,4 @@
-import {
-  BadGatewayException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger, } from '@nestjs/common';
 import { Verdict } from '@prisma/client';
 import {
   RescanFileInput,

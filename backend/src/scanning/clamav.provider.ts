@@ -1,17 +1,8 @@
-import {
-  BadGatewayException,
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger, } from '@nestjs/common';
 import { Verdict } from '@prisma/client';
 import { once } from 'events';
 import { Socket } from 'net';
-import {
-  ScannerCompletedResult,
-  ScannerEngineResult,
-  StartFileScanInput,
-} from './scanning.types';
+import { ScannerCompletedResult, ScannerEngineResult, StartFileScanInput, } from './scanning.types';
 
 @Injectable()
 export class ClamAvProvider {
