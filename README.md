@@ -32,9 +32,10 @@ Requirements: Docker with the Compose plugin, `git`, `curl`. Node.js is optional
 ```bash
 git clone https://github.com/hollow270/ft_transcendence.git
 cd ft_transcendence
-cp .env.example .env
-docker compose up --build
+make
 ```
+
+Run `make` from the repository root with Make and Docker Compose installed. On the first run it copies `.env.example` to `.env`, then builds and starts the stack in the foreground. Later runs reuse your `.env`. Use `make down` to stop and remove the containers while keeping their data volumes.
 
 Open the application at:
 
