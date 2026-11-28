@@ -1,4 +1,4 @@
-*This project has been created as part of the 42 curriculum by [login 1], [login 2], [login 3], [login 4].*
+*This project has been created as part of the 42 curriculum by kamrene, nfaska, aayache, yhajbi.*
 
 # GO VIRUS / ft_transcendence
 
@@ -86,20 +86,16 @@ How AI was used: an AI coding assistant helped with code review, refactoring, wr
 
 ## Team Information
 
-| Member | 42 login | Role |
+| 42 login | Roles | Technical responsibilities |
 |---|---|---|
-| [name] | [login] | Product Owner, [other roles] |
-| [name] | [login] | Project Manager / Scrum Master |
-| [name] | [login] | Technical Lead, Developer |
-| [name] | [login] | Developer |
-
-Git author names found in the repository history: Khalil Amrene, Youssef HAJBI, hollow270, nizarfreeman.
+| kamrene | Product Owner, Developer | Artifact identity, file and URL scanning, scan history, and the PostgreSQL schema |
+| nfaska | Project Manager, Developer | WAF, HTTPS, Vault, public API keys, and accessibility |
+| aayache | Technical Lead, Developer | AI explanations, live notifications, and user profiles |
+| yhajbi | Technical Lead, Developer | Authentication, community discussions, moderation, and administration |
 
 ## Project Management
 
-- Work organisation: [how tasks were split and followed, for example weekly planning and short syncs].
-- Tools: GitHub for the repository, branches and pull requests; Docker Compose for the shared environment; `scripts/smoke-test.sh` as the shared definition of done.
-- Communication: [channel used by the team].
+The team divided development by the areas above. Shared interfaces include the artifact report, which brings together scan results, comments and AI explanations, and the notification service, which receives events from several modules. The team used GitHub branches and pull requests to integrate changes. Docker Compose provides a common development environment, and `scripts/smoke-test.sh` checks the integrated application.
 
 ## Technical Stack
 
@@ -145,20 +141,20 @@ llm_usage_logs (anonymous), audit_logs
 
 ## Features List
 
-| Feature | What it does | Main files |
-|---|---|---|
-| Scan a file | upload with real progress, preview and validation, ClamAV and VirusTotal, deduplicated by SHA-256 | `frontend/src/scanner.tsx`, `backend/src/artifacts` |
-| Scan a URL | normalised URL submission and report | `frontend/src/pages/UrlPage.tsx` |
-| History | own submissions, filters, delete a submission | `frontend/src/pages/HistoryPage.tsx` |
-| Search | public artifacts by hash, name or domain with filters | `frontend/src/pages/SearchPage.tsx` |
-| Community | comments, replies, votes, reports | `backend/src/community` |
-| Moderation | report queue, hide or delete comments, ban | `backend/src/moderation` |
-| AI assistant | scan explanation and cybersecurity questions over SSE | `backend/src/ai` |
-| Notifications | stored and pushed live over Socket.IO | `backend/src/notifications` |
-| Public API | `/api/v1` with API keys, see `docs/PUBLIC_API.md` | `backend/src/api-keys` |
-| Account | profile, password, sessions, 2FA, deletion | `backend/src/account`, `backend/src/auth` |
-| Administration | analytics dashboard, verdict distribution, user management | `frontend/src/pages/AdminPage.tsx` |
-| Legal pages | privacy policy and terms of service | `frontend/src/pages/LegalPages.tsx` |
+| Feature | What it does | Main files | Responsible |
+|---|---|---| --- |
+| Scan a file | upload with real progress, preview and validation, ClamAV and VirusTotal, deduplicated by SHA-256 | `frontend/src/scanner.tsx`, `backend/src/artifacts` | kamrene |
+| Scan a URL | normalised URL submission and report | `frontend/src/pages/UrlPage.tsx` | kamrene |
+| History | own submissions, filters, delete a submission | `frontend/src/pages/HistoryPage.tsx` | kamrene |
+| Search | public artifacts by hash, name or domain with filters | `frontend/src/pages/SearchPage.tsx` | kamrene |
+| Community | comments, replies, votes, reports | `backend/src/community` | yhajbi |
+| Moderation | report queue, hide or delete comments, ban | `backend/src/moderation` | yhajbi |
+| AI assistant | scan explanation and cybersecurity questions over SSE | `backend/src/ai` | aayache |
+| Notifications | stored and pushed live over Socket.IO | `backend/src/notifications` | aayache |
+| Public API | `/api/v1` with API keys, see `docs/PUBLIC_API.md` | `backend/src/api-keys` | nfaska |
+| Account | profile, password, sessions, 2FA, deletion | `backend/src/account`, `backend/src/auth` | aayache (profile), yhajbi (authentication and sessions) |
+| Administration | analytics dashboard, verdict distribution, user management | `frontend/src/pages/AdminPage.tsx` | yhajbi |
+| Legal pages | privacy policy and terms of service | `frontend/src/pages/LegalPages.tsx` | nfaska |
 
 Account and admin routes:
 
@@ -181,31 +177,31 @@ Account and admin routes:
 
 Twelve modules, 19 points (14 required).
 
-| Module | Type | Points | Where and why |
-|---|---|---:|---|
-| Web framework (frontend and backend) | Major | 2 | React + Vite and NestJS |
-| Real-time features with WebSockets | Major | 2 | Socket.IO gateway, live notifications for every account event |
-| Public API | Major | 2 | `/api/v1`, hashed keys, per-key rate limit, 6 endpoints, `docs/PUBLIC_API.md` |
-| LLM interface | Major | 2 | streamed explanations and assistant, rate limited, anonymous usage logs |
-| WAF / ModSecurity and HashiCorp Vault | Major | 2 | OWASP CRS blocking WAF in front of everything, Vault for every secret |
-| Advanced analytics dashboard | Major | 2 | admin dashboard: activity, verdict distribution, platform metrics |
-| Accessibility (WCAG 2.1 AA) | Major | 2 | contrast-checked palette, skip link, landmarks, labels, live regions, page titles, focus management, keyboard support; `scripts/accessibility-audit.mjs` |
-| ORM | Minor | 1 | Prisma with versioned migrations |
-| Notification system | Minor | 1 | stored and live notifications on create, update and delete actions |
-| Advanced search | Minor | 1 | filters, sorting and pagination over public artifacts |
-| File upload and management | Minor | 1 | validation, progress, preview, deduplication, delete own submission |
-| Two-factor authentication | Minor | 1 | TOTP with encrypted secrets and replay protection |
+| Module | Type | Points | Where and why | Responsible |
+|---|---|---:|---| --- |
+| Web framework (frontend and backend) | Major | 2 | React + Vite and NestJS | kamrene, nfaska, aayache, yhajbi |
+| Real-time features with WebSockets | Major | 2 | Socket.IO gateway, live notifications for every account event | aayache (notifications), yhajbi (admin analytics) |
+| Public API | Major | 2 | `/api/v1`, hashed keys, per-key rate limit, 6 endpoints, `docs/PUBLIC_API.md` | nfaska |
+| LLM interface | Major | 2 | streamed explanations and assistant, rate limited, anonymous usage logs | aayache |
+| WAF / ModSecurity and HashiCorp Vault | Major | 2 | OWASP CRS blocking WAF in front of everything, Vault for every secret | nfaska |
+| Advanced analytics dashboard | Major | 2 | admin dashboard: activity, verdict distribution, platform metrics | yhajbi |
+| Accessibility (WCAG 2.1 AA) | Major | 2 | contrast-checked palette, skip link, landmarks, labels, live regions, page titles, focus management, keyboard support; `scripts/accessibility-audit.mjs` | nfaska |
+| ORM | Minor | 1 | Prisma with versioned migrations | kamrene |
+| Notification system | Minor | 1 | stored and live notifications on create, update and delete actions | aayache |
+| Advanced search | Minor | 1 | filters, sorting and pagination over public artifacts | kamrene |
+| File upload and management | Minor | 1 | validation, progress, preview, deduplication, delete own submission | kamrene |
+| Two-factor authentication | Minor | 1 | TOTP with encrypted secrets and replay protection | yhajbi |
 
 Per-module evidence is listed in `docs/FEATURE_AUDIT.md`.
 
 ## Individual Contributions
 
-| Member | Contributions |
+| Developer | Implementation and design challenge |
 |---|---|
-| [name] | [features, files and challenges handled] |
-| [name] | [features, files and challenges handled] |
-| [name] | [features, files and challenges handled] |
-| [name] | [features, files and challenges handled] |
+| kamrene | Connected uploads to the scan providers and designed the artifact, submission and scan tables. Identical file bytes share an artifact by SHA-256. Each upload still has its own submission, and a later rescan has its own results. |
+| nfaska | Configured the HTTPS entry point and Vault, implemented API key management, and added accessibility checks. The public API stores a hash of each key, applies per-key limits and logs requests for usage tracking. |
+| aayache | Connected the AI assistant to scan context and implemented profile and notification features. AI responses stream in chunks through SSE. Notifications are stored with a read timestamp and delivered live through Socket.IO. |
+| yhajbi | Implemented authentication, community interactions, moderation and admin analytics. Changing a comment vote updates the vote and adjusts the comment score by the difference in one database transaction. |
 
 ---
 
